@@ -10,6 +10,7 @@
 | [research/](research/) | 수집 코드·스니펫·벤치마크 | 수시 |
 | [dev_plan.md](dev_plan.md) | 개발 계획서: Phase 0~3 마이크로 태스크, 위협 매핑, 마일스톤 | 스프린트마다 |
 | [architecture.md](architecture.md) | 시스템 아키텍처, 패키지 구조, 키 계층, 스택 | 설계 변경 시 |
+| [chain_guide.md](chain_guide.md) | 블록체인 가이드: 우리가 쓰는 체인(Base), 작동 원리, 올라가는 데이터, 4단계 테스트 방법(`tools/chain-demo.sh`) | 체인 설계 변경 시 |
 | [threat_model.md](threat_model.md) | 자산·공격자·위협 T01~T20·완화·잔여 위험 | 기능 추가 시 |
 | [specs/container_format.md](specs/container_format.md) | `.zbacs` 컨테이너 포맷 v1 | 포맷 변경 시 |
 | [specs/approval_protocol.md](specs/approval_protocol.md) | AccessRequest / AccessGrant(EIP-712) / GrantMsg / Revoke | 프로토콜 변경 시 |

@@ -7,3 +7,6 @@
 | `audit/` | (예정) Slither + Hugging Face 모델 스마트컨트랙트 감사 파이프라인. 태스크 Z-1.H.6 |
 
 설치 대상: Rust stable + clippy/rustfmt, tauri-cli 2, cargo-audit, cargo-fuzz, Foundry(forge/anvil/cast/chisel), Node 22+(별도), Tauri 시스템 의존성.
+
+## chain-demo.sh
+로컬 Anvil에서 봉인 등록 → EIP-712 승인 → 열람 → 재전송 거부 → 회수까지 실제 트랜잭션으로 실행하고 `cast`로 블록·이벤트·영수증을 보여 준다. `--keep`이면 Anvil을 켜 둔다. 설명: `docs/chain_guide.md`.

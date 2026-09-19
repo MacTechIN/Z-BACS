@@ -14,7 +14,8 @@
 - `docs/project_definition.md` — 범위·요구사항·MVP DoD
 - `docs/architecture.md` — 패키지 구조, 키 계층, 스택
 - `docs/specs/*.md` — 컨테이너 포맷, 승인 프로토콜, 권한 모델 (구현의 단일 진실 원천)
-- `docs/threat_model.md` — 위협 T01~T20. 보안 관련 코드는 해당 T-ID를 테스트 이름에 표기
+- `docs/chain_guide.md` — 블록체인 가이드(Base, 작동 원리, 올라가는 데이터, 테스트 4단계, `tools/chain-demo.sh`)
+- `docs/threat_model.md` — 위협 T01~T22. 보안 관련 코드는 해당 T-ID를 테스트 이름에 표기
 - `docs/dev_plan.md` — 태스크 ID(`Z-<phase>.<track>.<seq>`). 작업은 태스크 ID 단위로 진행
 - `docs/research.md` — 기술 리소스 카탈로그. 새 라이브러리 도입 시 여기와 `docs/adr/`에 기록
 - `docs/dev_guidelines.md` — 보안 코딩·스타일·커밋 규칙

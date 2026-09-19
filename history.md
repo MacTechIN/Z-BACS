@@ -371,3 +371,26 @@ B(자체 체인)는 가장 안 좋은 조합. 체인 운영 부담은 다 지면
 ```
 맞습니다 — 그게 A입니다. "블록체인 기반"이 정체성이고, 그 위에서 얻는 변조 불가 기록이 수단인 구조. 결정을 ADR-0005에 재확인으로 기록했습니다(자체 체인·투명성 로그 대안 기각 사유, 가스는 사용자에게 비노출·페이마스터는 운영비 흡수(Z-1.H.9)·장애 시 자체 예치 폴백(T21) 포함). 커밋·푸시 완료. 설계 변경 없음 — 현재 dev_plan 그대로 진행합니다.
 ```
+
+### #37 [U] 2026-09-19
+```
+우리가 운영할 블록체인은 어떤 것이며 어떤 원리로 작동하는지 그리고 그것을 실제로 테스트 하고 이용하는 방법을 설명하고 테스트 가능하도록 해줘
+```
+
+### #37 [C] 2026-09-19
+```
+문서와 실행 가능한 데모를 만들었습니다. 커밋·푸시 완료.
+
+1. docs/chain_guide.md (블록체인 가이드) — 요지:
+- 우리는 체인을 만들거나 운영하지 않는다. 공개 L2 Base 위에 컨트랙트 3개(FileRegistry, AccessPolicy, AuditLog)를 올려 "누가 어떤 파일을 누구에게 어떤 권한으로 승인·회수했는지"를 아무도 못 고치는 장부에 기록한다.
+- 환경 3개, 코드 동일: Anvil(내 PC 시뮬레이터, 개발·데모) / Base Sepolia(테스트넷, 무료) / Base 메인넷(운영).
+- 원리: 계정=개인키, 트랜잭션=서명된 함수 호출, 블록=2초마다 묶음(이전 해시 포함 → 과거 변경 불가), 컨트랙트=배포 후 우리도 우회 못 하는 규칙, 이벤트=감사 로그, 읽기 무료/쓰기 가스. L2 롤업: 시퀀서 블록 → 이더리움 L1에 데이터 기록 → 누구나 재실행 검증 → 시퀀서도 우리도 못 고침. 가스·페이마스터: 승인 1건 418k gas ≈ 수 센트, 우리가 대납(Z-1.H.9), 장애 시 자체 예치 폴백(T21).
+- 패스키→체인 흐름: Windows Hello → EIP-712 서명 → Kernel 스마트계정 UserOp → 번들러 → EntryPoint(P-256 프리컴파일 검증) → AccessPolicy.grant → Granted 이벤트 → Bob은 isValid 읽기만(무료).
+- 올라가는 것(솔트 해시·권한·만료·nonce·revoke) / 절대 안 올라가는 것(파일·이름·DEK·개인정보·기기키 원문).
+- 테스트 4단계: (1) forge test 18개 (2) tools/chain-demo.sh 로컬 시나리오 (3) Base Sepolia 포크 테스트 + 실제 제출(basescan 링크·읽는 법) (4) Phase 1 E2E. cast 치트시트, 운영에서 관리하는 것/안 하는 것, FAQ.
+
+2. tools/chain-demo.sh + contracts/script/Demo.s.sol — 실행 결과:
+Anvil 자동 시작 → 배포 2건 → Alice 파일 등록 → Alice EIP-712 서명 "읽기전용·1시간·2회" → grant (isValid true) → Bob consumeOpen (opens 1) → 같은 서명 재제출 거부(T03) → Alice revoke (isValid false). 블록 6개(트랜잭션당 1개), 이벤트 Granted/Opened/Revoked를 ABI로 디코딩해 표시, 마지막 트랜잭션 영수증(status true, gasUsed 32,888). --keep이면 Anvil을 켜 두고 cast로 직접 조회 가능.
+
+3. 문서 인덱스(docs/README.md), tools/README.md, CLAUDE.md 참조 목록에 추가. forge fmt·forge test 18개 통과 확인.
+```
