@@ -14,6 +14,7 @@
 - `docs/project_definition.md` — 범위·요구사항·MVP DoD
 - `docs/architecture.md` — 패키지 구조, 키 계층, 스택
 - `docs/specs/*.md` — 컨테이너 포맷, 승인 프로토콜, 권한 모델 (구현의 단일 진실 원천)
+- `docs/credentials.md` — 외부 키·자격 증명 발급 가이드(키 값은 저장소·대화에 올리지 않는다)
 - `docs/windows_checklist.md` — Windows 실기 확인 절차(하드웨어 경로 작업 시)
 - `docs/chain_guide.md` — 블록체인 가이드(Base, 작동 원리, 올라가는 데이터, 테스트 4단계, `tools/chain-demo.sh`)
 - `docs/threat_model.md` — 위협 T01~T23. 보안 관련 코드는 해당 T-ID를 테스트 이름에 표기

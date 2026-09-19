@@ -246,11 +246,12 @@
 | OR-1 ◐ | BSA 샌드박스 Client Key 신청 및 Web SDK 실제 API 확인 — 절차·받아올 규격 정리 완료, **사용자 신청 대기**([research/bsa_sdk_notes.md](research/bsa_sdk_notes.md)) | Phase 0 |
 | OR-2 ✅ | Base 메인넷/세폴리아 RIP-7212 프리컴파일 활성 여부 실측 — 2026-09-19 활성 확인, 3,885 gas. [research/aa_passkey_spike.md](research/aa_passkey_spike.md) | Phase 0 |
 | OR-3 | `keyroost-winwebauthn` vs `windows-rs` 직접 호출 안정성 비교 | Phase 0 |
-| OR-4 | Windows SmartScreen/Defender 오탐 최소화를 위한 EV 코드서명 비용·절차 | Phase 1 |
+| OR-4 ◐ | Windows SmartScreen/Defender 오탐 최소화를 위한 EV 코드서명 비용·절차 — 절차·비용·2023년 이후 하드웨어 키 요구사항 정리([credentials.md](credentials.md) §4.1), **발급기관 문의는 사용자 진행** | Phase 1 |
 | OR-5 | umbral-pre GPL 격리 아키텍처 vs Lit v8 비용 비교 | Phase 3 |
 | OR-6 | WEDF TACo 재출범 일정 추적 | Phase 3 |
 | OR-7 | Semaphore v4 온체인 검증 가스 비용(Base) | Phase 3 |
 | OR-8 | Dokan vs WinFsp 가상 드라이브로 평문 디스크 기록 제거 가능성 | Phase 2 |
+| OR-9 | BSA 운영 키 발급 조건(계약 형태·과금·로테이션·**시크릿을 클라이언트에 둬야 하는지**) 확인 | Phase 1 |
 
 ---
 
