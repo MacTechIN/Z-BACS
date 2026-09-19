@@ -1,0 +1,30 @@
+[package]
+name = "zbacs-auth"
+description = "Z-BACS owner approval signers: AuthProvider trait, WebAuthn/P-256 assertions, confirmation policy (ADR-0003, ADR-0006)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# Software P-256 signers that stand in for Windows Hello / TPM keys in tests and demos.
+software-signer = []
+
+[dependencies]
+zbacs-core = { path = "../zbacs-core" }
+thiserror.workspace = true
+serde.workspace = true
+serde_bytes.workspace = true
+ciborium.workspace = true
+rand.workspace = true
+sha2.workspace = true
+sha3.workspace = true
+p256.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+zeroize.workspace = true
+hex.workspace = true
+
+[dev-dependencies]
+zbacs-auth = { path = ".", features = ["software-signer"] }

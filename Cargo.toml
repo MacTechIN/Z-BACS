@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/zbacs-core", "crates/zbacs-cli"]
+members = ["crates/zbacs-core", "crates/zbacs-cli", "crates/zbacs-auth"]
 exclude = ["spikes/*"]
 
 [workspace.package]
@@ -26,6 +26,10 @@ hpke-rs-rust-crypto = "0.7"
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive"] }
 hex = "0.4"
+p256 = { version = "0.13", features = ["ecdsa"] }
+sha3 = "0.10"
+serde_json = "1"
+base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
 
 [profile.release]

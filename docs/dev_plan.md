@@ -63,7 +63,7 @@
 ### 1.2 Auth (A)
 | ID | 태스크 | DoD |
 |---|---|---|
-| Z-1.A.1 | `AuthProvider` 트레이트 + `ApprovalChallenge/Assertion` 타입 | 문서화 |
+| Z-1.A.1 ✅ | `AuthProvider` 트레이트 + `ApprovalChallenge/Assertion` 타입 | 문서화 (2026-09-19: `crates/zbacs-auth` — 두 서명 경로 타입, `ConfirmationPolicy`(T23), `verify_assertion`(low-s·UP/UV·challenge), `DeviceEnroll/Revoke` 다이제스트, 소프트웨어 서명기, 12 tests incl. JS 스파이크 교차 벡터) |
 | Z-1.A.2 | `PasskeyProvider(Windows)` 구현 — 승인 서명 경로 A(플랫폼 패스키, ADR-0006) | 등록·승인 E2E |
 | Z-1.A.7 | `DeviceKeyProvider` — 승인 서명 경로 B: TPM(Windows CNG Platform Crypto Provider)/Android Keystore/Secure Enclave에 내보내기 불가 P-256 키 생성, raw 서명, 기기별 OS 확인 옵션 (ADR-0006) | Windows TPM 키 생성·서명, 내보내기 불가 확인, 재부팅 후 사용, T23 정책 테스트 |
 | Z-1.A.3 | 기기 키(X25519/Ed25519) 생성 + DPAPI/keyring 보관 | 재부팅 후 복원 |

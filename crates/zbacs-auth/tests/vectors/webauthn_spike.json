@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-09-19T04:51:13.045Z",
+  "plain": {
+    "hash": "0x6e5af30dfd8226e95d4d34496ee770e9386730bd7c684819a4bb7a7419c3841b",
+    "r": "0xca3fd8549bc0e5bde039a2ca705dcb66ea1f41b7e34f48527f257b54006bb637",
+    "s": "0x15f4461dc5a960c3be51091e57f7877ad9cfaff95fe6a81d109adf2ca3b2b650",
+    "x": "0xc2251d420f1dec3461259193f0791d40d3f27c10d54c42816a3bf4fc6349f742",
+    "y": "0x3a3df17f410c54930c0b46312f2645e4eecf1e64610ebc013c4ac54f2d350147"
+  },
+  "webauthn": {
+    "challenge": "0x9d3db94738204bf575d4dedcd3310327a590bed0132ed7d40c4c75af3152fa64",
+    "authenticatorData": "0x8135d1ed46645aa03f1e68beadaec66e88baaed77516878f3d2b2a183514e87b1d00000001",
+    "clientDataJSON": "{\"type\":\"webauthn.get\",\"challenge\":\"nT25RzggS_V11N7c0zEDJ6WQvtATLtfUDEx1rzFS-mQ\",\"origin\":\"https://zbacs.local\",\"crossOrigin\":false}",
+    "challengeIndex": 23,
+    "typeIndex": 1,
+    "digest": "0xcc7183adbf7e8dc841ced3370f5cc99923935ef0889954dbf698425fb7a18efd",
+    "r": "0x0fdd910da32d06c81b6396e5e89eb38d99916859996808f39783354df09709e3",
+    "s": "0x74a68f9b50c75b60c3a7c99a27727d4bbfaeffa9c84ab22ac5412523ee5509cb",
+    "x": "0x9315c1ff69d9777292862c3d176da4ac0ddff881af06362d4f08bb3f84832b82",
+    "y": "0xa3481d99a3028c2707e4d1e40e8594e57e8789cbc3a15c545ec247e17f38008f"
+  }
+}

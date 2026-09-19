@@ -55,7 +55,7 @@
 Z-BACS/
 ├── crates/
 │   ├── zbacs-core/      # 컨테이너 포맷, AEAD 스트림, HPKE 봉투, 정책/티켓 구조체, 서명
-│   ├── zbacs-auth/      # AuthProvider 트레이트 + Passkey(Win/mac/Linux) + BSA + OTAK 어댑터
+│   ├── zbacs-auth/      # AuthProvider 트레이트 + Passkey(Win/mac/Linux) + DeviceKey(TPM/Keystore/SE) + BSA + OTAK
 │   ├── zbacs-chain/     # alloy 기반 컨트랙트 바인딩, EIP-712 타입, 이벤트 스트림
 │   ├── zbacs-session/   # 열람 세션 상태머신, 보호 작업공간, 감시자, 재봉인
 │   ├── zbacs-relay-client/ # Relay 프로토콜 클라이언트
@@ -86,21 +86,21 @@ pub trait Sealer { fn seal(&self, plain: impl Read, out: impl Write, policy: &Po
 pub trait Opener { fn open(&self, container: impl Read, grant: &AccessGrant, dek: Dek, out: impl Write) -> Result<()>; }
 ```
 
-### 3.2 zbacs-auth 트레이트
-
+### 3.2 zbacs-auth 트레이트 (Z-1.A.1 구현, ADR-0006)
 ```rust
-#[async_trait]
-pub trait AuthProvider {
-    async fn register_device(&self, user: &UserHint) -> Result<DeviceCredential>;
-    /// challenge 에 대한 사용자 현전(생체) 서명. 반환값은 체인/Relay가 검증 가능한 assertion.
-    async fn approve(&self, challenge: &ApprovalChallenge) -> Result<ApprovalAssertion>;
-    fn kind(&self) -> AuthKind; // Passkey | Bsa | Otak
+pub trait AuthProvider: Send + Sync {
+    fn kind(&self) -> SignerKind;                 // PlatformPasskey | DeviceKey | Bsa | Otak
+    fn key_id(&self) -> KeyId;                    // keccak256(x‖y)
+    fn public_key(&self) -> Option<P256PublicKey>;
+    fn supports_os_confirmation(&self) -> bool;   // 생체/PIN 프롬프트를 앞에 둘 수 있는가
+    fn sign(&self, c: &ApprovalChallenge, confirm: Confirmation) -> Result<ApprovalAssertion, AuthError>;
 }
+// ApprovalChallenge { digest: [u8;32] /* EIP-712 or userOpHash */, context: { permission, file_id } }
+// ApprovalAssertion = WebAuthn{authenticator_data, client_data_json, r, s} | P256Raw{key_id, r, s} | Bsa{token} | Otak{key_id, mac}
+// ConfirmationPolicy::required(ctx, device_setting, recent_ts, now) → NotRequired | OsUserVerification  (T23)
+// verify_assertion(key, challenge, assertion): low-s 강제, UP/UV 플래그, clientData challenge 일치 검사
 ```
-
-- `PasskeyProvider`: Windows `webauthn.dll` / macOS Secure Enclave / Linux libfido2.
-- `BsaProvider`: BSA Web/Mobile SDK 래핑. 결과 콜백을 `ApprovalAssertion`으로 변환.
-- `OtakProvider`: X.1284 스타일 자체 구현(폴백).
+구현체: `PasskeyProvider`(Z-1.A.2), `DeviceKeyProvider`(Z-1.A.7), `BsaProvider`(Z-1.A.5), `OtakProvider`(Z-1.A.6). 테스트·데모용 `software::{SoftwareDeviceKey, SoftwarePasskey}`(feature `software-signer`).
 
 ### 3.3 zbacs-session 상태머신
 

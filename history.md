@@ -442,3 +442,26 @@ Windows 실기 조건: Windows 10 1903+ 또는 11, TPM 2.0, 지문 리더/IR 카
 
 다음 제안: Phase 1 시작 — Z-1.A.1 AuthProvider 트레이트(+DeviceKeyProvider 인터페이스)와 Z-1.C.1 core 정식화. 지정해 주시면 시작합니다.
 ```
+
+### #40 [U] 2026-09-19
+```
+다음 진행
+```
+
+### #40 [C] 2026-09-19
+```
+Phase 1 첫 태스크 Z-1.A.1 완료 — crates/zbacs-auth 신규. 커밋·푸시 완료.
+
+내용
+- AuthProvider 트레이트: kind / key_id(keccak256(x‖y)) / public_key / supports_os_confirmation / sign(challenge, confirmation). 구현체 자리: PasskeyProvider(Z-1.A.2), DeviceKeyProvider(Z-1.A.7), BsaProvider, OtakProvider.
+- 타입(spec §1.5 그대로): ApprovalChallenge{digest, context{permission, file_id}}, ApprovalAssertion = WebAuthn | P256Raw | Bsa | Otak, Confirmation = NotRequired | OsUserVerification, DeviceEnroll/DeviceRevoke + 도메인 분리 keccak 다이제스트.
+- ConfirmationPolicy(T23): Edit 승인 또는 10분 내 5건 이상이면 기기 설정과 무관하게 OS 확인 요구. 기기 설정보다 약해지지 않음.
+- verify_assertion: P-256 검증(RustCrypto p256), low-s 강제(HighS), WebAuthn UP/UV 플래그, clientData challenge 일치, BE/BS(동기화 패스키) 플래그 파싱(T22).
+- 소프트웨어 서명기(feature software-signer, 테스트·데모 전용): SoftwareDeviceKey, SoftwarePasskey — Windows Hello/TPM 자리에 끼우는 대역.
+- 테스트 12개: 두 경로 왕복, t14 변조·타키·UV 제거·challenge 불일치 거부, t03/t14 high-s 거부, t22 동기화 플래그, t23 정책 2종, 등록/해지 다이제스트, JS 스파이크가 만든 WebAuthn assertion을 Rust가 검증하는 교차 구현 벡터.
+- CI 게이트 통과: cargo fmt, clippy -D warnings, cargo test --workspace (auth 12 + core 9 + cli 1).
+
+문서: architecture §3.2 트레이트 갱신, research.md(p256/sha3), dev_plan Z-1.A.1 ✅, CLAUDE.md.
+
+다음: Z-1.C.1(core 정식화) 또는 Z-1.H.10(P256Validator 컨트랙트 — 경로 B를 체인에서 받는 부분). 지정 없으면 Z-1.C.1로 갑니다.
+```

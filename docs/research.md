@@ -76,6 +76,7 @@
 | str4d/rage (`age` crate) | Rust | 스트림 암호화·수신자 플러그인 포맷 참조 | MIT/Apache | https://github.com/str4d/rage |
 | libsodium / sodiumoxide | C/Rust | sealed box, secretstream 대안 | ISC | https://github.com/jedisct1/libsodium |
 | zeroize, secrecy | Rust | 메모리 내 키 자료 제로화 | MIT/Apache | https://github.com/RustCrypto/utils |
+| RustCrypto p256 (ecdsa), sha3 (Keccak-256) | Rust | 소유자 승인 서명 P-256 검증·low-s 정규화, keyId 해시 (`zbacs-auth`, Z-1.A.1) | MIT/Apache | https://github.com/RustCrypto/elliptic-curves, https://github.com/RustCrypto/hashes |
 | hide-protocol/hide | Rust | X25519+ML-KEM-768 하이브리드 PQC 파일 암호화 실험(미감사) | 확인 필요 | https://github.com/hide-protocol/hide |
 
 **설계 결정(초안, ADR-0002 참조)**
