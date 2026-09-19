@@ -28,7 +28,8 @@
 6. 벤더(BSA, Lit, 체인, 푸시)는 항상 트레이트/인터페이스 뒤에 둔다.
 7. 문서는 한국어, 코드 식별자·주석은 영어.
 8. **UI는 디자인 가이드에서 생성한다.** 기본 골격은 `docs/design/ui_guideline.md`(D-GO Vault 키트 = 기본 테마, Foundations 올리브 = 대체 테마), 값은 `packages/design-tokens/tokens.css` 변수만 사용한다. Figma URL이 연결되면 `docs/reference/figma.md`의 파일을 Figma MCP로 열어 토큰·컴포넌트·프레임을 가져오고 그대로 구현한다. 가이드에 없는 화면은 Figma에 먼저 추가한 뒤 구현한다. 코드에서 임의의 색·간격·컴포넌트를 만들지 않는다.
-9. 사용자 대면 기능을 만들 때는 `docs/ux_principles.md` §6 체크리스트를 먼저 적용한다. 새로 "알아야 할 것"이 생기면 설계를 다시 한다.
+9. **대화 기록 [원칙]**: 사용자와의 대화는 `history.md`에 원본 그대로 시계열로 기록한다. 모든 작업을 마무리할 때(최종 응답 직전) 그 작업의 사용자 메시지 원문과 Claude 최종 응답 원문을 `history.md` 끝에 추가한다. 도구 호출·중간 출력은 기록하지 않는다.
+10. 사용자 대면 기능을 만들 때는 `docs/ux_principles.md` §6 체크리스트를 먼저 적용한다. 새로 "알아야 할 것"이 생기면 설계를 다시 한다.
 
 ## 스택 (ADR 참조)
 Rust(stable) + Tauri 2 / RustCrypto + hpke-rs / Foundry + OpenZeppelin v5 / viem + permissionless.js / axum Relay / Base L2(Anvil 로컬)
