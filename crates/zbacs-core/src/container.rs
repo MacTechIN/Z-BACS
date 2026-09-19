@@ -29,7 +29,11 @@ const NAME_INDEX: u64 = u64::MAX;
 const MAX_CHUNK: u32 = 16 * 1024 * 1024;
 /// Spec §2.2 field limits enforced before any key is used.
 const MAX_OWNER_LEN: usize = 64;
-const MAX_NAME_CT_LEN: usize = 1024 + TAG_LEN;
+/// Padded file-name plaintext is a multiple of this, hiding the name's length (T13).
+const NAME_PAD_BLOCK: usize = 64;
+const MAX_NAME_LEN: usize = 1024;
+/// 2-byte length prefix + name, rounded up to a whole number of pad blocks, + AEAD tag.
+const MAX_NAME_CT_LEN: usize = 1088 + TAG_LEN;
 const MAX_ENVELOPES: usize = 32;
 const MAX_ENVELOPE_FIELD_LEN: usize = 1024;
 
@@ -102,6 +106,38 @@ fn chunk_aad(header_hash: &HeaderHash, index: u64, is_last: bool) -> [u8; 41] {
     a
 }
 
+/// `u16 LE length || name || zero padding` rounded up to [`NAME_PAD_BLOCK`] (spec §2.2).
+fn pad_name(name: &str) -> Result<Vec<u8>> {
+    let bytes = name.as_bytes();
+    if bytes.len() > MAX_NAME_LEN {
+        return Err(Error::HeaderEncode("file name too long".into()));
+    }
+    let padded = (2 + bytes.len()).div_ceil(NAME_PAD_BLOCK) * NAME_PAD_BLOCK;
+    let mut out = vec![0u8; padded.max(NAME_PAD_BLOCK)];
+    out[..2].copy_from_slice(&(bytes.len() as u16).to_le_bytes());
+    out[2..2 + bytes.len()].copy_from_slice(bytes);
+    Ok(out)
+}
+
+/// Inverse of [`pad_name`]. Rejects a wrong length, a non-block size, or non-zero padding —
+/// padding bytes are a covert channel otherwise.
+fn unpad_name(buf: &[u8]) -> Result<String> {
+    if buf.len() < NAME_PAD_BLOCK
+        || !buf.len().is_multiple_of(NAME_PAD_BLOCK)
+        || buf.len() > MAX_NAME_CT_LEN - TAG_LEN
+    {
+        return Err(Error::NameAuth);
+    }
+    let len = u16::from_le_bytes([buf[0], buf[1]]) as usize;
+    if len > MAX_NAME_LEN || 2 + len > buf.len() {
+        return Err(Error::NameAuth);
+    }
+    if buf[2 + len..].iter().any(|&b| b != 0) {
+        return Err(Error::NameAuth);
+    }
+    String::from_utf8(buf[2..2 + len].to_vec()).map_err(|_| Error::NameAuth)
+}
+
 fn chunk_count(plen: u64, chunk: u64) -> u64 {
     if plen == 0 {
         1
@@ -155,7 +191,7 @@ pub fn seal<R: Read + Seek, W: Write>(
 
     let aead = XChaCha20Poly1305::new(dek.as_bytes().into());
     let name_ct = aead
-        .encrypt(&nonce(&np, NAME_INDEX), Payload { msg: opts.file_name.as_bytes(), aad: b"name" })
+        .encrypt(&nonce(&np, NAME_INDEX), Payload { msg: &pad_name(opts.file_name)?, aad: b"name" })
         .map_err(|_| Error::EnvelopeSeal)?;
 
     // envelopes: owner self-envelope first, AAD = fid
@@ -298,8 +334,8 @@ fn validate_header(hdr: &Header) -> Result<()> {
     if b.own.is_empty() || b.own.len() > MAX_OWNER_LEN {
         return reject("owner account length");
     }
-    if b.name.len() > MAX_NAME_CT_LEN {
-        return reject("file name too long");
+    if b.name.len() > MAX_NAME_CT_LEN || b.name.len() < NAME_PAD_BLOCK + TAG_LEN {
+        return reject("file name field length");
     }
     if b.env.is_empty() || b.env.len() > MAX_ENVELOPES {
         return reject("envelope count");
@@ -441,17 +477,52 @@ pub fn verify_version_chain(chain: &[(Header, HeaderHash)]) -> Result<()> {
 /// Decrypt the file name stored in a header, given its DEK.
 pub fn decrypt_name(header: &Header, dek: &Dek) -> Result<String> {
     let aead = XChaCha20Poly1305::new(dek.as_bytes().into());
-    let name = aead
+    let padded = aead
         .decrypt(
             &nonce(header.body.np.as_bytes(), NAME_INDEX),
             Payload { msg: &header.body.name, aad: b"name" },
         )
         .map_err(|_| Error::NameAuth)?;
-    String::from_utf8(name).map_err(|_| Error::NameAuth)
+    unpad_name(&padded)
 }
 
 /// Inspect a container without keys: verified header + its hash (file name stays encrypted).
 pub fn inspect<R: Read>(input: R) -> Result<(Header, HeaderHash)> {
     let (h, hh, _) = read_header(input)?;
     Ok((h, hh))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn name_padding_hides_length_and_roundtrips() {
+        for name in ["a", "report.docx", &"x".repeat(61), &"x".repeat(62), &"x".repeat(1024)] {
+            let padded = pad_name(name).unwrap();
+            assert!(padded.len().is_multiple_of(NAME_PAD_BLOCK));
+            assert_eq!(unpad_name(&padded).unwrap(), name);
+        }
+        // short names are indistinguishable by ciphertext length
+        assert_eq!(pad_name("a").unwrap().len(), pad_name(&"x".repeat(61)).unwrap().len());
+        assert!(pad_name(&"x".repeat(1025)).is_err());
+    }
+
+    #[test]
+    fn unpad_rejects_malformed_padding() {
+        let mut padded = pad_name("doc.txt").unwrap();
+        padded[63] = 1; // non-zero padding is a covert channel
+        assert!(matches!(unpad_name(&padded), Err(Error::NameAuth)));
+
+        let mut padded = pad_name("doc.txt").unwrap();
+        padded[0] = 0xff; // length beyond the buffer
+        assert!(matches!(unpad_name(&padded), Err(Error::NameAuth)));
+
+        assert!(matches!(unpad_name(&[0u8; 10]), Err(Error::NameAuth)));
+        assert!(matches!(unpad_name(&[0u8; 65]), Err(Error::NameAuth)));
+
+        let mut padded = pad_name("x").unwrap();
+        padded[2] = 0xff; // invalid UTF-8
+        assert!(matches!(unpad_name(&padded), Err(Error::NameAuth)));
+    }
 }

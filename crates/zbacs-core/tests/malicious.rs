@@ -238,9 +238,14 @@ fn t18_17_owner_account_length_bounds() {
 }
 
 #[test]
-fn t18_18_file_name_ciphertext_too_long() {
+fn t18_18_file_name_field_length_bounds() {
+    // padded plaintext is a multiple of 64 (spec §2.2), so the ciphertext is 64k + 16 tag
     let f = Fixture::new(b"x", 16);
-    assert!(header_decode(&f.open_err(&f.with_body(|h| h.name = vec![0; 1041]))));
+    assert!(header_decode(&f.open_err(&f.with_body(|h| h.name = vec![0; 1105]))), "too long");
+    assert!(header_decode(&f.open_err(&f.with_body(|h| h.name = vec![0; 16]))), "too short");
+    // right length but garbage: fails authentication, never reaches the chunks
+    let e = f.open_err(&f.with_body(|h| h.name = vec![0; 80]));
+    assert!(matches!(e, Error::NameAuth), "{e:?}");
 }
 
 #[test]

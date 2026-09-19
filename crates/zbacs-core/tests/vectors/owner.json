@@ -1,0 +1,7 @@
+{
+  "comment": "throwaway key for frozen container vectors (Z-1.C.5). Never used elsewhere.",
+  "ed25519_pk": "7ac2f12c1b3220fbb6ce75cac2549b51fdc5f9374dd59a77f68895b947232b20",
+  "ed25519_sk": "abfc40d7619d0a1e96b0842c314f7f14d04f789be94d59df2ae3303e8f0d3c4e",
+  "x25519_pk": "50c4f63ba916e64238ea4483bd60acb161a80594e8603d4eae7985877384a019",
+  "x25519_sk": "38e9fe46830ebf54d5e804c7dafe3cbd47f57fe4d6cab0fd15fe40135ee3d0e8"
+}

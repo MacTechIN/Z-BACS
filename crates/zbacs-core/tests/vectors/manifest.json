@@ -1,0 +1,32 @@
+{
+  "file_id": "0fc28f6c36bab4fd92537dc7d6c5edfff02ed44cd3f23e7c631ab0dfdba7041a",
+  "file_name": "분기보고서.docx",
+  "generated_by": "cargo test -p zbacs-core --test vectors -- --ignored regenerate",
+  "owner_account": "eip155:84532:0xA11CE",
+  "owner_kid": "fa0d1f86634bdd2a713286c6f982bda4",
+  "salt": "1b792a101d7827a4d1b00e2f915d168f",
+  "spec": "docs/specs/container_format.md v1.2",
+  "versions": [
+    {
+      "chunk": 16,
+      "file": "v1.zbacs",
+      "header_hash": "3ad0243d20cef4779c49ba9b724cebba59a86fd329d54c53d3312c3c74cef4be",
+      "plaintext_sha256": "68bcc3d6700609aea8bbd49969a1dc1ab54d2da972cde83e3baab679c1cd9476",
+      "plen": 40,
+      "policy": "ReadOnly ttl=3600 max=1 pin strict=false",
+      "policy_hash": "0ab665122074b06bb6590d967f2131962f57d176084e06d3f61ac75647669699",
+      "version": 1
+    },
+    {
+      "chunk": 16,
+      "file": "v2.zbacs",
+      "header_hash": "03f0c0b26adb2670351199ead25fe2976b65399d153ea4c1d152ae5e9b74153a",
+      "plaintext_sha256": "5d817d96d071f4bf7dfbc5a42898691cfb533f3a2713a4e99c471a1f0259fa59",
+      "plen": 78,
+      "policy": "Edit ttl=600 max=3 pin strict=true",
+      "policy_hash": "dd344b7ca3924f6b95408b25913c2909e1e6b8d9d01fc20c3d78508ef3c818a7",
+      "prev": "3ad0243d20cef4779c49ba9b724cebba59a86fd329d54c53d3312c3c74cef4be",
+      "version": 2
+    }
+  ]
+}

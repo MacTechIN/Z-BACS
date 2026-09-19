@@ -603,3 +603,18 @@ Spec-first(container_format §5 확장): fid와 salt는 버전 간 불변임을 
 
 게이트: clippy -D warnings, rustdoc, test --workspace(core 61 + auth 13 + cli 1), 커버리지 97.3%.
 ```
+
+### #46 [C] 2026-09-19 (3단계: Z-1.C.5)
+```
+Z-1.C.5 완료 — 파일명 암호화 강화, 정책 해시, 고정 테스트 벡터. 커밋·푸시 완료.
+
+Spec v1.2
+- 파일명 평문을 `u16 LE 길이 ‖ 이름 ‖ 0x00 패딩`으로 64바이트 배수까지 채운 뒤 암호화. 컨테이너를 가진 사람이 암호문 길이로 파일명 길이를 추측하던 누출을 막습니다(T13). 이름 ≤ 1024B, name 필드 ≤ 1104B.
+- §2.2a 정책 해시: policy_hash = SHA-256("ZBACS-POL-v1" ‖ CBOR(pol)). 정책만 커버하므로 승인 UI 표시·버전 간 정책 비교용이고, 온체인 앵커는 계속 header_hash입니다.
+
+코드: pad_name/unpad_name(패딩 바이트가 0이 아니면 거부 — 은닉 채널 차단), Policy::policy_hash / Header::policy_hash, PolicyHash 타입, 파서 길이 검사 갱신.
+
+고정 벡터 crates/zbacs-core/tests/vectors/: v1.zbacs(ReadOnly) + v2.zbacs(재봉인, Edit) + owner.json(이 벡터 전용 폐기 키) + manifest.json(fid·salt·header_hash·policy_hash·plen·chunk·평문 SHA-256·prev). 회귀 테스트 2종이 매번 열어보고 매니페스트와 대조하므로 포맷이 바뀌면 바로 깨집니다. 파일명에 한글을 넣어 UTF-8·패딩도 함께 검증합니다. 재생성은 `cargo test -p zbacs-core --test vectors -- --ignored regenerate`.
+
+게이트: clippy -D warnings, rustdoc, test --workspace 11 스위트 전부 ok, 커버리지 97.5%.
+```

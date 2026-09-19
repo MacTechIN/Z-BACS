@@ -36,7 +36,7 @@ pub use error::{Error, Result};
 pub use header::{Header, HeaderBody, Permission, Policy, MAGIC, VERSION_MAJOR, VERSION_MINOR};
 pub use keys::{key_id_of, Dek, DeviceKeys, OwnerKeys, SigningKeys};
 pub use traits::{GrantedDek, Opener, ReadSeek, Sealer};
-pub use types::{FileId, HeaderHash, KeyId, NoncePrefix, Salt};
+pub use types::{FileId, HeaderHash, KeyId, NoncePrefix, PolicyHash, Salt};
 
 /// Default plaintext chunk size (64 KiB) — spec §2.2 `chunk`.
 pub const DEFAULT_CHUNK: usize = 64 * 1024;
@@ -44,5 +44,7 @@ pub const DEFAULT_CHUNK: usize = 64 * 1024;
 pub const MAX_HEADER_LEN: usize = 1024 * 1024;
 /// Domain separation prefix for header signatures (spec §2.2 `sig`).
 pub const HDR_SIG_DOMAIN: &[u8] = b"ZBACS-HDR-v1";
+/// Domain separation prefix for policy hashes (spec §2.2a).
+pub const POL_HASH_DOMAIN: &[u8] = b"ZBACS-POL-v1";
 /// HPKE `info` string for DEK envelopes (spec §3 step 3).
 pub const DEK_INFO: &[u8] = b"zbacs-dek-v1";

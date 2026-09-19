@@ -76,6 +76,12 @@ fixed_bytes!(
 );
 
 fixed_bytes!(
+    /// `SHA-256("ZBACS-POL-v1" || CBOR(policy))` — spec §2.2a.
+    PolicyHash,
+    32
+);
+
+fixed_bytes!(
     /// Random 16-byte salt mixed into `fid`.
     Salt,
     16

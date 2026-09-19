@@ -5,7 +5,7 @@ use crate::envelope::Envelope;
 use crate::error::{Error, Result};
 use crate::keys::SigningKeys;
 use crate::types::{serde_opt_bytes_array, FileId, HeaderHash, NoncePrefix, Salt};
-use crate::{HDR_SIG_DOMAIN, MAX_HEADER_LEN};
+use crate::{HDR_SIG_DOMAIN, MAX_HEADER_LEN, POL_HASH_DOMAIN};
 use ed25519_dalek::{Signature, Signer, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -46,6 +46,20 @@ pub struct Policy {
     pub pin: bool,
     /// `strict_onchain`: the recipient must wait for chain confirmation before opening.
     pub strict: bool,
+}
+
+impl Policy {
+    /// `SHA-256(POL_HASH_DOMAIN || CBOR(self))` — spec §2.2a.
+    ///
+    /// Covers the policy only, so the approval UI can show "this file's permissions" and two
+    /// versions' policies can be compared. The on-chain anchor stays [`Header::header_hash`],
+    /// which covers the whole header (T02).
+    pub fn policy_hash(&self) -> Result<crate::types::PolicyHash> {
+        let mut h = Sha256::new();
+        h.update(POL_HASH_DOMAIN);
+        h.update(cbor(self)?);
+        Ok(crate::types::PolicyHash(h.finalize().into()))
+    }
 }
 
 impl Default for Policy {
@@ -157,6 +171,11 @@ impl Header {
     pub fn header_hash(&self) -> Result<HeaderHash> {
         Ok(HeaderHash(Sha256::digest(self.encode()?).into()))
     }
+
+    /// Convenience for [`Policy::policy_hash`] of this header's policy.
+    pub fn policy_hash(&self) -> Result<crate::types::PolicyHash> {
+        self.body.pol.policy_hash()
+    }
 }
 
 #[cfg(test)]
@@ -207,6 +226,20 @@ mod tests {
         let mut short_sig = hdr;
         short_sig.sig.truncate(10);
         assert!(matches!(short_sig.verify(), Err(Error::HeaderSignature)));
+    }
+
+    #[test]
+    fn policy_hash_is_stable_and_policy_specific() {
+        let a = Policy::default();
+        let b = Policy { ttl: 60, ..Policy::default() };
+        assert_eq!(a.policy_hash().unwrap(), Policy::default().policy_hash().unwrap());
+        assert_ne!(a.policy_hash().unwrap(), b.policy_hash().unwrap());
+        // domain separated: not a bare hash of the CBOR
+        let bare: [u8; 32] = Sha256::digest(cbor(&a).unwrap()).into();
+        assert_ne!(a.policy_hash().unwrap().0, bare);
+        // reachable from a signed header too
+        let hdr = body().sign(&SigningKeys::generate()).unwrap();
+        assert_eq!(hdr.policy_hash().unwrap(), a.policy_hash().unwrap());
     }
 
     #[test]
