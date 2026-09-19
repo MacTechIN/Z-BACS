@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Z-BACS file association spike</title>
+<style>
+  :root { --zb-primary:#007AFF; --zb-secondary:#0F123B; --zb-close:#27AE60; --zb-error:#EB5757; --zb-sub:#AEB9E1; }
+  body { font: 16px/1.5 "Plus Jakarta Sans", Pretendard, system-ui, sans-serif; color: var(--zb-secondary); margin: 24px; background:#fff; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p.hint { color:#6B7280; margin:0 0 16px; }
+  .card { border:1px solid #C9CFEA; border-radius:16px; padding:14px 16px; margin-bottom:12px; }
+  .tag { display:inline-block; border-radius:999px; padding:2px 12px; font-size:14px; font-weight:600; }
+  .ok { background:#E6F7EC; color:var(--zb-close); } .bad { background:#FBE9E9; color:var(--zb-error); }
+  code { font-size: 13px; color:#434343; word-break: break-all; }
+  #empty { color: var(--zb-sub); }
+</style>
+</head>
+<body>
+  <h1>잠긴 파일 열기 (스파이크)</h1>
+  <p class="hint">.zbacs 파일을 더블클릭하거나 이 창에 놓으면 여기에 표시됩니다.</p>
+  <div id="list"><div id="empty">아직 받은 파일이 없어요.</div></div>
+<script>
+  const { invoke } = window.__TAURI__.core;
+  const { listen } = window.__TAURI__.event;
+  const list = document.getElementById('list');
+  function render(f) {
+    document.getElementById('empty')?.remove();
+    const el = document.createElement('div'); el.className = 'card';
+    el.innerHTML = f.ok
+      ? `<span class="tag ok">잠겨 있어요</span> <b>${f.path.split(/[\\/]/).pop()}</b><br>
+         <code>버전 ${f.version} · 크기 ${f.plen} B · 정책 ${f.policy} · 봉투 ${f.envelopes}</code><br><code>fid ${f.fid}</code>`
+      : `<span class="tag bad">열 수 없어요</span> <b>${f.path.split(/[\\/]/).pop()}</b><br><code>${f.error}</code>`;
+    list.prepend(el);
+  }
+  listen('zbacs://opened', e => render(e.payload));
+  invoke('take_pending').then(files => files.forEach(render));
+</script>
+</body>
+</html>

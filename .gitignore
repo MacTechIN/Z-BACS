@@ -32,3 +32,8 @@ Thumbs.db
 
 # inbox for dropped source files (copied into docs/design when adopted)
 .orca/
+spikes/*/src-tauri/target/
+spikes/*/src-tauri/gen/
+spikes/*/icon-src.png
+spikes/*/src-tauri/icons/android/
+spikes/*/src-tauri/icons/ios/

@@ -1,0 +1,26 @@
+[package]
+name = "zbacs-spike-assoc"
+version = "0.0.1"
+edition = "2021"
+description = "Z-0.G.1 spike: .zbacs file association + single instance + RunEvent::Opened"
+license = "Apache-2.0"
+
+# Standalone workspace: keeps the heavy webview build out of the root workspace and CI.
+[workspace]
+
+[lib]
+name = "zbacs_spike_assoc_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-log = "2"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex = "0.4"
+zbacs-core = { path = "../../../crates/zbacs-core" }

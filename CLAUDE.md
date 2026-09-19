@@ -29,16 +29,17 @@
 7. 문서는 한국어, 코드 식별자·주석은 영어.
 8. **UI는 디자인 가이드에서 생성한다.** 기본 골격은 `docs/design/ui_guideline.md`(D-GO Vault 키트 = 기본 테마, Foundations 올리브 = 대체 테마), 값은 `packages/design-tokens/tokens.css` 변수만 사용한다. Figma URL이 연결되면 `docs/reference/figma.md`의 파일을 Figma MCP로 열어 토큰·컴포넌트·프레임을 가져오고 그대로 구현한다. 가이드에 없는 화면은 Figma에 먼저 추가한 뒤 구현한다. 코드에서 임의의 색·간격·컴포넌트를 만들지 않는다.
 9. **대화 기록 [원칙]**: 사용자와의 대화는 `history.md`에 원본 그대로 시계열로 기록한다. 모든 작업을 마무리할 때(최종 응답 직전) 그 작업의 사용자 메시지 원문과 Claude 최종 응답 원문을 `history.md` 끝에 추가한다. 도구 호출·중간 출력은 기록하지 않는다.
-10. 사용자 대면 기능을 만들 때는 `docs/ux_principles.md` §6 체크리스트를 먼저 적용한다. 새로 "알아야 할 것"이 생기면 설계를 다시 한다.
+10. **단계별 커밋 [원칙]**: 태스크·스파이크·문서 갱신 등 작업 단계가 끝날 때마다 묻지 않고 바로 커밋하고 `origin main`에 푸시한다(사용자 지시 2026-09-19). 커밋 메시지는 Conventional Commits + 태스크 ID, `history.md` 갱신을 같은 커밋에 포함한다.
+11. 사용자 대면 기능을 만들 때는 `docs/ux_principles.md` §6 체크리스트를 먼저 적용한다. 새로 "알아야 할 것"이 생기면 설계를 다시 한다.
 
 ## 스택 (ADR 참조)
 Rust(stable) + Tauri 2 / RustCrypto + hpke-rs / Foundry + OpenZeppelin v5 / viem + permissionless.js / axum Relay / Base L2(Anvil 로컬)
 
 ## 현재 단계
-Phase 0 (셋업·스파이크). 완료: Z-0.D.1 스캐폴드, Z-0.D.2 툴체인(`tools/setup.sh --check`), Z-0.D.3 CI(`.github/workflows/ci.yml`), Z-0.C.1/C.2 컨테이너·HPKE 봉투 PoC(`crates/zbacs-core`, CLI `zbacs`; 100MB 왕복 0.35s), Z-0.H.1 EIP-712 승인 티켓 PoC(`contracts/`: FileRegistry, AccessPolicy, 18 tests). 다음: `Z-0.H.2` 패스키 스마트계정 스파이크, `Z-0.G.1` Tauri 파일 연결 스파이크, `Z-0.A.1` Windows Hello(Windows 필요).
+Phase 0 (셋업·스파이크). 완료: Z-0.D.1 스캐폴드, Z-0.D.2 툴체인(`tools/setup.sh --check`), Z-0.D.3 CI(`.github/workflows/ci.yml`), Z-0.C.1/C.2 컨테이너·HPKE 봉투 PoC(`crates/zbacs-core`, CLI `zbacs`; 100MB 왕복 0.35s), Z-0.H.1 EIP-712 승인 티켓 PoC(`contracts/`: FileRegistry, AccessPolicy, 18 tests), Z-0.G.1 Tauri 파일 연결 스파이크(`spikes/tauri-assoc/`, 독립 워크스페이스). 다음: `Z-0.H.2` 패스키 스마트계정 스파이크, `Z-0.A.1` Windows Hello + Z-0.G.1 Windows 실기 확인(Windows 필요). Phase 0 종료 기준 5개 스파이크 중 4개 완료.
 
 ## 디렉터리
-`crates/zbacs-core`(컨테이너·암호) `crates/zbacs-cli`(PoC CLI) `contracts/`(Foundry: FileRegistry, AccessPolicy) `packages/design-tokens/` `tools/`(셋업) `docs/` — 예정: `apps/` `spikes/`
+`crates/zbacs-core`(컨테이너·암호) `crates/zbacs-cli`(PoC CLI) `contracts/`(Foundry: FileRegistry, AccessPolicy) `packages/design-tokens/` `spikes/tauri-assoc/`(Tauri 스파이크, 루트 워크스페이스 제외) `tools/`(셋업) `docs/` — 예정: `apps/`
 
 ## 빌드·테스트
 ```

@@ -90,3 +90,28 @@ CI 결과: 커밋 6a8c2a4의 실행이 전부 통과했습니다. foundry 잡이
 - 포함: history.md 신규, CLAUDE.md 규칙 9번
 - 원격 main이 최신 커밋으로 갱신됐습니다.
 ```
+
+### #22 [U] 2026-09-19
+```
+Z-0.G.1 Tauri 파일 연결 스파이크 진행해줘
+```
+
+### #23 [U] 2026-09-19 (작업 중 추가 메시지)
+```
+계속 바로 진행 내가 결정할 것만 알려줘
+```
+
+### #24 [U] 2026-09-19
+```
+단계별로 커밋 을 모두 해줘
+```
+
+### #22~#24 [C] 2026-09-19 (1단계 커밋: 스파이크 본체)
+```
+Z-0.G.1 Tauri 파일 연결 스파이크를 spikes/tauri-assoc/에 만들었습니다(독립 워크스페이스, 루트 CI 영향 없음).
+- tauri.conf.json fileAssociations(.zbacs, application/x-zbacs), NSIS currentUser 설치.
+- 첫 실행 인자(std::env::args) + tauri-plugin-single-instance 콜백(Windows/Linux) + RunEvent::Opened(macOS)로 경로 수신, zbacs-core inspect로 헤더 요약을 zbacs://opened 이벤트로 웹뷰 전달, take_pending으로 조기 도착 파일 회수.
+- 검증(Ubuntu headless, xvfb + dbus-run-session): 인자 2개 수신·검사·자동 종료, 두 번째 인스턴스 70ms 종료 후 첫 인스턴스가 파일 수신, 단위 테스트 2개 통과.
+- 규칙 추가: CLAUDE.md 10번 "단계별 커밋", 메모리 저장.
+deb 번들 빌드는 진행 중이며 결과는 다음 커밋에 반영합니다.
+```
