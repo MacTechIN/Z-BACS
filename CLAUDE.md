@@ -37,7 +37,7 @@
 Rust(stable) + Tauri 2 / RustCrypto + hpke-rs / Foundry + OpenZeppelin v5 / viem + permissionless.js / axum Relay / Base L2(Anvil 로컬)
 
 ## 현재 단계
-Phase 0 (셋업·스파이크). 완료: Z-0.D.1 스캐폴드, Z-0.D.2 툴체인(`tools/setup.sh --check`), Z-0.D.3 CI(`.github/workflows/ci.yml`), Z-0.C.1/C.2 컨테이너·HPKE 봉투 PoC(`crates/zbacs-core`, CLI `zbacs`; 100MB 왕복 0.35s), Z-0.H.1 EIP-712 승인 티켓 PoC(`contracts/`: FileRegistry, AccessPolicy, 18 tests), Z-0.G.1 Tauri 파일 연결 스파이크(`spikes/tauri-assoc/`, 독립 워크스페이스), Z-0.H.2 패스키 스마트계정 스파이크(`spikes/aa-passkey/`: RIP-7212 활성 실측 3,885 gas, Kernel v3.1+WebAuthn UserOp가 Base Sepolia 포크의 실제 EntryPoint 통과, 10 tests, Pimlico 번들러 실제 제출 2건 성공). Z-0.Q.1 위협 매핑 리뷰(`docs/dev_plan.md` 부록 A: T01~T22 ↔ 태스크 ↔ 테스트 근거, threat_model v1.1). ADR-0006(2026-09-19): 소유자 승인 서명은 플랫폼 패스키(Windows Hello) **또는** 등록 기기 바운드 키(DeviceKey, `P256Validator`) 중 소유자 선택 — Z-0.A.1은 Phase 0 게이트에서 제외되어 **Phase 0 종료**. **Phase 1 진행 중**: Z-1.A.1 ✅ `crates/zbacs-auth`(AuthProvider 트레이트, 두 서명 경로 타입, T23 정책, 검증기, 소프트웨어 서명기, 12 tests). 다음: Z-1.C.1 core 정식화, Z-1.A.7 DeviceKeyProvider(Windows TPM), Z-1.H.10 P256Validator, `Z-0.A.3` BSA Client Key 신청(외부), Z-0.A.1은 Windows 실기 확보 시.
+Phase 0 (셋업·스파이크). 완료: Z-0.D.1 스캐폴드, Z-0.D.2 툴체인(`tools/setup.sh --check`), Z-0.D.3 CI(`.github/workflows/ci.yml`), Z-0.C.1/C.2 컨테이너·HPKE 봉투 PoC(`crates/zbacs-core`, CLI `zbacs`; 100MB 왕복 0.35s), Z-0.H.1 EIP-712 승인 티켓 PoC(`contracts/`: FileRegistry, AccessPolicy, 18 tests), Z-0.G.1 Tauri 파일 연결 스파이크(`spikes/tauri-assoc/`, 독립 워크스페이스), Z-0.H.2 패스키 스마트계정 스파이크(`spikes/aa-passkey/`: RIP-7212 활성 실측 3,885 gas, Kernel v3.1+WebAuthn UserOp가 Base Sepolia 포크의 실제 EntryPoint 통과, 10 tests, Pimlico 번들러 실제 제출 2건 성공). Z-0.Q.1 위협 매핑 리뷰(`docs/dev_plan.md` 부록 A: T01~T22 ↔ 태스크 ↔ 테스트 근거, threat_model v1.1). ADR-0006(2026-09-19): 소유자 승인 서명은 플랫폼 패스키(Windows Hello) **또는** 등록 기기 바운드 키(DeviceKey, `P256Validator`) 중 소유자 선택 — Z-0.A.1은 Phase 0 게이트에서 제외되어 **Phase 0 종료**. **Phase 1 진행 중**: Z-1.A.1 ✅ `crates/zbacs-auth`(AuthProvider 트레이트, 두 서명 경로 타입, T23 정책, 검증기, 소프트웨어 서명기, 13 tests). Z-1.C.1 ✅ core 정식화(고정 길이 타입, `Sealer/Opener/GrantedDek`, missing_docs, 커버리지 게이트 90% CI). 다음: Z-1.C.2 파서 견고화(악성 입력 20종), Z-1.H.10 P256Validator, Z-1.A.7 DeviceKeyProvider(Windows TPM), `Z-0.A.3` BSA Client Key 신청(외부), Z-0.A.1은 Windows 실기 확보 시.
 
 ## 디렉터리
 `crates/zbacs-core`(컨테이너·암호) `crates/zbacs-auth`(승인 서명자 트레이트·검증) `crates/zbacs-cli`(PoC CLI) `contracts/`(Foundry: FileRegistry, AccessPolicy) `packages/design-tokens/` `spikes/tauri-assoc/`(Tauri 스파이크) `spikes/aa-passkey/`(패스키 AA 스파이크, Node+Foundry; 스파이크는 루트 워크스페이스·CI 제외) `tools/`(셋업) `docs/` — 예정: `apps/`
@@ -48,5 +48,7 @@ cargo fmt --all --check && cargo clippy --workspace --all-targets   # RUSTFLAGS=
 cargo test --workspace                     # 디버그 (perf 테스트는 ignore)
 cargo test --workspace --release -- perf_  # 100MB 성능 게이트
 cd contracts && forge fmt --check && forge test  # 컨트랙트 (PATH에 ~/.foundry/bin)
+RUSTDOCFLAGS=-D warnings cargo doc --workspace --no-deps          # 공개 API 문서 게이트
+cargo llvm-cov -p zbacs-core -p zbacs-auth --fail-under-lines 90  # 커버리지 게이트
 ```
 PoC 기록: `docs/research/crypto_container_poc.md`

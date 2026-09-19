@@ -53,7 +53,7 @@
 ### 1.1 Core (C)
 | ID | 태스크 | DoD |
 |---|---|---|
-| Z-1.C.1 | `zbacs-core` 크레이트 정식화: 타입, 에러, `Sealer/Opener` 트레이트 | 문서화된 공개 API, 단위 테스트 90% |
+| Z-1.C.1 ✅ | `zbacs-core` 크레이트 정식화: 타입, 에러, `Sealer/Opener` 트레이트 | 문서화된 공개 API, 단위 테스트 90% (2026-09-19: `FileId/HeaderHash/KeyId/Salt/NoncePrefix` 고정 길이 타입(와이어 호환), 객체 안전 `Sealer/Opener` + `GrantedDek`, 에러 문서화·`non_exhaustive`, `missing_docs` + CI rustdoc -D warnings, `cargo llvm-cov` 90% 게이트 CI) |
 | Z-1.C.2 | 컨테이너 파서 견고화: 길이 상한, 버전 검사, 절단 방지(`is_last`), trailer | 악성 입력 테스트 20종 |
 | Z-1.C.3 | `cargo-fuzz` 타깃(header, chunk) | 24h 퍼징 무크래시 |
 | Z-1.C.4 | 재봉인(Reseal): 새 DEK, 버전 체인, 원자적 교체 | v1→v2→v3 체인 검증 테스트 |

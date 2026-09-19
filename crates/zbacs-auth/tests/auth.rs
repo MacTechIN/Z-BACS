@@ -245,3 +245,56 @@ fn cross_impl_webauthn_vector_from_js_spike_verifies() {
         ApprovalAssertion::WebAuthn { authenticator_data, client_data_json, r: hex32("r"), s: hex32("s") };
     verify_assertion(&key, &challenge, &a).expect("JS-produced assertion must verify in Rust");
 }
+
+// ------------------------------------------------------------------ type plumbing
+
+#[test]
+fn types_debug_display_sec1_and_serde_roundtrip() {
+    let key = P256PublicKey { x: [1; 32], y: [2; 32] };
+    let sec1 = key.to_sec1();
+    assert_eq!(sec1[0], 0x04);
+    assert_eq!(P256PublicKey::from_sec1(&sec1).unwrap(), key);
+    assert!(matches!(P256PublicKey::from_sec1(&sec1[1..]), Err(AuthError::Malformed(_))));
+    let id = key.key_id();
+    assert!(id.to_string().starts_with("0x"));
+    assert_eq!(format!("{id:?}"), format!("KeyId({id})"));
+    assert_eq!(format!("{key:?}"), format!("P256PublicKey({id})"));
+
+    let dev = SoftwareDeviceKey::generate(false);
+    let a = dev.sign(&challenge(Permission::ReadOnly), Confirmation::NotRequired).unwrap();
+    assert!(format!("{a:?}").starts_with("P256Raw(key_id=0x"));
+    let mut cbor = Vec::new();
+    ciborium::into_writer(&a, &mut cbor).unwrap();
+    let back: ApprovalAssertion = ciborium::from_reader(cbor.as_slice()).unwrap();
+    assert_eq!(back, a);
+
+    let pk = SoftwarePasskey::generate("zbacs.local", "https://zbacs.local", false);
+    let w = pk.sign(&challenge(Permission::ReadOnly), Confirmation::OsUserVerification).unwrap();
+    assert!(format!("{w:?}").starts_with("WebAuthn(authenticator_data=37 bytes)"));
+    let mut cbor = Vec::new();
+    ciborium::into_writer(&w, &mut cbor).unwrap();
+    assert_eq!(ciborium::from_reader::<ApprovalAssertion, _>(cbor.as_slice()).unwrap(), w);
+
+    let bsa = ApprovalAssertion::Bsa { token: vec![1, 2, 3] };
+    let otak = ApprovalAssertion::Otak { key_id: id, mac: [0; 32] };
+    assert_eq!(bsa.kind(), SignerKind::Bsa);
+    assert_eq!(otak.kind(), SignerKind::Otak);
+    assert_eq!(format!("{bsa:?}"), "Bsa(token=3 bytes)");
+    assert!(format!("{otak:?}").starts_with("Otak(key_id=0x"));
+    assert!(matches!(verify_assertion(&key, &[0; 32], &bsa), Err(AuthError::Malformed(_))));
+
+    let enroll = DeviceEnroll {
+        account: [1; 20],
+        public_key: key,
+        kind: SignerKind::DeviceKey,
+        require_os_confirm: true,
+        ts: 1,
+    };
+    let mut cbor = Vec::new();
+    ciborium::into_writer(&enroll, &mut cbor).unwrap();
+    assert_eq!(ciborium::from_reader::<DeviceEnroll, _>(cbor.as_slice()).unwrap(), enroll);
+    // wrong-length byte string is rejected by the fixed-array serde helper
+    let mut bad = Vec::new();
+    ciborium::into_writer(&serde_bytes::Bytes::new(&[0; 31]), &mut bad).unwrap();
+    assert!(ciborium::from_reader::<KeyId, _>(bad.as_slice()).is_err());
+}

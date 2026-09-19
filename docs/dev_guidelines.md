@@ -23,6 +23,7 @@
 - 단위 + 통합 + E2E(Windows VM). 암호 관련 코드는 테스트 벡터 필수.
 - 컨트랙트: `forge test`, 퍼즈, Slither, Echidna, HF 감사 리포트.
 - 보안 회귀: `docs/threat_model.md`의 T-ID를 테스트 이름에 표기 (`t09_no_plaintext_residue`).
+- 커버리지: `zbacs-core`, `zbacs-auth`는 라인 커버리지 90% 이상 (`cargo llvm-cov -p zbacs-core -p zbacs-auth --fail-under-lines 90`, CI 게이트). 공개 API는 `#![warn(missing_docs)]` + `RUSTDOCFLAGS=-D warnings cargo doc`.
 
 ## 5. 리서치 반영
 - 새 라이브러리·모델을 발견하면 `docs/research.md` 표에 추가하고 `docs/research/`에 출처·라이선스와 함께 스니펫 저장.

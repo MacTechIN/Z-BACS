@@ -14,6 +14,7 @@ use crate::header::{
     Header, HeaderBody, Policy, CIPHER_XCHACHA20_POLY1305_CHUNKED, MAGIC, VERSION_MAJOR, VERSION_MINOR,
 };
 use crate::keys::{Dek, DeviceKeys, OwnerKeys};
+use crate::types::{FileId, HeaderHash, NoncePrefix, Salt};
 use crate::{DEFAULT_CHUNK, MAX_HEADER_LEN};
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{XChaCha20Poly1305, XNonce};
@@ -27,19 +28,24 @@ const TAG_LEN: usize = 16;
 const NAME_INDEX: u64 = u64::MAX;
 const MAX_CHUNK: u32 = 16 * 1024 * 1024;
 
+/// Parameters for [`seal`]. Build with [`SealOptions::new`] and adjust fields as needed.
 pub struct SealOptions<'a> {
+    /// Owner policy written into the header.
     pub policy: Policy,
     /// Owner account identifier committed on-chain (chainId || address); opaque here.
     pub owner_account: &'a [u8],
+    /// Original file name (stored encrypted).
     pub file_name: &'a str,
+    /// Plaintext chunk size; 1..=16 MiB.
     pub chunk_size: usize,
     /// Extra recipients whose envelopes are embedded (normally none: grants travel out-of-band).
     pub extra_recipients: &'a [&'a [u8]],
-    /// For reseal: previous header hash and version number.
-    pub prev: Option<([u8; 32], u32)>,
+    /// For reseal: previous header hash and version number (the new version is `prev.1 + 1`).
+    pub prev: Option<(HeaderHash, u32)>,
 }
 
 impl<'a> SealOptions<'a> {
+    /// Defaults: [`Policy::default`], [`DEFAULT_CHUNK`], no extra recipients, version 1.
     pub fn new(owner_account: &'a [u8], file_name: &'a str) -> Self {
         Self {
             policy: Policy::default(),
@@ -59,9 +65,9 @@ fn nonce(np: &[u8], index: u64) -> XNonce {
     XNonce::from(n)
 }
 
-fn chunk_aad(header_hash: &[u8; 32], index: u64, is_last: bool) -> [u8; 41] {
+fn chunk_aad(header_hash: &HeaderHash, index: u64, is_last: bool) -> [u8; 41] {
     let mut a = [0u8; 41];
-    a[..32].copy_from_slice(header_hash);
+    a[..32].copy_from_slice(header_hash.as_bytes());
     a[32..40].copy_from_slice(&index.to_le_bytes());
     a[40] = is_last as u8;
     a
@@ -107,7 +113,7 @@ pub fn seal<R: Read + Seek, W: Write>(
     OsRng.fill_bytes(&mut salt);
     let mut np = [0u8; 16];
     OsRng.fill_bytes(&mut np);
-    let fid: [u8; 32] = Sha256::new().chain_update(plaintext_hash).chain_update(salt).finalize().into();
+    let fid = FileId(Sha256::new().chain_update(plaintext_hash).chain_update(salt).finalize().into());
 
     let aead = XChaCha20Poly1305::new(dek.as_bytes().into());
     let name_ct = aead
@@ -115,18 +121,18 @@ pub fn seal<R: Read + Seek, W: Write>(
         .map_err(|_| Error::EnvelopeSeal)?;
 
     // envelopes: owner self-envelope first, AAD = fid
-    let mut env = vec![Envelope::seal(owner.sealing.public_key(), &dek, &fid)?];
+    let mut env = vec![Envelope::seal(owner.sealing.public_key(), &dek, fid.as_bytes())?];
     for pk in opts.extra_recipients {
-        env.push(Envelope::seal(pk, &dek, &fid)?);
+        env.push(Envelope::seal(pk, &dek, fid.as_bytes())?);
     }
 
     let (prev, ver) = match opts.prev {
-        Some((h, v)) => (Some(h.to_vec()), v + 1),
+        Some((h, v)) => (Some(h), v + 1),
         None => (None, 1),
     };
     let header = HeaderBody {
-        fid: fid.to_vec(),
-        salt: salt.to_vec(),
+        fid,
+        salt: Salt(salt),
         ver,
         prev,
         own: opts.owner_account.to_vec(),
@@ -134,13 +140,13 @@ pub fn seal<R: Read + Seek, W: Write>(
         cipher: CIPHER_XCHACHA20_POLY1305_CHUNKED,
         chunk: opts.chunk_size as u32,
         plen,
-        np: np.to_vec(),
+        np: NoncePrefix(np),
         name: name_ct,
         env,
     }
     .sign(&owner.signing)?;
     let header_bytes = header.encode()?;
-    let header_hash: [u8; 32] = Sha256::digest(&header_bytes).into();
+    let header_hash = HeaderHash(Sha256::digest(&header_bytes).into());
 
     // write
     let mut w = BufWriter::new(out);
@@ -171,7 +177,7 @@ pub fn seal<R: Read + Seek, W: Write>(
             break;
         }
     }
-    w.write_all(&header_hash)?;
+    w.write_all(header_hash.as_bytes())?;
     w.write_all(&total.to_le_bytes())?;
     w.write_all(ct_hash.finalize().as_bytes())?;
     w.flush()?;
@@ -197,15 +203,19 @@ pub fn seal_to_path(
     Ok(hdr)
 }
 
+/// Result of a successful open: the verified header and the decrypted file name.
 #[derive(Debug)]
 pub struct Opened {
+    /// Verified header.
     pub header: Header,
-    pub header_hash: [u8; 32],
+    /// Hash of the header as read (matches the trailer and the on-chain anchor).
+    pub header_hash: HeaderHash,
+    /// Original file name.
     pub file_name: String,
 }
 
 /// Read magic + header only (no key needed). Returns header, hash, and reader positioned at chunk 0.
-pub fn read_header<R: Read>(mut r: R) -> Result<(Header, [u8; 32], R)> {
+pub fn read_header<R: Read>(mut r: R) -> Result<(Header, HeaderHash, R)> {
     let mut magic = [0u8; 8];
     r.read_exact(&mut magic).map_err(|_| Error::BadMagic)?;
     if &magic[..6] != MAGIC {
@@ -229,9 +239,6 @@ pub fn read_header<R: Read>(mut r: R) -> Result<(Header, [u8; 32], R)> {
     if hdr.body.chunk == 0 || hdr.body.chunk > MAX_CHUNK {
         return Err(Error::BadChunkSize(hdr.body.chunk));
     }
-    if hdr.body.np.len() != 16 || hdr.body.fid.len() != 32 {
-        return Err(Error::HeaderDecode("bad np/fid length".into()));
-    }
     Ok((hdr, hh, r))
 }
 
@@ -241,19 +248,21 @@ pub fn open<R: Read, W: Write>(input: R, out: W, keys: &DeviceKeys) -> Result<Op
     let (hdr, hh, r) = read_header(input)?;
     let kid = keys.key_id();
     let env = hdr.body.env.iter().find(|e| e.kid == kid).ok_or(Error::NoEnvelope)?;
-    let dek = env.open(keys, &hdr.body.fid)?;
+    let dek = env.open(keys, hdr.body.fid.as_bytes())?;
     open_with_dek(hdr, hh, r, out, &dek)
 }
 
+/// Decrypt the chunk stream that follows a header returned by [`read_header`], using a DEK
+/// obtained out-of-band (grant envelope). Verifies every chunk and the trailer.
 pub fn open_with_dek<R: Read, W: Write>(
     hdr: Header,
-    header_hash: [u8; 32],
+    header_hash: HeaderHash,
     mut r: R,
     out: W,
     dek: &Dek,
 ) -> Result<Opened> {
     let aead = XChaCha20Poly1305::new(dek.as_bytes().into());
-    let np = &hdr.body.np;
+    let np = hdr.body.np.as_bytes();
     let name = aead
         .decrypt(&nonce(np, NAME_INDEX), Payload { msg: &hdr.body.name, aad: b"name" })
         .map_err(|_| Error::NameAuth)?;
@@ -286,7 +295,7 @@ pub fn open_with_dek<R: Read, W: Write>(
     if r.read(&mut extra)? != 0 {
         return Err(Error::Truncated);
     }
-    if tr[..32] != header_hash
+    if tr[..32] != header_hash.0
         || u64::from_le_bytes(tr[32..40].try_into().unwrap()) != total
         || tr[40..72] != *ct_hash.finalize().as_bytes()
     {
@@ -296,8 +305,8 @@ pub fn open_with_dek<R: Read, W: Write>(
     Ok(Opened { header: hdr, header_hash, file_name })
 }
 
-/// Convenience: inspect a container without keys.
-pub fn inspect<R: Read>(input: R) -> Result<(Header, [u8; 32])> {
+/// Inspect a container without keys: verified header + its hash (file name stays encrypted).
+pub fn inspect<R: Read>(input: R) -> Result<(Header, HeaderHash)> {
     let (h, hh, _) = read_header(input)?;
     Ok((h, hh))
 }

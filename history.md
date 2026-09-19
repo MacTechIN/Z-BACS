@@ -465,3 +465,26 @@ Phase 1 첫 태스크 Z-1.A.1 완료 — crates/zbacs-auth 신규. 커밋·푸�
 
 다음: Z-1.C.1(core 정식화) 또는 Z-1.H.10(P256Validator 컨트랙트 — 경로 B를 체인에서 받는 부분). 지정 없으면 Z-1.C.1로 갑니다.
 ```
+
+### #41 [U] 2026-09-19
+```
+다음 진행
+```
+
+### #41 [C] 2026-09-19
+```
+Z-1.C.1 완료 — zbacs-core 정식화. 커밋·푸시 완료.
+
+내용
+- 고정 길이 식별자 타입: FileId(32), HeaderHash(32), KeyId(16), Salt(16), NoncePrefix(16). CBOR 바이트열로 직렬화되므로 PoC 컨테이너와 와이어 호환, 길이 검사는 타입이 강제(런타임 검사 제거).
+- Sealer / Opener 트레이트(객체 안전, &mut dyn Read/Write): OwnerKeys: Sealer, DeviceKeys: Opener(내장 봉투), GrantedDek: Opener(승인으로 받은 DEK — 수신자 경로). Agent가 Box<dyn Opener>로 런타임 선택.
+- 에러 전 변이 문서화 + non_exhaustive, 키·평문 미포함 보장.
+- 공개 API 전부 문서화(#![warn(missing_docs)]) + CI에 RUSTDOCFLAGS=-D warnings cargo doc 게이트.
+- 커버리지 게이트: cargo llvm-cov -p zbacs-core -p zbacs-auth --fail-under-lines 90을 CI(ubuntu)에 추가. 현재 라인 96.3% (core container 97%, header 98%, keys 100%).
+- 테스트 추가 11개(tests/api.rs) + 단위 5개: 트레이트 왕복, t04 승인 DEK 경로(수신자는 내장 봉투 없음 → NoEnvelope, 승인 DEK로 열림, 잘못된 DEK는 청크 누출 없이 NameAuth), 재봉인 체인(ver 2, prev = v1 해시, 새 np·salt), seal_to_path 원자성, 빈 파일, t18 청크 크기·헤더 길이 상한·미지원 cipher·chunk 0, t19 트레일러 뒤 잔여 바이트, read_header 위치, 에러 메시지.
+- CI 게이트 전부 통과: fmt, clippy -D warnings, test --workspace(auth 13 + core 9+11+9 + cli 1), rustdoc, coverage.
+
+문서: architecture §3.1(구현 반영), dev_plan Z-1.C.1 ✅, dev_guidelines(커버리지·문서 게이트), CLAUDE.md(빌드 명령 2줄 추가).
+
+다음: Z-1.C.2 파서 견고화(악성 입력 20종·트레일러) → Z-1.C.3 cargo-fuzz, 또는 체인 쪽 Z-1.H.10 P256Validator. 지정 없으면 Z-1.C.2.
+```

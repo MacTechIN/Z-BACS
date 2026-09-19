@@ -72,19 +72,25 @@ Z-BACS/
 └── docs/
 ```
 
-### 3.1 zbacs-core 핵심 타입 (초안)
+### 3.1 zbacs-core 핵심 타입 (Z-1.C.1 구현)
 
 ```rust
-pub struct FileId([u8; 32]);          // H(fileHash || salt) — 온체인 커밋
-pub struct Dek(SecretBox<[u8; 32]>);  // 파일 데이터키, zeroize
-pub enum Permission { Deny, ReadOnly, Edit }
-pub struct Policy { owner: AccountId, default: Permission, ttl_secs: u32, max_opens: u16, device_pin: bool }
-pub struct Envelope { recipient_kid: KeyId, hpke_enc: Vec<u8>, ciphertext: Vec<u8> }  // DEK 봉투
-pub struct ContainerHeader { version: u8, file_id: FileId, policy: Policy, version_no: u32,
-                             prev_version: Option<[u8;32]>, envelopes: Vec<Envelope>, sig: Signature }
-pub trait Sealer { fn seal(&self, plain: impl Read, out: impl Write, policy: &Policy) -> Result<ContainerHeader>; }
-pub trait Opener { fn open(&self, container: impl Read, grant: &AccessGrant, dek: Dek, out: impl Write) -> Result<()>; }
+pub struct FileId([u8; 32]);        // SHA-256(SHA-256(plaintext) || salt) — 온체인 커밋 (T13)
+pub struct HeaderHash([u8; 32]);    // SHA-256(header CBOR) — 청크 AAD·트레일러·온체인 앵커
+pub struct KeyId([u8; 16]);         // SHA-256(x25519_pk)[..16] — 봉투 수신자 id
+pub struct Dek([u8; 32]);           // zeroize-on-drop
+pub enum Permission { Deny = 0, ReadOnly = 1, Edit = 2 }
+pub struct Policy { default: Permission, ttl: u32, max: u16, pin: bool, strict: bool }
+pub struct Envelope { kid: KeyId, alg: String, enc: Vec<u8>, ct: Vec<u8> }        // HPKE DEK 봉투
+pub struct HeaderBody { fid: FileId, salt, ver: u32, prev: Option<HeaderHash>, own: Vec<u8>, pol: Policy,
+                        cipher: u8, chunk: u32, plen: u64, np: NoncePrefix, name: Vec<u8> /*enc*/, env: Vec<Envelope> }
+pub struct Header { body: HeaderBody, sigk: [u8;32], sig: [u8;64] }               // Ed25519 over "ZBACS-HDR-v1"||CBOR(body)
+
+pub trait Sealer { fn seal(&self, input: &mut dyn ReadSeek, out: &mut dyn Write, opts: &SealOptions) -> Result<Header>; }
+pub trait Opener { fn open(&self, input: &mut dyn Read, out: &mut dyn Write) -> Result<Opened>; }
+// impl Sealer for OwnerKeys; impl Opener for DeviceKeys (내장 봉투); impl Opener for GrantedDek (승인으로 받은 DEK)
 ```
+와이어 포맷은 PoC(Z-0.C.1)와 동일(고정 길이 필드도 CBOR 바이트열). 공개 API는 `#![warn(missing_docs)]` + CI `cargo doc -D warnings`, 커버리지 게이트 90%(`cargo llvm-cov`).
 
 ### 3.2 zbacs-auth 트레이트 (Z-1.A.1 구현, ADR-0006)
 ```rust

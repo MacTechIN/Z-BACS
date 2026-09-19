@@ -38,6 +38,17 @@ jobs:
         run: cargo test --workspace --locked
       - name: test (release, perf gate)
         run: cargo test --workspace --release --locked -- perf_
+      - name: docs (public API must be documented)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo doc --workspace --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - name: coverage gate (zbacs-core, zbacs-auth >= 90% lines)
+        if: matrix.os == 'ubuntu-latest'
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: coverage gate run
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo llvm-cov -p zbacs-core -p zbacs-auth --locked --fail-under-lines 90
       - name: audit
         if: matrix.os == 'ubuntu-latest'
         uses: rustsec/audit-check@v2

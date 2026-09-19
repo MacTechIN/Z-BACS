@@ -116,7 +116,7 @@ fn main() -> Result<()> {
                 "sealed {} -> {}\nfid={}\nversion={} plen={} envelopes={}",
                 input.display(),
                 output.display(),
-                hex::encode(&hdr.body.fid),
+                hex::encode(hdr.body.fid),
                 hdr.body.ver,
                 hdr.body.plen,
                 hdr.body.env.len()
@@ -143,12 +143,12 @@ fn main() -> Result<()> {
             let data = fs::read(&input)?;
             let (h, hh) = inspect(Cursor::new(&data))?;
             println!("header_hash={}\nfid={}\nversion={} prev={}\nowner_account={}\npolicy={:?}\nchunk={} plen={} envelopes={}\nsigner={}",
-                hex::encode(hh), hex::encode(&h.body.fid), h.body.ver,
+                hex::encode(hh), hex::encode(h.body.fid), h.body.ver,
                 h.body.prev.as_ref().map(hex::encode).unwrap_or_else(|| "-".into()),
                 String::from_utf8_lossy(&h.body.own), h.body.pol, h.body.chunk, h.body.plen, h.body.env.len(),
                 hex::encode(&h.sigk));
             for e in &h.body.env {
-                println!("  env kid={} alg={}", hex::encode(&e.kid), e.alg);
+                println!("  env kid={} alg={}", hex::encode(e.kid), e.alg);
             }
         }
     }

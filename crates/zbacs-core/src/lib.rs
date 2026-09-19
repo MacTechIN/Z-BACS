@@ -1,23 +1,37 @@
 //! Z-BACS core: `.zbacs` container format v1, chunked XChaCha20-Poly1305 streams,
 //! HPKE (RFC 9180) key envelopes and Ed25519-signed headers.
 //!
-//! Spec: `docs/specs/container_format.md`. Tasks: Z-0.C.1 (container PoC), Z-0.C.2 (HPKE envelope).
+//! Spec: `docs/specs/container_format.md`. Tasks: Z-0.C.1/C.2 (PoC), Z-1.C.1 (this API).
 //!
-//! Security notes
+//! # Entry points
+//! - [`seal`] / [`seal_to_path`] — owner seals a plaintext; the DEK is wrapped in the owner's
+//!   self-envelope (and any extra recipients).
+//! - [`open`] — decrypt through an embedded envelope; [`open_with_dek`] — decrypt with a DEK
+//!   received out-of-band in a grant; [`inspect`] — read the header without any key.
+//! - [`Sealer`] / [`Opener`] — object-safe traits over the above for the Agent.
+//!
+//! # Security notes
 //! - All key material lives in [`zeroize`]-on-drop wrappers.
 //! - No cryptographic primitive is implemented here; only composition (ADR-0002).
-//! - Never log plaintext, DEKs or private keys.
+//! - Never log plaintext, DEKs or private keys. [`Error`] carries none of them.
+
+#![warn(missing_docs)]
 
 pub mod container;
 pub mod envelope;
 pub mod error;
 pub mod header;
 pub mod keys;
+pub mod traits;
+pub mod types;
 
-pub use container::{open, seal, seal_to_path, Opened, SealOptions};
-pub use error::Error;
+pub use container::{inspect, open, open_with_dek, read_header, seal, seal_to_path, Opened, SealOptions};
+pub use envelope::Envelope;
+pub use error::{Error, Result};
 pub use header::{Header, HeaderBody, Permission, Policy, MAGIC, VERSION_MAJOR, VERSION_MINOR};
-pub use keys::{Dek, DeviceKeys, OwnerKeys, SigningKeys};
+pub use keys::{key_id_of, Dek, DeviceKeys, OwnerKeys, SigningKeys};
+pub use traits::{GrantedDek, Opener, ReadSeek, Sealer};
+pub use types::{FileId, HeaderHash, KeyId, NoncePrefix, Salt};
 
 /// Default plaintext chunk size (64 KiB) — spec §2.2 `chunk`.
 pub const DEFAULT_CHUNK: usize = 64 * 1024;

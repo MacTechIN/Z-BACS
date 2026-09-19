@@ -2,20 +2,26 @@
 
 use crate::error::{Error, Result};
 use crate::keys::{hpke, key_id_of, Dek, DeviceKeys};
+use crate::types::KeyId;
 use crate::DEK_INFO;
 use hpke_rs::{HpkePrivateKey, HpkePublicKey};
 use serde::{Deserialize, Serialize};
 
+/// `alg` string for the only envelope suite in v1.
 pub const ALG_HPKE_X25519_CHACHA: &str = "hpke-x25519-chacha";
 
-/// Spec §2.2 `env[]` entry.
+/// Spec §2.2 `env[]` entry: the DEK wrapped for one recipient. Also carried out-of-band in
+/// `GrantMsg.envelope` (T04: the Relay only ever sees `enc`/`ct`).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Envelope {
-    #[serde(with = "serde_bytes")]
-    pub kid: Vec<u8>,
+    /// Recipient id (`key_id_of(recipient_pk)`).
+    pub kid: KeyId,
+    /// Suite id ([`ALG_HPKE_X25519_CHACHA`]).
     pub alg: String,
+    /// HPKE encapsulated key.
     #[serde(with = "serde_bytes")]
     pub enc: Vec<u8>,
+    /// HPKE ciphertext of the 32-byte DEK.
     #[serde(with = "serde_bytes")]
     pub ct: Vec<u8>,
 }
@@ -28,20 +34,19 @@ impl Envelope {
         let (enc, ct) = hpke()
             .seal(&pk, DEK_INFO, aad, dek.as_bytes(), None, None, None)
             .map_err(|_| Error::EnvelopeSeal)?;
-        Ok(Self { kid: key_id_of(recipient_pk).to_vec(), alg: ALG_HPKE_X25519_CHACHA.into(), enc, ct })
+        Ok(Self { kid: key_id_of(recipient_pk), alg: ALG_HPKE_X25519_CHACHA.into(), enc, ct })
     }
 
+    /// Unwrap with the recipient's key. Fails on wrong key, wrong `aad` or unknown suite.
     pub fn open(&self, keys: &DeviceKeys, aad: &[u8]) -> Result<Dek> {
         if self.alg != ALG_HPKE_X25519_CHACHA {
             return Err(Error::EnvelopeOpen);
         }
         let sk = HpkePrivateKey::new(keys.secret_key().to_vec());
-        let pt = hpke()
+        let mut pt = hpke()
             .open(&self.enc, &sk, DEK_INFO, aad, &self.ct, None, None, None)
             .map_err(|_| Error::EnvelopeOpen)?;
         let dek = Dek::from_bytes(&pt);
-        // best-effort zeroize of the intermediate Vec
-        let mut pt = pt;
         zeroize::Zeroize::zeroize(&mut pt);
         dek
     }
@@ -62,5 +67,14 @@ mod tests {
         assert!(matches!(env.open(&bob, b"other"), Err(Error::EnvelopeOpen)));
         let eve = DeviceKeys::generate().unwrap();
         assert!(matches!(env.open(&eve, b"ctx"), Err(Error::EnvelopeOpen)));
+    }
+
+    #[test]
+    fn unknown_suite_and_bad_recipient_key_rejected() {
+        let bob = DeviceKeys::generate().unwrap();
+        let mut env = Envelope::seal(bob.public_key(), &Dek::generate(), b"ctx").unwrap();
+        env.alg = "hpke-p256-aesgcm".into();
+        assert!(matches!(env.open(&bob, b"ctx"), Err(Error::EnvelopeOpen)));
+        assert!(matches!(Envelope::seal(&[0u8; 5], &Dek::generate(), b"ctx"), Err(Error::EnvelopeSeal)));
     }
 }

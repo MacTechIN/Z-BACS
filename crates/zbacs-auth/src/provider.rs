@@ -7,7 +7,7 @@ use crate::types::{ApprovalAssertion, ApprovalChallenge, Confirmation, KeyId, P2
 ///
 /// Implementations (Phase 1): `PasskeyProvider` (Windows Hello via `webauthn.dll`, Z-1.A.2),
 /// `DeviceKeyProvider` (TPM / Keystore / Secure Enclave P-256, Z-1.A.7), `BsaProvider`
-/// (Z-1.A.5), `OtakProvider` (Z-1.A.6). Software stand-ins live in [`crate::software`].
+/// (Z-1.A.5), `OtakProvider` (Z-1.A.6). Software stand-ins live in the `software` module (feature `software-signer`).
 ///
 /// `sign` may block on an OS prompt; callers run it off the UI thread. It must never expose
 /// key material and must return [`crate::AuthError::Cancelled`] when the person dismisses
