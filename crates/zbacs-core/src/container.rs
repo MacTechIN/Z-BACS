@@ -27,6 +27,11 @@ use std::path::Path;
 const TAG_LEN: usize = 16;
 const NAME_INDEX: u64 = u64::MAX;
 const MAX_CHUNK: u32 = 16 * 1024 * 1024;
+/// Spec §2.2 field limits enforced before any key is used.
+const MAX_OWNER_LEN: usize = 64;
+const MAX_NAME_CT_LEN: usize = 1024 + TAG_LEN;
+const MAX_ENVELOPES: usize = 32;
+const MAX_ENVELOPE_FIELD_LEN: usize = 1024;
 
 /// Parameters for [`seal`]. Build with [`SealOptions::new`] and adjust fields as needed.
 pub struct SealOptions<'a> {
@@ -127,7 +132,9 @@ pub fn seal<R: Read + Seek, W: Write>(
     }
 
     let (prev, ver) = match opts.prev {
-        Some((h, v)) => (Some(h), v + 1),
+        Some((h, v)) => {
+            (Some(h), v.checked_add(1).ok_or_else(|| Error::HeaderEncode("version overflow".into()))?)
+        }
         None => (None, 1),
     };
     let header = HeaderBody {
@@ -233,13 +240,40 @@ pub fn read_header<R: Read>(mut r: R) -> Result<(Header, HeaderHash, R)> {
     let mut hb = vec![0u8; len];
     r.read_exact(&mut hb).map_err(|_| Error::Truncated)?;
     let (hdr, hh) = Header::decode_verified(&hb)?;
-    if hdr.body.cipher != CIPHER_XCHACHA20_POLY1305_CHUNKED {
-        return Err(Error::UnsupportedCipher(hdr.body.cipher));
-    }
-    if hdr.body.chunk == 0 || hdr.body.chunk > MAX_CHUNK {
-        return Err(Error::BadChunkSize(hdr.body.chunk));
-    }
+    validate_header(&hdr)?;
     Ok((hdr, hh, r))
+}
+
+/// Spec §2.2 field limits and §4 step 1 invariants. Runs after signature verification and
+/// before any key material is touched (T18, T19).
+fn validate_header(hdr: &Header) -> Result<()> {
+    let b = &hdr.body;
+    if b.cipher != CIPHER_XCHACHA20_POLY1305_CHUNKED {
+        return Err(Error::UnsupportedCipher(b.cipher));
+    }
+    if b.chunk == 0 || b.chunk > MAX_CHUNK {
+        return Err(Error::BadChunkSize(b.chunk));
+    }
+    let reject = |why: &str| Err(Error::HeaderDecode(why.into()));
+    if b.ver == 0 {
+        return reject("version must be >= 1");
+    }
+    if (b.ver == 1) != b.prev.is_none() {
+        return reject("version/prev chain mismatch");
+    }
+    if b.own.is_empty() || b.own.len() > MAX_OWNER_LEN {
+        return reject("owner account length");
+    }
+    if b.name.len() > MAX_NAME_CT_LEN {
+        return reject("file name too long");
+    }
+    if b.env.is_empty() || b.env.len() > MAX_ENVELOPES {
+        return reject("envelope count");
+    }
+    if b.env.iter().any(|e| e.enc.len() > MAX_ENVELOPE_FIELD_LEN || e.ct.len() > MAX_ENVELOPE_FIELD_LEN) {
+        return reject("envelope field length");
+    }
+    Ok(())
 }
 
 /// Open a container with a DEK obtained from an embedded envelope for `keys`.
@@ -254,6 +288,9 @@ pub fn open<R: Read, W: Write>(input: R, out: W, keys: &DeviceKeys) -> Result<Op
 
 /// Decrypt the chunk stream that follows a header returned by [`read_header`], using a DEK
 /// obtained out-of-band (grant envelope). Verifies every chunk and the trailer.
+///
+/// On error, whatever was already written to `out` must be discarded: chunks are
+/// individually authentic, but the file as a whole is not (spec §4 step 5).
 pub fn open_with_dek<R: Read, W: Write>(
     hdr: Header,
     header_hash: HeaderHash,

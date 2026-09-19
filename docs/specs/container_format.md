@@ -40,6 +40,21 @@
 ```
 - `env`에는 최소 소유자 자기 봉투 1개. 승인 시 Bob의 봉투는 **컨테이너에 쓰지 않고** GrantMsg로 전달(파일 재배포 시 봉투 누적 방지).
 
+**필드 제한 (파서가 강제, Z-1.C.2)** — 위반 시 `HeaderDecode`로 거부하고 어떤 청크도 복호화하지 않는다.
+
+| 필드 | 제한 |
+|---|---|
+| `fid`, `salt`, `np`, `prev`, `sigk`, `sig` | 정확히 32 / 16 / 16 / 32 / 32 / 64 바이트 |
+| `ver` | ≥ 1. `ver == 1` ⇔ `prev == null` |
+| `own` | 1..=64 바이트 |
+| `pol.def` | 0, 1, 2 |
+| `cipher` | 1 |
+| `chunk` | 1..=16 MiB |
+| `name` | ≤ 1040 바이트 (원본 파일명 1024 + 태그 16) |
+| `env` | 1..=32개, 각 `kid` 16바이트, `enc`·`ct` ≤ 1024바이트 |
+| 헤더 전체 | ≤ 1 MiB (길이 필드와 실제 인코딩 모두) |
+| `minor` | 리더보다 큰 minor는 허용(추가 필드만 가능), major 불일치는 거부 |
+
 ### 2.3 Chunk 프레임
 - **nonce = np(16B, 버전마다 난수) || LE u64 index** (24B XChaCha nonce). 파일명 암호화는 index `u64::MAX` 예약.
 - AAD = `header_hash(32) || index(u64) || is_last(u8)`.
@@ -56,10 +71,11 @@
 5. 체인 `FileRegistry.register(fid, owner)` (비동기, 실패 시 재시도 큐).
 
 ## 4. 개봉(Open) 검증 순서
-1. magic/version → 헤더 CBOR 파싱(길이 상한 1MiB) → 서명 검증.
+1. magic/version(major 일치) → 헤더 길이 필드 ≤ 1 MiB → 헤더 CBOR 파싱 → **서명 검증** → §2.2 필드 제한 검사. 어느 단계든 실패하면 키를 만지기 전에 중단한다.
 2. 정책 해시와 온체인 `FileRegistry` 커밋 비교(오프라인 캐시 허용, `strict`면 필수).
 3. AccessGrant 검증(§approval_protocol) → GrantMsg 봉투로 DEK 복원.
-4. 청크 순차 복호화, `is_last`·trailer 검증.
+4. 파일명 복호화(실패 = 잘못된 DEK, 청크 복호화 전에 중단) → 청크 순차 복호화(AAD에 `header_hash‖index‖is_last`) → trailer 3항 일치 → **스트림 끝(EOF)** 확인. 잔여 바이트·누락 청크·트레일러 불일치는 모두 `Truncated`.
+5. 오류가 나면 이미 출력된 부분 평문은 **폐기**한다(청크 단위로는 진본이지만 파일 전체의 무결성은 보장되지 않음). Agent는 임시 파일에 쓰고 성공 시에만 rename 한다.
 
 ## 5. 재봉인(Reseal)
 - 새 DEK, `ver+1`, `prev = 이전 header_hash`, 소유자 봉투는 **소유자 공개키로 다시 생성**(수신자는 소유자 공개키를 헤더의 `env[0].kid`로 알고 있음. 소유자 X25519 공개키를 헤더 `own_pub`에 포함하도록 v1.1 검토).

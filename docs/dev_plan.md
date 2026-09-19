@@ -54,7 +54,7 @@
 | ID | 태스크 | DoD |
 |---|---|---|
 | Z-1.C.1 ✅ | `zbacs-core` 크레이트 정식화: 타입, 에러, `Sealer/Opener` 트레이트 | 문서화된 공개 API, 단위 테스트 90% (2026-09-19: `FileId/HeaderHash/KeyId/Salt/NoncePrefix` 고정 길이 타입(와이어 호환), 객체 안전 `Sealer/Opener` + `GrantedDek`, 에러 문서화·`non_exhaustive`, `missing_docs` + CI rustdoc -D warnings, `cargo llvm-cov` 90% 게이트 CI) |
-| Z-1.C.2 | 컨테이너 파서 견고화: 길이 상한, 버전 검사, 절단 방지(`is_last`), trailer | 악성 입력 테스트 20종 |
+| Z-1.C.2 ✅ | 컨테이너 파서 견고화: 길이 상한, 버전 검사, 절단 방지(`is_last`), trailer | 악성 입력 테스트 20종 (2026-09-19: spec §2.2 필드 제한 명문화 → `validate_header`(서명 검증 후·키 사용 전: ver/prev 체인, own 1..64, name ≤1040, env 1..32·필드 ≤1024), 버전 오버플로 방지, `tests/malicious.rs` **31종**(프레이밍·서명·필드 제한·봉투·청크·트레일러·랜덤 변이 500회+전 길이 절단), 커버리지 게이트 유지) |
 | Z-1.C.3 | `cargo-fuzz` 타깃(header, chunk) | 24h 퍼징 무크래시 |
 | Z-1.C.4 | 재봉인(Reseal): 새 DEK, 버전 체인, 원자적 교체 | v1→v2→v3 체인 검증 테스트 |
 | Z-1.C.5 | 파일명 암호화, 정책 해시, 테스트 벡터 고정 | vectors 디렉터리 |
@@ -207,8 +207,8 @@
 | T15 만료 우회 | Z-1.H.2 (체인 시간), Z-1.G.4 (로컬 시계 병행) | contracts `test_t15_*` 2종 |
 | T16 Relay DoS | Z-1.R.2 (서명·레이트리밋), Z-1.R.4 (셀프호스팅), Z-1.H.7 (체인 이벤트 폴백), Z-2.R.1 | — |
 | T17 스텁 위장 | Z-1.S.1/S.2 (코드 서명·해시 고정), Z-1.C.2 (Agent는 컨테이너만 파싱), Z-1.G.13 (서명된 업데이트) | tauri-assoc: 파일 인자를 경로로만 취급, `inspect`만 수행 |
-| T18 파서 취약점 | Z-1.C.2 (길이 상한·악성 입력 20종), Z-1.C.3 (cargo-fuzz) | core `t18_chunk_tamper_is_detected`, `t18_chunk_reorder_is_detected` |
-| T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책) | core `t19_truncation_is_detected`, `bad_magic_and_version` |
+| T18 파서 취약점 | Z-1.C.2 (길이 상한·악성 입력 20종), Z-1.C.3 (cargo-fuzz) | core `tests/malicious.rs` 31종 (`t17_*`, `t18_*`, `t19_*`), `t18_chunk_*` |
+| T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책) | core `t19_03_other_major_version_rejected`, `t19_16_version_chain_invariants`, `t19_2x_*` 트레일러·절단 |
 | T20 회수 무시 | Z-1.G.4 (TTL·주기 확인), Z-1.G.11 (revoke), Z-1.H.7 (이벤트 구독), Z-1.G.13 (코드 서명), Z-3.H.3 (어테스테이션) | contracts `test_t20_revoke_only_owner` |
 | T21 번들러·페이마스터 검열/지연 | Z-1.H.8 (다중 번들러 엔드포인트), Z-1.H.9 (페이마스터 폴백: 자체 예치), Z-1.G.4 (`strict_onchain` 아닌 경우 체인 확정 미대기) | aa-passkey: EntryPoint 직접 `handleOps` 경로 + Pimlico 실제 제출(프리컴파일 호출 허용 확인) |
 | T22 동기화 패스키 복제 | Z-1.A.2 (BE/BS 플래그 기록·정책), Z-1.A.7 (기기 바운드 키 대안), Z-1.H.10 (등록·해지 온체인), Z-1.U.7 (선택 UI) | aa-passkey: authenticatorData 플래그 파싱 |

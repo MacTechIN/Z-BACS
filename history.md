@@ -488,3 +488,23 @@ Z-1.C.1 완료 — zbacs-core 정식화. 커밋·푸시 완료.
 
 다음: Z-1.C.2 파서 견고화(악성 입력 20종·트레일러) → Z-1.C.3 cargo-fuzz, 또는 체인 쪽 Z-1.H.10 P256Validator. 지정 없으면 Z-1.C.2.
 ```
+
+### #42 [U] 2026-09-19
+```
+다음 진행
+```
+
+### #42 [C] 2026-09-19
+```
+Z-1.C.2 완료 — 컨테이너 파서 견고화. 커밋·푸시 완료.
+
+Spec-first: docs/specs/container_format.md v1.1 — §2.2에 필드 제한 표(fid/salt/np/prev/sigk/sig 고정 길이, ver ≥ 1이고 ver==1 ⇔ prev==null, own 1..64B, name ≤ 1040B, env 1..32개·enc/ct ≤ 1024B, 헤더 ≤ 1MiB, minor 상위 호환·major 불일치 거부), §4 개봉 절차 보강(서명 검증 후 필드 검사 → 키 사용, 파일명 복호화 실패 시 청크 전 중단, 트레일러 3항 + EOF, 오류 시 부분 출력 폐기).
+
+코드: read_header에 validate_header(서명 검증 후·키 사용 전) 추가, reseal 버전 오버플로 checked_add, open_with_dek 문서에 부분 출력 폐기 규칙.
+
+테스트 crates/zbacs-core/tests/malicious.rs 31종(요구 20종): 프레이밍 9(빈 입력, magic, major 3종, minor+1은 열림, 헤더 길이 0/상한/스트림 초과, CBOR 쓰레기·중간 절단), 서명 3(서명 바이트 3곳, 서명키 교체, 필드 수정 후 미서명), 필드 제한 7(fid 31B CBOR, cipher, chunk 0/16MiB+1, ver/prev 체인 3종, own, name, env 4종), 봉투 3(ct 변조·미지원 suite·타인 봉투만), plen 크게/작게, 청크 8(각 청크 인증, 복제, 마지막·첫 청크 삭제, 트레일러 6바이트 위치, 트레일러 누락/짧음, 뒤 잔여·컨테이너 2개 연결, 부분 출력 상한), 랜덤 변이 500회 + 전 길이 절단 sweep(무패닉·오답 평문 0).
+
+게이트: clippy -D warnings, test --workspace(core 51 + auth 13 + cli 1), 커버리지 97.1%(container.rs 98.3%).
+
+다음: Z-1.C.3 cargo-fuzz(헤더·청크 타깃) 또는 Z-1.H.10 P256Validator. 지정 없으면 Z-1.C.3.
+```
