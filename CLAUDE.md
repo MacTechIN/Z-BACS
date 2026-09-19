@@ -4,7 +4,11 @@
 **Z-BACS** (Zero-Knowledge & Blockchain-based Access Control System): BSA(블록체인 패스워드리스 인증) 기반 원격 파일 통제 시스템.
 파일 소유자가 봉인한 파일을 수신자가 열면 소유자에게 실시간 승인(거부/읽기전용/편집)을 요청하고, 승인 범위에서만 복호화되며, 저장 시 자동 재봉인된다. Windows 우선.
 
+## 최상위 개발 원칙
+**사용자가 아무것도 몰라도 쓸 수 있어야 한다.** 블록체인·암호화·키·계정·설정·설치 절차를 사용자가 배우지 않아도 되도록, 복잡한 등록·절차·환경설정은 전부 시스템이 대신 한다. UI에 기술 용어 금지, 온보딩·봉인·승인·열람 흐름에 텍스트 입력 필드 금지. 설계·태스크가 이 원칙과 충돌하면 원칙이 이긴다. 상세: `docs/ux_principles.md`.
+
 ## 항상 참조할 문서 (작업 시작 전 필독)
+- `docs/ux_principles.md` — 최상위 원칙과 UX DoD(U-1~U-6)
 - `docs/README.md` — 문서 인덱스 (여기서 시작)
 - `docs/project_definition.md` — 범위·요구사항·MVP DoD
 - `docs/architecture.md` — 패키지 구조, 키 계층, 스택
@@ -22,6 +26,8 @@
 5. 커밋 메시지는 Conventional Commits + 태스크 ID: `feat(core): Z-1.C.4 reseal version chain`.
 6. 벤더(BSA, Lit, 체인, 푸시)는 항상 트레이트/인터페이스 뒤에 둔다.
 7. 문서는 한국어, 코드 식별자·주석은 영어.
+8. **UI는 Figma 디자인 가이드에서 생성한다.** UI 작업 전 `docs/reference/figma.md`의 파일을 Figma MCP로 열어 토큰·컴포넌트·프레임을 가져오고 그대로 구현한다. 가이드에 없는 화면은 Figma에 먼저 추가한 뒤 구현한다. 코드에서 임의의 색·간격·컴포넌트를 만들지 않는다.
+9. 사용자 대면 기능을 만들 때는 `docs/ux_principles.md` §6 체크리스트를 먼저 적용한다. 새로 "알아야 할 것"이 생기면 설계를 다시 한다.
 
 ## 스택 (ADR 참조)
 Rust(stable) + Tauri 2 / RustCrypto + hpke-rs / Foundry + OpenZeppelin v5 / viem + permissionless.js / axum Relay / Base L2(Anvil 로컬)

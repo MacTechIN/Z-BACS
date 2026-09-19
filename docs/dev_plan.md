@@ -18,8 +18,9 @@
 | Stub/Distribution | S | 자체실행 래퍼, 설치기, 코드 서명 |
 | Security/QA | Q | 위협모델 검증, 퍼징, 감사 CI |
 | Docs/DevEx | D | 문서, ADR, 개발 환경 |
+| **UX** | U | 무입력 온보딩, 용어 린트, 사용성 테스트 — 최상위 원칙 [ux_principles.md](ux_principles.md) 집행 |
 
-의존성 규칙: C → (A, H) → G → (R, P) → S. Q·D는 전 단계 병행.
+의존성 규칙: C → (A, H) → G → (R, P) → S. Q·D·U는 전 단계 병행. **U 트랙의 UX DoD는 각 Phase 종료 게이트다.**
 
 ---
 
@@ -114,6 +115,19 @@
 | Z-1.P.1 | 기술 선택 ADR(Tauri mobile vs React Native vs BSA Authenticator 위임) | ADR-0006 |
 | Z-1.P.2 | 푸시 수신 → 요청 상세 표시 → 패스키/BSA 승인 → GrantMsg 생성 | Android 1대 E2E |
 
+### 1.6b UX (U) — 최상위 원칙 집행
+| ID | 태스크 | DoD |
+|---|---|---|
+| Z-1.U.0 | Figma 디자인 가이드 연결: 파일 키 기록, 토큰(색·타이포·간격) 코드 생성, Code Connect 초기 매핑 | `tokens.ts` 생성, 스크린샷 비교 1개 |
+| Z-1.U.1 | 온보딩 흐름 설계: 설치 → 생체인증 1회 → 사용 시작. 계정(패스키 스마트계정)·기기키·Relay 등록 자동화, 입력 폼 0개 | 프로토타입 클릭 수 ≤ 3 |
+| Z-1.U.2 | UI 문자열 사전 + 금지 용어 린트(`tools/ux-lint`) CI 통합 | U-5 통과 |
+| Z-1.U.3 | 봉인 다이얼로그 단순화: [읽기만] [편집 허용] + 보내기, 세부는 "고급" | U-1 |
+| Z-1.U.4 | 오류 메시지 카탈로그: 모든 오류에 사용자 행동 안내 + 버튼 | 리뷰 |
+| Z-1.U.5 | 승인 알림 액션 버튼(Windows 토스트, 모바일 푸시) | U-3 |
+| Z-1.U.6 | 사용성 테스트 라운드 1 (외부 참가자 5명, 설명 없이 U-1~U-4) | 성공률 ≥ 80% |
+| Z-1.S.1 | **(Phase 2에서 이동)** `zbacs-stub` Windows 자체실행 래퍼: Agent 감지·무인 설치·핸드오프 | U-2 통과 |
+| Z-1.S.2 | **(Phase 2에서 이동)** EV 코드 서명, SmartScreen 평판 | 경고 없음 |
+
 ### 1.7 Security/QA (Q)
 | ID | 태스크 | DoD |
 |---|---|---|
@@ -128,7 +142,7 @@
 | Z-1.D.1 | 사용자 가이드(봉인·열람·승인) | docs/user_guide.md |
 | Z-1.D.2 | ADR 갱신, API 문서(`cargo doc`) | 링크 정상 |
 
-**Phase 1 종료 기준**: project_definition §10 MVP DoD 5항목 충족.
+**Phase 1 종료 기준**: project_definition §10 MVP DoD 5항목 + ux_principles.md UX DoD U-1~U-6 충족.
 
 ---
 
@@ -136,8 +150,8 @@
 
 | ID | 태스크 | DoD |
 |---|---|---|
-| Z-2.S.1 | `zbacs-stub` Windows 래퍼: 스텁+컨테이너 결합, Agent 감지·설치 안내·핸드오프 | 미설치 PC에서 열람까지 |
-| Z-2.S.2 | EV 코드 서명, SmartScreen 평판 확보 절차 | 경고 없음 |
+| Z-2.U.1 | 복구 UX: "내 기기" 목록, 기기 추가·복구 코드 한 번 제안 | U 테스트 |
+| Z-2.U.2 | 사용성 테스트 라운드 2 (macOS/Linux 포함) | 성공률 ≥ 90% |
 | Z-2.S.3 | NSIS 설치기 다듬기, 무인 설치 옵션 | |
 | Z-2.G.1 | macOS Agent(Secure Enclave 패스키, 파일 연결, notarization) | 시나리오 A~E |
 | Z-2.G.2 | Linux Agent(libfido2/TPM2, AppImage) | 시나리오 A~E |
