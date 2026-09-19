@@ -538,3 +538,25 @@ DoD(24h 무크래시)는 제 세션에서 하루를 점유할 수 없어 사용�
 
 다음: Z-1.H.10 P256Validator(경로 B를 체인에서 받는 검증기 + 기기 등록/해지), 또는 Z-1.C.4 재봉인(버전 체인·원자적 교체). 지정 없으면 Z-1.H.10.
 ```
+
+### #45 [U] 2026-09-19
+```
+PS C:\Users\이상진> tools/fuzz.sh 24h
+tools/fuzz.sh : 'tools/fuzz.sh' 용어가 cmdlet, 함수, 스크립트 파일 또는 실행할 수 있는 프로그램 이름으로 인식되지 않습
+니다. ...
+ 어디서 실행 해야해 ?
+```
+
+### #45 [C] 2026-09-19
+```
+이 스크립트는 Linux 개발 머신(maindev, 리포가 있는 곳)용 bash 스크립트라 Windows PowerShell에서는 안 됩니다(cargo-fuzz도 Windows에서는 불안정). 24시간짜리라 터미널을 닫아도 계속 돌도록 제가 maindev에서 백그라운드(nohup + setsid)로 띄웠습니다.
+
+- 실행 위치: maindev:~/workspace/security/BSA_remote_file_auth_system/Z-BACS
+- 명령: nohup setsid tools/fuzz.sh 24h > crates/zbacs-core/fuzz/logs/fuzz-24h.log &
+- 순서: header → header_signed → open_mutated → envelope, 각 6시간(21,600초), 4 workers
+- 확인: tail -f crates/zbacs-core/fuzz/logs/fuzz-24h.log / pgrep -af "fuzz run"
+- 중단: pkill -f "fuzz.sh 24h"; pkill -f "fuzz run"
+- 끝나면 로그 마지막에 "== no crashes" 또는 크래시 아티팩트 목록이 찍힙니다. 내일 이 시간 이후 알려주시면 결과를 확인하고 dev_plan을 ✅로 바꾸겠습니다.
+
+직접 돌리고 싶을 때는 Windows에서 ssh sam@maindev 로 들어가 위 디렉터리에서 실행하면 됩니다.
+```

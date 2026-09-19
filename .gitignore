@@ -3,6 +3,7 @@ target/
 crates/*/fuzz/artifacts/
 crates/*/fuzz/corpus/
 crates/*/fuzz/coverage/
+crates/*/fuzz/logs/
 Cargo.lock.bak
 # Node
 node_modules/
