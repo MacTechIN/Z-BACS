@@ -291,3 +291,27 @@ node --env-file=.env scripts/kernel-account.mjs --send --precompile
 
 키를 넣으신 뒤 "넣었어"라고만 알려주시면 제가 두 번 실행하고 결과를 기록하겠습니다.
 ```
+
+### #33 [U] 2026-09-19
+```
+sed -i 's/^PIMLICO_API_KEY=.*/PIMLICO_API_KEY=[REDACTED — 키 값은 기록에서 제외]/' spikes/aa-passkey/.env
+sed: can't read spikes/aa-passkey/.env: No such file or directory
+```
+
+### #33 [C] 2026-09-19
+```
+실제 번들러 제출 2건 모두 성공했습니다. (sed 실패 원인: 이미 spikes/aa-passkey 안에 있어서 상대 경로가 어긋난 것. 제가 절대 경로로 .env에 키를 넣고 실행했습니다.)
+
+| 변형 | 결과 | actualGasUsed | tx |
+| permissionless 기본(usePrecompiled=false) | success, Kernel 배포+실행 | 757,792 | 0x2bf5…05f7 (블록 47,013,308) |
+| --precompile(usePrecompiled=true) | success | 418,432 (−45%) | 0x8e64…340c (블록 47,013,314) |
+
+- 가스는 전부 Pimlico 테스트넷 페이마스터가 스폰서(계정 잔고 0).
+- 번들러가 검증 단계의 0x…0100 프리컴파일 호출을 허용 → T21/ERC-7562 리스크 해소.
+- 첫 실행의 "deployed: false"는 공개 RPC latest 지연(실제로는 61B 프록시 배포됨) → 포함 블록 기준 조회로 수정.
+- --send는 이제 vectors/live-userop*.json에 쓰고 포크 픽스처(userop.json)는 건드리지 않음. 포크 테스트 10개 재확인.
+
+보안: 키 값이 채팅에 붙여넣기로 노출됐습니다. history.md에는 [REDACTED]로 기록했고 .env는 gitignore라 커밋되지 않지만, Pimlico 대시보드에서 키를 폐기(Revoke)하고 새로 발급해 .env만 바꿔 두시길 권합니다. 무료 티어라 피해는 없어도 습관으로.
+
+문서: docs/research/aa_passkey_spike.md §2b(실제 제출 기록), dev_plan Z-0.H.2·T21 근거, CLAUDE.md, 스파이크 README 갱신. Z-0.H.2는 번들러까지 완결.
+```

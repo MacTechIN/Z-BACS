@@ -33,10 +33,11 @@ const opt = (flag, dflt) => {
   const i = args.indexOf(flag);
   return i >= 0 ? args[i + 1] : dflt;
 };
-const OUT = opt('--out', 'vectors/userop.json');
-const RPC = opt('--rpc', process.env.BASE_SEPOLIA_RPC_URL ?? 'https://sepolia.base.org');
 const SEND = args.includes('--send');
 const PRECOMPILE = args.includes('--precompile');
+// Live runs write elsewhere so the fork-test fixture (a never-deployed account) stays intact.
+const OUT = opt('--out', SEND ? `vectors/live-userop${PRECOMPILE ? '-precompile' : ''}.json` : 'vectors/userop.json');
+const RPC = opt('--rpc', process.env.BASE_SEPOLIA_RPC_URL ?? 'https://sepolia.base.org');
 
 // The fork test etches a recorder contract at this fixed address, so the call target is
 // known before the UserOperation is signed.
@@ -172,7 +173,8 @@ if (SEND) {
   const receipt = await smartAccountClient.waitForUserOperationReceipt({hash, timeout: 120_000});
   console.log(`included: tx ${receipt.receipt.transactionHash} block ${receipt.receipt.blockNumber} success=${receipt.success}`);
   console.log(`actualGasUsed=${receipt.actualGasUsed} actualGasCost=${receipt.actualGasCost} wei (sponsored)`);
-  console.log(`account code deployed: ${(await client.getCode({address: sender}))?.length > 2}`);
+  const code = await client.getCode({address: sender, blockNumber: receipt.receipt.blockNumber});
+  console.log(`account code deployed: ${(code?.length ?? 0) > 2} (${((code?.length ?? 2) - 2) / 2} bytes, ERC-1967 proxy)`);
   console.log(`https://sepolia.basescan.org/tx/${receipt.receipt.transactionHash}`);
 }
 

@@ -15,7 +15,7 @@ node scripts/p256-vector.mjs --out vectors/p256.json
 node scripts/kernel-account.mjs                 # 패스키 생성 → Kernel 계정 주소 → 서명된 UserOp → vectors/userop.json
 forge test --fork-url https://sepolia.base.org -vv   # 포크에서 EntryPoint.handleOps 실행 + 가스 측정
 ```
-`PIMLICO_API_KEY`가 있으면 `node scripts/kernel-account.mjs --send`로 같은 UserOp를 실제 번들러에 제출한다(스파이크에서는 미실행).
+`.env`에 `PIMLICO_API_KEY`를 넣고 `node --env-file=.env scripts/kernel-account.mjs --send [--precompile]`로 실제 번들러(Pimlico + 테스트넷 페이마스터)에 제출한다. 2026-09-19 Base Sepolia 2건 성공(757,792 / 418,432 gas) — `docs/research/aa_passkey_spike.md` §2b.
 
 ## 구성
 | 경로 | 역할 |
@@ -28,7 +28,7 @@ forge test --fork-url https://sepolia.base.org -vv   # 포크에서 EntryPoint.h
 | `src/Recorder.sol` | UserOp 호출 대상(포크에서 `0x…BEEF`에 etch) |
 | `test/Rip7212.t.sol` | 프리컴파일 정확한 가스(`gasleft()`), 변조·high-s 거부 여부, WebAuthn digest 검증 |
 | `test/PasskeyUserOp.t.sol` | `handleOps` 실행: Kernel 배포 + WebAuthn 검증 + 호출, T14 변조 거부(AA24), T03 재전송 거부(AA25) |
-| `vectors/*.json` | 재현용 픽스처(공개키·서명만, 개인키 없음) |
+| `vectors/*.json` | 재현용 픽스처(공개키·서명만, 개인키 없음). `userop.json`은 포크 테스트용(미배포 계정), `live-*.json`은 실제 제출 기록 |
 
 ## 주요 발견
 - P256VERIFY는 Base Sepolia·Base 메인넷·OP Sepolia·Ethereum Sepolia 모두 **활성**. 유효 서명 검증 가스 **3,885**(STATICCALL 오버헤드 포함) vs Daimo Solidity 폴백 **334,897**.
