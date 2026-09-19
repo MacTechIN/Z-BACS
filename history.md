@@ -394,3 +394,26 @@ Anvil 자동 시작 → 배포 2건 → Alice 파일 등록 → Alice EIP-712 �
 
 3. 문서 인덱스(docs/README.md), tools/README.md, CLAUDE.md 참조 목록에 추가. forge fmt·forge test 18개 통과 확인.
 ```
+
+### #38 [U] 2026-09-19
+```
+windows hello 는 뭐야
+```
+
+### #38 [C] 2026-09-19
+```
+Windows Hello는 Windows 10/11에 내장된 로그인 방식 — 비밀번호 대신 얼굴·지문·PIN으로 PC를 잠금 해제하는 기능.
+
+속에서 벌어지는 일
+- 처음 설정할 때 PC의 보안 칩(TPM)이 안에서 개인키를 만듦. 이 키는 칩 밖으로 절대 나오지 않음(디스크·메모리·MS 서버 어디에도 없음).
+- 얼굴/지문/PIN은 "칩에게 서명을 허락하는 열쇠"일 뿐. 생체 정보도 PC 밖으로 안 나감.
+- 앱이 서명을 요청하면 Windows가 생체 인증 창을 띄우고, 통과하면 TPM이 P-256 서명을 돌려줌.
+- 이 표준이 WebAuthn/FIDO2, 그렇게 만든 키가 패스키(passkey). 브라우저 비밀번호 없는 로그인과 같은 것.
+
+우리 프로젝트에서의 역할
+- 소유자가 "허용" → Windows Hello 창 → TPM이 승인 내용(EIP-712 AccessGrant)에 서명 → 그 서명이 곧 스마트계정 소유권 증명 → 체인 기록. 사용자에게는 "얼굴 한 번"이 전부. 지갑·시드·비밀번호가 없어도 되는 이유.
+- Z-0.H.2의 virtual-authenticator.mjs가 흉내 낸 것이 정확히 이 부분. 실제 Agent에서는 getFn 한 함수만 진짜 Windows Hello 호출로 교체.
+- 그 진짜 호출이 Z-0.A.1: webauthn.dll을 Rust에서 불러 생체 창을 띄우고 서명을 받는 스파이크. Windows에만 있는 DLL이라 Linux에서는 불가, Windows 실기 필요. Phase 0의 유일한 남은 게이트.
+
+Windows 실기 조건: Windows 10 1903+ 또는 11, TPM 2.0, 지문 리더/IR 카메라(없으면 PIN도 동작). 준비되면 Z-0.A.1 진행.
+```
