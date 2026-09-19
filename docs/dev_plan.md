@@ -69,7 +69,7 @@
 | Z-1.A.3 ◐ | 기기 키(X25519/Ed25519) 생성 + DPAPI/keyring 보관 | 재부팅 후 복원 (2026-09-19: `zbacs-auth::store` — `KeyStore` 트레이트, `OsKeyStore`(Credential Manager/Keychain/Secret Service), `MemoryKeyStore`, `get_or_create`. **재부팅 확인만 Windows에서 대기**) |
 | Z-1.A.4 | 소유자 봉인키 생성·보관·암호화 백업 파일 내보내기 | 백업 복원 테스트 |
 | Z-1.A.5 ✅ | `BsaProvider` 골격 (SDK 확보 시 연결, 미확보 시 mock) | 인터페이스 호환 테스트 (2026-09-19: `BsaClient` 트레이트 + `BsaProvider` + `MockBsaClient`, 테스트 4종 — 토큰이 다이제스트·신원에 묶임, 거부는 Cancelled, P-256 검증기는 BSA assertion 판정 거부) |
-| Z-1.A.6 | `OtakProvider` 최소 구현(X.1284 흐름: 요청별 키 파생·폐기) | 재전송 테스트 |
+| Z-1.A.6 ✅ | `OtakProvider` 최소 구현(X.1284 흐름: 요청별 키 파생·폐기) | 재전송 테스트 (2026-09-19: 시드는 우리가 생성(발급기관 없음), 요청 다이제스트마다 HMAC-SHA256으로 일회용 키 파생 후 폐기, 서명자·검증자 양쪽이 독립적으로 1회 사용 강제 → 재전송 거부. 상수시간 MAC 비교, 시드 마스킹 Debug, 테스트 7종. 온체인 검증 불가(대칭키)라는 한계를 코드·문서에 명시) |
 
 ### 1.3 Chain (H)
 | ID | 태스크 | DoD |
@@ -192,7 +192,7 @@
 |---|---|---|
 | T01 무차별 대입 | Z-1.C.1 (난수 DEK, 비밀번호 파생 없음) | `zbacs-core` DEK = OsRng 32B |
 | T02 헤더 정책 변조 | Z-1.C.5 (정책 해시), Z-1.H.1 (온체인 커밋), Z-1.G.4 (양쪽 비교) | core `t02_header_tamper_policy_is_detected`, malicious `t02_10/11/12` |
-| T03 티켓 재전송 | Z-1.H.2 (nonce·chainId), Z-1.R.1 (요청 nonce), Z-1.G.4 (세션 1회 소비) | contracts `test_t03_*` 3종, aa-passkey `test_t03_replay_rejected` |
+| T03 티켓 재전송 | Z-1.H.2 (nonce·chainId), Z-1.R.1 (요청 nonce), Z-1.G.4 (세션 1회 소비), Z-1.A.6 (일회용 키 폐기) | contracts `test_t03_*` 3종, aa-passkey `test_t03_replay_rejected`, auth `t03_replay_is_refused_by_signer_and_verifier`, session `t03_*` |
 | T04 Relay DEK 탈취 | Z-1.C.1 (HPKE 봉투 정식화), Z-1.R.2 (Relay는 암호문만) | core `t04_wrong_key_cannot_open`, `extra_recipient_envelope_opens` |
 | T05 요청자 바꿔치기 | Z-1.A.3 (기기 키), Z-1.R.1 (요청 서명·devicePub 해시), Z-1.H.2 (티켓에 deviceKid) | proto `t05_*` 2종 |
 | T06 승인 피싱 | Z-1.G.10, Z-1.P.2 (EIP-712 구조화 표시), Z-1.U.5 (알림 액션에 파일·권한 표시) | contracts EIP-712 타입 해시 벡터 |

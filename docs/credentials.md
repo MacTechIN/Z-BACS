@@ -12,7 +12,7 @@
 | **사용자 승인키**(패스키·TPM 기기 키) | **아무도 — 기기가 스스로 생성** | 0 | 이미 구현 | — |
 | 컨테이너·기기·Relay 키 | **우리가 생성**(`zbacs-core`/`proto`) | 0 | 이미 구현 | — |
 | Tauri 업데이터 서명 키 | **우리가 생성**(`tauri signer generate`) | 0 | Z-1.G.13 | 자동 업데이트 |
-| BSA Client Key (샌드박스→운영) | BSA 제공사 | 계약 협의 | Z-1.A.5 연결 시 | BSA 연동 (대체 경로 있음) |
+| BSA Client Key (샌드박스→운영) | BSA 제공사 | 계약 협의 | Z-1.A.5 연결 시 | BSA 연동 — **개인 프로젝트면 불필요**, `OtakProvider`로 대체(§7) |
 | Pimlico API Key | Pimlico (가입) | 무료 티어→유료 | Z-1.H.9 | 가스 대납(페이마스터) |
 | RPC 엔드포인트 키 | Alchemy/QuickNode 등 | 무료 티어→유료 | Z-1.H.7 운영 | 안정적 체인 조회 |
 | Basescan API Key | Basescan (가입) | 무료 | Z-1.H.4 | 컨트랙트 소스 검증 |
@@ -122,7 +122,9 @@ ITU-T DFS Security Lab은 X.1284 같은 권고안을 만들고 **보안 평가·
 
 ## 6. 지금 당장 할 것 / 나중에 할 것
 
-**지금 (Phase 1 진행에 필요)**
+> 아래는 **외부 배포를 하는 경우**의 순서다. 개인 프로젝트로 유지한다면 §7만 따르면 되고 아무것도 신청하지 않아도 된다.
+
+**지금 (외부 배포 시)**
 1. EV 코드 서명 발급 절차 **문의 시작** — 리드타임이 가장 길다.
 2. BSA 제공사에 §1의 질문 목록 전달(샌드박스 신청과 함께).
 3. Pimlico 운영 플랜·스폰서 정책 확인(이미 테스트 키 보유).
@@ -130,3 +132,37 @@ ITU-T DFS Security Lab은 X.1284 같은 권고안을 만들고 **보안 평가·
 **나중 (필요해질 때)**
 4. Basescan 키(메인넷 배포 직전), 전용 RPC(운영 트래픽 생길 때)
 5. FCM(모바일 승인 앱 착수 시), Apple Developer(맥 지원 시)
+
+---
+
+## 7. 개인 프로젝트 모드: 외부 발급 0으로 돌리기
+
+개인 프로젝트라 외부 인증·계약을 하지 않겠다면, **전부 자체 생성·자체 호스팅으로 대체할 수 있다.** 잃는 것은 "남이 보증해 주는 신뢰 표식"뿐이고 기능은 그대로다.
+
+| 원래 외부에서 받던 것 | 자체 대체 | 잃는 것 |
+|---|---|---|
+| BSA Client Key | **`OtakProvider`**(Z-1.A.6, 구현 완료) — X.1284 흐름을 우리 키로 구현. 소유자 승인은 패스키/TPM 키(이미 자체 생성) | "BSA 제품 연동" 타이틀. 표준 흐름 준수는 유지 |
+| EV 코드 서명 | 자체 서명 인증서(`New-SelfSignedCertificate` + `signtool`)로 서명하거나 서명 생략 | SmartScreen 경고("추가 정보 → 실행" 한 번 필요). 본인·지인 배포엔 충분 |
+| Pimlico 페이마스터 | 계정에 소액 직접 예치(`EntryPoint.depositTo`) 또는 자체 번들러(alto/rundler) 실행. 테스트넷은 무료 키로 충분 | 가스 대납 UX. 본인 계정이면 예치가 더 단순 |
+| 전용 RPC | 공개 RPC(`sepolia.base.org`, `mainnet.base.org`) | 레이트리밋·가용성 보장 |
+| Basescan 키 | 검증 생략(배포는 됨) | 탐색기에서 소스 보기 |
+| FCM | **셀프호스팅 ntfy** (Z-1.R.3 폴백이 원래 이것) | 모바일 기본 푸시 채널 |
+| Apple Developer | macOS 미지원으로 두기 | 맥 배포 |
+| Relay TLS | Let's Encrypt(무료·자동) 또는 자체 서명 + 앱에 인증서 핀 고정 | — |
+
+### 자체 서명으로 Windows 바이너리에 서명하기 (참고)
+
+```powershell
+$c = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Z-BACS Dev" `
+     -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddYears(3)
+# 내 PC에서 경고를 없애려면 신뢰된 루트에 등록(다른 PC에는 효과 없음)
+Export-Certificate -Cert $c -FilePath zbacs-dev.cer
+Import-Certificate -FilePath zbacs-dev.cer -CertStoreLocation Cert:\CurrentUser\Root
+signtool sign /fd SHA256 /a /tr http://timestamp.digicert.com /td SHA256 zbacs-agent.exe
+```
+
+자체 서명은 **내 PC에서만** 경고가 사라진다. 남에게 배포할 때는 EV 인증서가 있어야 하고, 그때 §4.1로 돌아오면 된다.
+
+### 결론
+
+**보안적으로 잃는 것은 없다.** 파일을 지키는 키(패스키·TPM 기기 키·DEK·봉인키)는 처음부터 전부 기기 안에서 우리가 만들고, 어떤 발급기관도 관여하지 않는다. 외부 자격 증명은 편의(가스 대납·푸시·경고 없는 설치)일 뿐이다.

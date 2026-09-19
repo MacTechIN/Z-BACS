@@ -25,6 +25,7 @@
 
 pub mod bsa;
 pub mod error;
+pub mod otak;
 pub mod policy;
 pub mod provider;
 #[cfg(feature = "software-signer")]
@@ -37,6 +38,7 @@ pub mod windows;
 
 pub use bsa::{BsaClient, BsaProvider, MockBsaClient};
 pub use error::AuthError;
+pub use otak::{OtakProvider, OtakSeed, OtakVerifier};
 pub use policy::ConfirmationPolicy;
 pub use provider::AuthProvider;
 pub use store::{KeyStore, MemoryKeyStore};
