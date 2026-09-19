@@ -1,6 +1,6 @@
 # ADR-0003: AuthProvider 추상화 — 패스키 우선, BSA는 어댑터
 
-- 상태: Accepted (2026-09-18)
+- 상태: Accepted (2026-09-18). 2026-09-19 ADR-0006으로 `DeviceKeyProvider`(등록 기기 바운드 키) 추가.
 
 ## 컨텍스트
 프로젝트 명세는 BSA(Blockchain Secure Authentication) 기반이다. 그러나 BSA SDK는 상용·비공개이며 ITU DFS 샌드박스 Client Key 신청이 필요하고 공개 저장소가 없다. 개발 초기부터 BSA에 종속되면 진행이 막힌다.

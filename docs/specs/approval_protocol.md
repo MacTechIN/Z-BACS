@@ -1,6 +1,6 @@
 # 스펙: 접근 요청·승인 프로토콜 v1
 
-| 상태 | Draft 1.0 (2026-09-18) |
+| 상태 | Draft 1.1 (2026-09-19: §1.5 소유자 서명 방식 추가, ADR-0006) |
 |---|---|
 | 구현 | `crates/zbacs-core/src/grant.rs`, `contracts/src/AccessPolicy.sol`, `apps/relay` |
 
@@ -49,6 +49,19 @@ GrantMsg { grant: AccessGrant, sig: bytes, envelope: { enc, ct } /* HPKE(DEK →
 ```
 Revoke { grantId = keccak(AccessGrant), sig } → 체인 revoke() + Relay 브로드캐스트
 ```
+
+### 1.5 소유자 서명 방식 (ADR-0006)
+소유자 계정은 서명자를 여러 개 가진다. `GrantMsg.sig`는 둘 중 하나이며 Bob Agent는 구분하지 않는다(ERC-1271 `isValidSignature`로 계정에 위임).
+```
+OwnerSig = WebAuthn { authenticatorData, clientDataJSON, r, s }   // A. 플랫폼 패스키 → Kernel WebAuthn Validator
+         | P256Raw  { keyId: bytes32, r, s }                      // B. 등록 기기 키   → P256Validator (low-s 필수)
+```
+기기 등록·해지는 소유자 계정의 UserOp이며 체인 이벤트로 남는다:
+```
+DeviceEnroll { account, keyId = keccak(x‖y), x, y, kind: Passkey|DeviceKey, requireOsConfirm: bool, ts }  // 기존 서명자가 서명
+DeviceRevoke { account, keyId, ts }                                                                        // 다른 등록 서명자가 서명
+```
+정책 기본값: `permission == Edit` 승인 또는 10분 내 5건 초과 승인은 서명자 종류와 무관하게 OS 확인(생체/PIN)을 요구한다(T23).
 
 ## 2. 검증 규칙 (Bob Agent)
 1. `grant.fileId/headerHash` == 로컬 컨테이너 값.

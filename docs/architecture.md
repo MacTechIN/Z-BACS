@@ -147,7 +147,8 @@ Bob.agent            Relay              Alice.approve/agent          Ledger
 
 | 키                       | 생성 위치                            | 보관                              | 용도                   |
 | ----------------------- | -------------------------------- | ------------------------------- | -------------------- |
-| 소유자 승인키 (패스키/BSA)       | Secure Enclave/TPM/Windows Hello | 하드웨어                            | EIP-712 승인 서명, 계정 소유 |
+| 소유자 승인키 A: 플랫폼 패스키 (Windows Hello/Touch ID/BSA) | OS 인증기 (TPM/Secure Enclave) | 하드웨어, 승인마다 생체·PIN 창 | EIP-712 승인 서명, 계정 서명자 (ADR-0006) |
+| 소유자 승인키 B: 기기 바운드 키 (P-256, 등록 기기당 1개) | Agent가 TPM/Keystore/Secure Enclave에 생성, 내보내기 불가 | 하드웨어, 탭만으로 승인(기기별 OS 확인 옵션) | EIP-712 승인 서명, 계정 서명자 (ADR-0006) |
 | 소유자 봉인키 (X25519)        | Agent                            | OS 키체인(DPAPI/Keychain) + 암호화 백업 | 자기 봉투(DEK 자기 복구)     |
 | 기기 키 (X25519 + Ed25519) | 각 Agent                          | OS 키체인                          | 요청 서명, DEK 수신 봉투     |
 | DEK (32B)               | Seal/Reseal 시 난수                 | 봉투 안에서만                         | 파일 청크 AEAD           |
@@ -166,7 +167,7 @@ Bob.agent            Relay              Alice.approve/agent          Ledger
 | AuditLog     | `log(fileId, kind, actorCommit)` (Agent가 기기키로 서명한 어테스테이션)                   | Requested, Denied, Opened, Sealed |
 
 
-- 소유자 계정: ERC-7579 Kernel + Passkey Validator(RIP-7212 또는 P-256 검증기 폴백). 가스는 페이마스터 대납.
+- 소유자 계정: ERC-7579 Kernel + WebAuthn Validator(플랫폼 패스키) + `P256Validator`(등록 기기 키 집합, add/remove = 기기 등록/해지). 둘 다 RIP-7212 프리컴파일, Daimo 폴백. 가스는 페이마스터 대납. (ADR-0006)
 - 프라이버시: `actorCommit = H(deviceKid || salt)`. Phase 3에서 Semaphore 증명으로 교체.
 
 ## 7. 기술 스택 요약

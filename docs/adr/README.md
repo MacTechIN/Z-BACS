@@ -6,6 +6,7 @@
 | [ADR-0002](ADR-0002-crypto-primitives.md) | XChaCha20-Poly1305 청크 + HPKE 봉투 | Accepted |
 | [ADR-0003](ADR-0003-auth-provider-abstraction.md) | AuthProvider 추상화, 패스키 우선·BSA 어댑터 | Accepted |
 | [ADR-0004](ADR-0004-pre-deferred-to-phase3.md) | PRE/임계값 위임은 Phase 3로 연기 | Accepted |
-| [ADR-0005](ADR-0005-chain-selection.md) | EVM L2(Base) + 로컬 Anvil, 패스키 스마트계정 | Accepted |
+| [ADR-0005](ADR-0005-chain-selection.md) | EVM L2(Base) + 로컬 Anvil, 패스키 스마트계정 | Accepted (2026-09-19 재확인) |
+| [ADR-0006](ADR-0006-owner-signer-dual-path.md) | 소유자 승인 서명 이중 경로: 플랫폼 패스키 또는 등록 기기 바운드 키, 소유자 선택 | Accepted |
 
 새 ADR은 `ADR-NNNN-slug.md` 형식으로 추가하고 이 표를 갱신한다. 템플릿: 컨텍스트 / 결정 / 근거 / 대안 / 결과.

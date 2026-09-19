@@ -417,3 +417,28 @@ Windows Hello는 Windows 10/11에 내장된 로그인 방식 — 비밀번호 �
 
 Windows 실기 조건: Windows 10 1903+ 또는 11, TPM 2.0, 지문 리더/IR 카메라(없으면 PIN도 동작). 준비되면 Z-0.A.1 진행.
 ```
+
+### #39 [U] 2026-09-19
+```
+굿이 그렇게 하지말고 소유자가 허용 을 누르면 소유자가 허용한 H/W PC,Mobile,tablet 에서만 인증키를 생성해서 키로 나가거나 윈도우 hello 를 이용해서 생성하는 방법을 선택할수 있도록 두가지 다 가능하도록 넣어줘
+```
+
+### #39 [C] 2026-09-19
+```
+설계에 반영했습니다(ADR-0006, Spec-first). 커밋·푸시 완료.
+
+결정: 소유자 스마트계정에 두 종류 서명자를 등록할 수 있고, 소유자가 기기마다 선택한다.
+- A. 플랫폼 패스키 — Windows Hello / Touch ID / Android 생체. 승인마다 얼굴·지문·PIN 창. 온체인 검증은 기존 Kernel WebAuthn 검증기.
+- B. 기기 바운드 키(DeviceKey) — Agent가 그 기기의 하드웨어 저장소(Windows TPM, Android Keystore, iOS Secure Enclave)에 내보내기 불가 P-256 키를 생성. 등록된 기기에서 "허용" 탭만으로 승인, 기기별로 OS 확인을 켤 수 있음. 온체인 검증은 새 P256Validator(계정당 키 집합, 프리컴파일 + 폴백, low-s 강제).
+- 사용자에게 보이는 선택지는 "얼굴/지문으로 확인하고 승인" / "이 기기에서 바로 승인" 두 개뿐(온보딩 1화면, 이후 "내 기기"에서 변경). 기술 용어·입력 필드 없음. 기본값: OS 인증기 있으면 A, 없으면 B.
+- 기기 등록 = 이미 등록된 기기가 새 기기를 허용(첫 기기는 온보딩 자동). 해지 = 다른 등록 기기에서 탭 한 번. 둘 다 체인 기록(T12/T22).
+- 두 경로 모두 같은 EIP-712 AccessGrant를 만들고 Bob 쪽 검증(ERC-1271)은 변화 없음.
+
+안전장치(새 위협 T23 — 무프롬프트 기기 키를 소유자 PC의 악성코드가 자동 승인에 악용): 키 사용은 Agent UI의 명시적 탭에만 연결, Edit 권한 승인·10분 내 5건 초과는 서명자 종류와 무관하게 OS 확인 강제(기본 정책), 다른 기기에서 즉시 해지.
+
+문서 변경: ADR-0006 신규, approval_protocol §1.5(OwnerSig 두 형식, DeviceEnroll/DeviceRevoke), architecture §5 키 계층·§6, threat_model v1.2(T23), dev_plan(Z-1.A.7 DeviceKeyProvider, Z-1.H.10 P256Validator+기기 등록/해지, Z-1.U.7 선택 UI — Figma 먼저, Z-1.G.2 온보딩 갱신, 부록 A T12/T22/T23), ADR-0003 참조, CLAUDE.md.
+
+부수 효과: Windows Hello 스파이크(Z-0.A.1)가 더 이상 Phase 0 게이트가 아님 — 경로 B의 P-256 서명은 Z-0.H.2에서 이미 체인까지 검증됨. Phase 0 종료. Z-0.A.1은 Windows 실기 확보 시 Phase 1 Z-1.A.2 선행으로 진행.
+
+다음 제안: Phase 1 시작 — Z-1.A.1 AuthProvider 트레이트(+DeviceKeyProvider 인터페이스)와 Z-1.C.1 core 정식화. 지정해 주시면 시작합니다.
+```

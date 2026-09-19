@@ -42,9 +42,9 @@
 | Z-0.G.1 ✅ | Tauri 2 스파이크: `.zbacs` 파일 연결, `RunEvent::Opened` 로 경로 수신, 단일 인스턴스 | research §3 | `spikes/tauri-assoc/` | 더블클릭 시 앱 실행·경로 로그 (2026-09-19 Linux headless: 인자 수신·단일 인스턴스 전달·deb 파일연결 확인. Windows 실기 확인은 Z-0.A.1과 함께) |
 | Z-0.H.1 ✅ | Foundry 프로젝트 + Anvil, `AccessGrant` EIP-712 서명·검증 PoC | specs/approval_protocol | `contracts/` | `forge test` 통과 (2026-09-19: 18 tests, T03/T14/T15/T20 매핑, 벡터 기록) |
 | Z-0.H.2 ✅ | Base Sepolia RIP-7212 실측(OR-2), Kernel+Passkey Validator 계정 생성 스파이크(permissionless.js) | research §4 | `spikes/aa-passkey/` | 패스키로 UserOp 1건 성공 (2026-09-19: Base Sepolia·메인넷 P256VERIFY 활성 3,885 gas, Kernel v3.1+WebAuthn UserOp가 포크의 실제 EntryPoint v0.7 통과, 10 tests; Pimlico 번들러+페이마스터 실제 제출 2건 성공 757,792 / 418,432 gas) |
-| Z-0.Q.1 ✅ | 위협모델 리뷰 워크숍, T01~T20 → 태스크 매핑 | threat_model | 매핑표(이 문서 §부록) | 누락 없음 (2026-09-19: T01~T22 전부 매핑, 사라진 ID(Z-2.S.1/2) 정정, 스파이크 근거 열 추가, T21·T22 신규) |
+| Z-0.Q.1 ✅ | 위협모델 리뷰 워크숍, T01~T20 → 태스크 매핑 | threat_model | 매핑표(이 문서 §부록) | 누락 없음 (2026-09-19: T01~T23 전부 매핑, 사라진 ID(Z-2.S.1/2) 정정, 스파이크 근거 열 추가, T21·T22 신규) |
 
-**Phase 0 종료 기준**: 5개 스파이크(C.1, A.1, G.1, H.1, H.2) 모두 성공 또는 대안 ADR 작성. — 2026-09-19 현재 4/5 완료(C.1, G.1, H.1, H.2), A.1은 Windows 실기 필요.
+**Phase 0 종료 기준**: 5개 스파이크(C.1, A.1, G.1, H.1, H.2) 모두 성공 또는 대안 ADR 작성. — 2026-09-19: C.1, G.1, H.1, H.2 완료. A.1(Windows Hello)은 ADR-0006으로 게이트에서 제외(경로 B 기기 키가 H.2에서 체인까지 검증됨; A.1은 Phase 1 Z-1.A.2 선행으로 Windows 실기 확보 시 진행). **Phase 0 종료.**
 
 ---
 
@@ -64,7 +64,8 @@
 | ID | 태스크 | DoD |
 |---|---|---|
 | Z-1.A.1 | `AuthProvider` 트레이트 + `ApprovalChallenge/Assertion` 타입 | 문서화 |
-| Z-1.A.2 | `PasskeyProvider(Windows)` 구현 | 등록·승인 E2E |
+| Z-1.A.2 | `PasskeyProvider(Windows)` 구현 — 승인 서명 경로 A(플랫폼 패스키, ADR-0006) | 등록·승인 E2E |
+| Z-1.A.7 | `DeviceKeyProvider` — 승인 서명 경로 B: TPM(Windows CNG Platform Crypto Provider)/Android Keystore/Secure Enclave에 내보내기 불가 P-256 키 생성, raw 서명, 기기별 OS 확인 옵션 (ADR-0006) | Windows TPM 키 생성·서명, 내보내기 불가 확인, 재부팅 후 사용, T23 정책 테스트 |
 | Z-1.A.3 | 기기 키(X25519/Ed25519) 생성 + DPAPI/keyring 보관 | 재부팅 후 복원 |
 | Z-1.A.4 | 소유자 봉인키 생성·보관·암호화 백업 파일 내보내기 | 백업 복원 테스트 |
 | Z-1.A.5 | `BsaProvider` 골격 (SDK 확보 시 연결, 미확보 시 mock) | 인터페이스 호환 테스트 |
@@ -82,6 +83,7 @@
 | Z-1.H.7 | `zbacs-chain`(alloy): ABI 바인딩, 이벤트 구독, 오프라인 캐시 | 통합 테스트(Anvil) |
 | Z-1.H.8 | `packages/chain-ts`: viem 타입, EIP-712 서명 헬퍼, permissionless 계정 생성 | 승인 앱에서 사용 |
 | Z-1.H.9 | 페이마스터 설정(Pimlico 샌드박스) | 가스 0 UserOp |
+| Z-1.H.10 | `P256Validator`(ERC-7579): 계정당 키 집합 add/remove(= 기기 등록/해지 `DeviceEnroll/DeviceRevoke`), P256VERIFY + Daimo 폴백, low-s 강제; Kernel 설치·해지 스크립트 (ADR-0006) | 등록 기기 키로 UserOp 성공, 해지 후 AA24, T12/T22/T23 테스트 |
 
 ### 1.4 Relay (R)
 | ID | 태스크 | DoD |
@@ -96,7 +98,7 @@
 | ID | 태스크 | DoD |
 |---|---|---|
 | Z-1.G.1 | Tauri 앱 골격, 트레이, 단일 인스턴스, 파일 연결 | 설치 후 더블클릭 동작 |
-| Z-1.G.2 | 온보딩 UI: 소유자 계정(패스키) 생성, 기기 등록 | 신규 사용자 3분 내 완료 |
+| Z-1.G.2 | 온보딩 UI: 소유자 계정 생성, 승인 방식 선택(Z-1.U.7), 기기 등록 | 신규 사용자 3분 내 완료 |
 | Z-1.G.3 | Seal UI: 파일 선택/드래그, 정책 설정(기본 권한, TTL, 횟수) | `.zbacs` 생성 |
 | Z-1.G.4 | 세션 상태머신(`zbacs-session`) 구현 | 상태 전이 테스트 |
 | Z-1.G.5 | 보호 작업공간: ACL 설정, 인덱싱·백업 제외 | ACL 검증 스크립트 |
@@ -125,6 +127,7 @@
 | Z-1.U.4 | 오류 메시지 카탈로그: 모든 오류에 사용자 행동 안내 + 버튼 | 리뷰 |
 | Z-1.U.5 | 승인 알림 액션 버튼(Windows 토스트, 모바일 푸시) | U-3 |
 | Z-1.U.6 | 사용성 테스트 라운드 1 (외부 참가자 5명, 설명 없이 U-1~U-4) | 성공률 ≥ 80% |
+| Z-1.U.7 | 승인 방식 선택 UI: 온보딩 1화면 "얼굴/지문으로 확인하고 승인" / "이 기기에서 바로 승인", "내 기기"에서 변경·해지. 텍스트 입력 0, 기술 용어 0. **Figma에 화면 먼저 추가** (ADR-0006) | U-1, 용어 린트 통과 |
 | Z-1.S.1 | **(Phase 2에서 이동)** `zbacs-stub` Windows 자체실행 래퍼: Agent 감지·무인 설치·핸드오프 | U-2 통과 |
 | Z-1.S.2 | **(Phase 2에서 이동)** EV 코드 서명, SmartScreen 평판 | 경고 없음 |
 
@@ -198,7 +201,7 @@
 | T09 평문 잔존 | Z-1.G.8 (재봉인·안전 삭제), Z-1.Q.2 (포렌식 CI), Z-2.G.3 (가상 드라이브) | — |
 | T10 앱 임시파일 | Z-1.G.6 (경로 고정·저장 감지), Z-1.G.8 (앱별 잔존 청소), Z-2.G.3 | — |
 | T11 메모리 덤프 | Z-1.C.6 (zeroize·secrecy), Z-1.A.3 (DPAPI), Z-3.G.2 (TEE/VBS) | core `secrecy`/`zeroize` 적용 |
-| T12 소유자 기기 분실 | Z-1.A.4 (암호화 백업), Z-2.A.1 (다중 기기·소셜 복구), Z-2.U.1 (복구 UX) | — |
+| T12 소유자 기기 분실 | Z-1.A.4 (암호화 백업), Z-1.H.10 (다른 기기에서 해지), Z-2.A.1 (다중 기기·소셜 복구), Z-2.U.1 (복구 UX) | — |
 | T13 온체인 식별 | Z-1.C.5 (fileId 솔트), Z-1.H.9 (페이마스터), Z-3.Z.1/2 (ZK) | contracts fileId = H(hash‖salt) |
 | T14 컨트랙트 검증 우회 | Z-1.H.2 (EIP-712·ERC-1271·low-s), Z-1.H.5 (Slither/Echidna), Z-1.H.6 (HF 감사), Z-1.H.8 (WebAuthn 서명 인코딩) | contracts `test_t14_*` 3종, aa-passkey `test_t14_tampered_signature_rejected` |
 | T15 만료 우회 | Z-1.H.2 (체인 시간), Z-1.G.4 (로컬 시계 병행) | contracts `test_t15_*` 2종 |
@@ -208,7 +211,8 @@
 | T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책) | core `t19_truncation_is_detected`, `bad_magic_and_version` |
 | T20 회수 무시 | Z-1.G.4 (TTL·주기 확인), Z-1.G.11 (revoke), Z-1.H.7 (이벤트 구독), Z-1.G.13 (코드 서명), Z-3.H.3 (어테스테이션) | contracts `test_t20_revoke_only_owner` |
 | T21 번들러·페이마스터 검열/지연 | Z-1.H.8 (다중 번들러 엔드포인트), Z-1.H.9 (페이마스터 폴백: 자체 예치), Z-1.G.4 (`strict_onchain` 아닌 경우 체인 확정 미대기) | aa-passkey: EntryPoint 직접 `handleOps` 경로 + Pimlico 실제 제출(프리컴파일 호출 허용 확인) |
-| T22 동기화 패스키 복제 | Z-1.A.2 (BE/BS 플래그 기록·정책), Z-1.U.1 (기기 바운드 우선 등록), Z-2.A.1 (기기 목록·해지) | aa-passkey: authenticatorData 플래그 파싱 |
+| T22 동기화 패스키 복제 | Z-1.A.2 (BE/BS 플래그 기록·정책), Z-1.A.7 (기기 바운드 키 대안), Z-1.H.10 (등록·해지 온체인), Z-1.U.7 (선택 UI) | aa-passkey: authenticatorData 플래그 파싱 |
+| T23 무프롬프트 기기 키 남용 | Z-1.A.7 (OS 확인 옵션·속도 제한), Z-1.G.10 (명시적 탭에만 키 사용), Z-1.H.10 (즉시 해지), Z-3.G.2 (VBS) | — |
 
 ## 부록 B. 마일스톤 요약
 
