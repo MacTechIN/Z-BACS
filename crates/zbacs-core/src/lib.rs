@@ -8,6 +8,8 @@
 //!   self-envelope (and any extra recipients).
 //! - [`open`] — decrypt through an embedded envelope; [`open_with_dek`] — decrypt with a DEK
 //!   received out-of-band in a grant; [`inspect`] — read the header without any key.
+//! - [`reseal_to_path`] — write the edited plaintext back as the next version (new DEK,
+//!   `ver + 1`, atomic replace); [`verify_version_chain`] — check a `v1 → v2 → …` chain.
 //! - [`Sealer`] / [`Opener`] — object-safe traits over the above for the Agent.
 //!
 //! # Security notes
@@ -25,7 +27,10 @@ pub mod keys;
 pub mod traits;
 pub mod types;
 
-pub use container::{inspect, open, open_with_dek, read_header, seal, seal_to_path, Opened, SealOptions};
+pub use container::{
+    decrypt_name, inspect, open, open_with_dek, read_header, reseal_to_path, seal, seal_to_path,
+    verify_version_chain, Opened, PrevVersion, SealOptions,
+};
 pub use envelope::Envelope;
 pub use error::{Error, Result};
 pub use header::{Header, HeaderBody, Permission, Policy, MAGIC, VERSION_MAJOR, VERSION_MINOR};

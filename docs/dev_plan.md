@@ -56,7 +56,7 @@
 | Z-1.C.1 ✅ | `zbacs-core` 크레이트 정식화: 타입, 에러, `Sealer/Opener` 트레이트 | 문서화된 공개 API, 단위 테스트 90% (2026-09-19: `FileId/HeaderHash/KeyId/Salt/NoncePrefix` 고정 길이 타입(와이어 호환), 객체 안전 `Sealer/Opener` + `GrantedDek`, 에러 문서화·`non_exhaustive`, `missing_docs` + CI rustdoc -D warnings, `cargo llvm-cov` 90% 게이트 CI) |
 | Z-1.C.2 ✅ | 컨테이너 파서 견고화: 길이 상한, 버전 검사, 절단 방지(`is_last`), trailer | 악성 입력 테스트 20종 (2026-09-19: spec §2.2 필드 제한 명문화 → `validate_header`(서명 검증 후·키 사용 전: ver/prev 체인, own 1..64, name ≤1040, env 1..32·필드 ≤1024), 버전 오버플로 방지, `tests/malicious.rs` **31종**(프레이밍·서명·필드 제한·봉투·청크·트레일러·랜덤 변이 500회+전 길이 절단), 커버리지 게이트 유지) |
 | Z-1.C.3 ◐ | `cargo-fuzz` 타깃(header, chunk) | 24h 퍼징 무크래시 (2026-09-19: 타깃 4종 `header`/`header_signed`/`open_mutated`/`envelope` + `tools/fuzz.sh` + 야간 CI `fuzz.yml`. 스모크 150s×4 = 약 300만 실행 무크래시, cov 966 edges. **24h 실행은 `tools/fuzz.sh 24h`로 사용자 머신에서** — 완료 시 ✅) |
-| Z-1.C.4 | 재봉인(Reseal): 새 DEK, 버전 체인, 원자적 교체 | v1→v2→v3 체인 검증 테스트 |
+| Z-1.C.4 ✅ | 재봉인(Reseal): 새 DEK, 버전 체인, 원자적 교체 | v1→v2→v3 체인 검증 테스트 (2026-09-19: spec §5 확장 — `fid`/`salt` 버전 불변(온체인 `bumpVersion` 키), 체인 규칙, 원자 교체, 새 DEK로 이전 승인 무효화(T20). `PrevVersion`, `reseal_to_path`, `verify_version_chain`, `decrypt_name`, CLI `zbacs reseal`; 테스트 10종) |
 | Z-1.C.5 | 파일명 암호화, 정책 해시, 테스트 벡터 고정 | vectors 디렉터리 |
 | Z-1.C.6 | 키 자료 zeroize 감사, `secrecy` 적용 | 리뷰 체크리스트 통과 |
 
@@ -191,7 +191,7 @@
 | 위협 | 완화 태스크 | 현재 근거 (Phase 0) |
 |---|---|---|
 | T01 무차별 대입 | Z-1.C.1 (난수 DEK, 비밀번호 파생 없음) | `zbacs-core` DEK = OsRng 32B |
-| T02 헤더 정책 변조 | Z-1.C.5 (정책 해시), Z-1.H.1 (온체인 커밋), Z-1.G.4 (양쪽 비교) | core `t02_header_tamper_policy_is_detected` |
+| T02 헤더 정책 변조 | Z-1.C.5 (정책 해시), Z-1.H.1 (온체인 커밋), Z-1.G.4 (양쪽 비교) | core `t02_header_tamper_policy_is_detected`, malicious `t02_10/11/12` |
 | T03 티켓 재전송 | Z-1.H.2 (nonce·chainId), Z-1.R.1 (요청 nonce), Z-1.G.4 (세션 1회 소비) | contracts `test_t03_*` 3종, aa-passkey `test_t03_replay_rejected` |
 | T04 Relay DEK 탈취 | Z-1.C.1 (HPKE 봉투 정식화), Z-1.R.2 (Relay는 암호문만) | core `t04_wrong_key_cannot_open`, `extra_recipient_envelope_opens` |
 | T05 요청자 바꿔치기 | Z-1.A.3 (기기 키), Z-1.R.1 (요청 서명·devicePub 해시), Z-1.H.2 (티켓에 deviceKid) | — (Z-1.R.1 테스트 예정) |
@@ -208,8 +208,8 @@
 | T16 Relay DoS | Z-1.R.2 (서명·레이트리밋), Z-1.R.4 (셀프호스팅), Z-1.H.7 (체인 이벤트 폴백), Z-2.R.1 | — |
 | T17 스텁 위장 | Z-1.S.1/S.2 (코드 서명·해시 고정), Z-1.C.2 (Agent는 컨테이너만 파싱), Z-1.G.13 (서명된 업데이트) | tauri-assoc: 파일 인자를 경로로만 취급, `inspect`만 수행 |
 | T18 파서 취약점 | Z-1.C.2 (길이 상한·악성 입력 20종), Z-1.C.3 (cargo-fuzz) | core `tests/malicious.rs` 31종 (`t17_*`, `t18_*`, `t19_*`), `t18_chunk_*` |
-| T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책) | core `t19_03_other_major_version_rejected`, `t19_16_version_chain_invariants`, `t19_2x_*` 트레일러·절단 |
-| T20 회수 무시 | Z-1.G.4 (TTL·주기 확인), Z-1.G.11 (revoke), Z-1.H.7 (이벤트 구독), Z-1.G.13 (코드 서명), Z-3.H.3 (어테스테이션) | contracts `test_t20_revoke_only_owner` |
+| T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책), Z-1.C.4 (`verify_version_chain`) | core `t19_03_other_major_version_rejected`, `t19_16_version_chain_invariants`, `t19_2x_*`; reseal `t19_*` 3종 |
+| T20 회수 무시 | Z-1.C.4 (재봉인 시 새 DEK로 이전 승인 무효화), Z-1.G.4 (TTL·주기 확인), Z-1.G.11 (revoke), Z-1.H.7 (이벤트 구독), Z-1.G.13 (코드 서명), Z-3.H.3 (어테스테이션) | contracts `test_t20_revoke_only_owner`; core `t20_each_version_gets_a_fresh_dek_and_nonce_prefix` |
 | T21 번들러·페이마스터 검열/지연 | Z-1.H.8 (다중 번들러 엔드포인트), Z-1.H.9 (페이마스터 폴백: 자체 예치), Z-1.G.4 (`strict_onchain` 아닌 경우 체인 확정 미대기) | aa-passkey: EntryPoint 직접 `handleOps` 경로 + Pimlico 실제 제출(프리컴파일 호출 허용 확인) |
 | T22 동기화 패스키 복제 | Z-1.A.2 (BE/BS 플래그 기록·정책), Z-1.A.7 (기기 바운드 키 대안), Z-1.H.10 (등록·해지 온체인), Z-1.U.7 (선택 UI) | auth `t22_synced_passkey_flags_detected`; contracts `test_t22_keys_are_scoped_to_the_enrolling_account` |
 | T23 무프롬프트 기기 키 남용 | Z-1.A.7 (OS 확인 옵션·속도 제한), Z-1.G.10 (명시적 탭에만 키 사용), Z-1.H.10 (즉시 해지), Z-3.G.2 (VBS) | auth `t23_*` 2종; contracts `requireOsConfirm` 온체인 기록 |

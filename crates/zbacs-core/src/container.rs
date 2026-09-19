@@ -33,6 +33,30 @@ const MAX_NAME_CT_LEN: usize = 1024 + TAG_LEN;
 const MAX_ENVELOPES: usize = 32;
 const MAX_ENVELOPE_FIELD_LEN: usize = 1024;
 
+/// Identity carried from the previous container version when resealing (spec §5).
+///
+/// `file_id` and `salt` are **stable across versions**: `fid` is the file's identity and the
+/// key of the on-chain `FileRegistry` record, so a reseal keeps it and only bumps the header
+/// hash. Build one with [`PrevVersion::of`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PrevVersion {
+    /// `SHA-256` of the previous version's header.
+    pub header_hash: HeaderHash,
+    /// Previous version number; the new container gets `version + 1`.
+    pub version: u32,
+    /// File identity, unchanged since version 1.
+    pub file_id: FileId,
+    /// Salt that version 1 mixed into `file_id`, unchanged since.
+    pub salt: Salt,
+}
+
+impl PrevVersion {
+    /// Read the identity out of the container version being replaced.
+    pub fn of(header: &Header, header_hash: HeaderHash) -> Self {
+        Self { header_hash, version: header.body.ver, file_id: header.body.fid, salt: header.body.salt }
+    }
+}
+
 /// Parameters for [`seal`]. Build with [`SealOptions::new`] and adjust fields as needed.
 pub struct SealOptions<'a> {
     /// Owner policy written into the header.
@@ -45,8 +69,8 @@ pub struct SealOptions<'a> {
     pub chunk_size: usize,
     /// Extra recipients whose envelopes are embedded (normally none: grants travel out-of-band).
     pub extra_recipients: &'a [&'a [u8]],
-    /// For reseal: previous header hash and version number (the new version is `prev.1 + 1`).
-    pub prev: Option<(HeaderHash, u32)>,
+    /// For reseal: the previous version's identity (see [`PrevVersion`]).
+    pub prev: Option<PrevVersion>,
 }
 
 impl<'a> SealOptions<'a> {
@@ -112,13 +136,22 @@ pub fn seal<R: Read + Seek, W: Write>(
     let plaintext_hash: [u8; 32] = hasher.finalize().into();
     input.seek(SeekFrom::Start(0))?;
 
-    // keys, salt, fid
+    // keys and identity: a fresh DEK and nonce prefix every version (spec §5), while `fid`
+    // and `salt` are inherited by a reseal so the on-chain record keeps its key.
     let dek = Dek::generate();
-    let mut salt = [0u8; 16];
-    OsRng.fill_bytes(&mut salt);
     let mut np = [0u8; 16];
     OsRng.fill_bytes(&mut np);
-    let fid = FileId(Sha256::new().chain_update(plaintext_hash).chain_update(salt).finalize().into());
+    let (fid, salt) = match opts.prev {
+        Some(p) => (p.file_id, p.salt),
+        None => {
+            let mut salt = [0u8; 16];
+            OsRng.fill_bytes(&mut salt);
+            (
+                FileId(Sha256::new().chain_update(plaintext_hash).chain_update(salt).finalize().into()),
+                Salt(salt),
+            )
+        }
+    };
 
     let aead = XChaCha20Poly1305::new(dek.as_bytes().into());
     let name_ct = aead
@@ -132,14 +165,15 @@ pub fn seal<R: Read + Seek, W: Write>(
     }
 
     let (prev, ver) = match opts.prev {
-        Some((h, v)) => {
-            (Some(h), v.checked_add(1).ok_or_else(|| Error::HeaderEncode("version overflow".into()))?)
-        }
+        Some(p) => (
+            Some(p.header_hash),
+            p.version.checked_add(1).ok_or_else(|| Error::HeaderEncode("version overflow".into()))?,
+        ),
         None => (None, 1),
     };
     let header = HeaderBody {
         fid,
-        salt: Salt(salt),
+        salt,
         ver,
         prev,
         own: opts.owner_account.to_vec(),
@@ -298,12 +332,9 @@ pub fn open_with_dek<R: Read, W: Write>(
     out: W,
     dek: &Dek,
 ) -> Result<Opened> {
+    let file_name = decrypt_name(&hdr, dek)?;
     let aead = XChaCha20Poly1305::new(dek.as_bytes().into());
     let np = hdr.body.np.as_bytes();
-    let name = aead
-        .decrypt(&nonce(np, NAME_INDEX), Payload { msg: &hdr.body.name, aad: b"name" })
-        .map_err(|_| Error::NameAuth)?;
-    let file_name = String::from_utf8(name).map_err(|_| Error::NameAuth)?;
 
     let chunk = hdr.body.chunk as u64;
     let total = chunk_count(hdr.body.plen, chunk);
@@ -340,6 +371,83 @@ pub fn open_with_dek<R: Read, W: Write>(
     }
     w.flush()?;
     Ok(Opened { header: hdr, header_hash, file_name })
+}
+
+/// Reseal a plaintext as the next version of an existing container, replacing it atomically.
+///
+/// Spec §5: a fresh DEK and nonce prefix, `ver + 1`, `prev = SHA-256(previous header)`, and the
+/// inherited `fid`/`salt`. Because the DEK is new, any DEK handed out with an earlier grant
+/// stops working — this is what makes a revoke stick once the recipient saves (T20).
+///
+/// The new container is written to a temporary file in the same directory and renamed over
+/// `container_path`, so a crash leaves the previous version intact.
+pub fn reseal_to_path(
+    plaintext_path: &Path,
+    container_path: &Path,
+    owner: &OwnerKeys,
+    policy: Policy,
+) -> Result<Header> {
+    let (prev_header, prev_hash) = inspect(BufReader::new(File::open(container_path)?))?;
+    let mut opts = SealOptions::new(&prev_header.body.own, "");
+    opts.policy = policy;
+    opts.chunk_size = prev_header.body.chunk as usize;
+    opts.prev = Some(PrevVersion::of(&prev_header, prev_hash));
+
+    // The file name lives encrypted in the old header; recover it with the owner's envelope so
+    // the new version keeps it without the caller having to pass it in.
+    let env =
+        prev_header.body.env.iter().find(|e| e.kid == owner.sealing.key_id()).ok_or(Error::NoEnvelope)?;
+    let prev_dek = env.open(&owner.sealing, prev_header.body.fid.as_bytes())?;
+    let name = decrypt_name(&prev_header, &prev_dek)?;
+    opts.file_name = &name;
+
+    seal_to_path(plaintext_path, container_path, owner, &opts)
+}
+
+/// Check that `chain` is a well-formed version chain `v1 → v2 → …` (spec §5).
+///
+/// Each entry is a header and its hash, oldest first. Verifies that versions increase by one,
+/// that every `prev` matches the previous header's hash, and that `fid`/`salt` never change —
+/// the checks an Agent runs before trusting a container that claims to supersede another (T19).
+pub fn verify_version_chain(chain: &[(Header, HeaderHash)]) -> Result<()> {
+    let broken = |why: &str| Err(Error::BrokenChain(why.into()));
+    let Some(((first, _), rest)) = chain.split_first() else {
+        return broken("empty chain");
+    };
+    if first.body.ver != 1 || first.body.prev.is_some() {
+        return broken("chain does not start at version 1");
+    }
+    let mut prev = first;
+    let mut prev_hash = chain[0].1;
+    for (hdr, hash) in rest {
+        if hdr.body.ver != prev.body.ver + 1 {
+            return broken("version numbers are not consecutive");
+        }
+        if hdr.body.prev != Some(prev_hash) {
+            return broken("prev does not match the previous header hash");
+        }
+        if hdr.body.fid != prev.body.fid || hdr.body.salt != prev.body.salt {
+            return broken("file identity changed between versions");
+        }
+        if hdr.header_hash()? != *hash {
+            return broken("header hash does not match the header");
+        }
+        prev = hdr;
+        prev_hash = *hash;
+    }
+    Ok(())
+}
+
+/// Decrypt the file name stored in a header, given its DEK.
+pub fn decrypt_name(header: &Header, dek: &Dek) -> Result<String> {
+    let aead = XChaCha20Poly1305::new(dek.as_bytes().into());
+    let name = aead
+        .decrypt(
+            &nonce(header.body.np.as_bytes(), NAME_INDEX),
+            Payload { msg: &header.body.name, aad: b"name" },
+        )
+        .map_err(|_| Error::NameAuth)?;
+    String::from_utf8(name).map_err(|_| Error::NameAuth)
 }
 
 /// Inspect a container without keys: verified header + its hash (file name stays encrypted).

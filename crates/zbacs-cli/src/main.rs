@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use zbacs_core::container::{inspect, open, seal_to_path, SealOptions};
+use zbacs_core::container::{inspect, open, reseal_to_path, seal_to_path, SealOptions};
 use zbacs_core::{DeviceKeys, OwnerKeys, Permission, Policy, SigningKeys};
 
 #[derive(Parser)]
@@ -53,6 +53,24 @@ enum Cmd {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+    /// Reseal an edited plaintext as the next version of an existing container (new DEK,
+    /// ver + 1, atomic replace) — what the Agent does when an Edit session saves.
+    Reseal {
+        #[arg(short, long)]
+        key: PathBuf,
+        /// Edited plaintext to seal as the new version.
+        #[arg(short, long)]
+        input: PathBuf,
+        /// Container to replace in place.
+        #[arg(short, long)]
+        container: PathBuf,
+        #[arg(long, default_value = "read-only", value_parser = ["deny", "read-only", "edit"])]
+        perm: String,
+        #[arg(long, default_value_t = 3600)]
+        ttl: u32,
+        #[arg(long, default_value_t = 1)]
+        max_opens: u16,
+    },
     /// Print header metadata (no key needed).
     Inspect { input: PathBuf },
 }
@@ -63,6 +81,15 @@ struct KeyFile {
     x25519_pk: String,
     ed25519_sk: String,
     ed25519_pk: String,
+}
+
+fn parse_perm(p: &str) -> Result<Permission> {
+    Ok(match p {
+        "deny" => Permission::Deny,
+        "edit" => Permission::Edit,
+        "read-only" => Permission::ReadOnly,
+        other => bail!("unknown permission {other}"),
+    })
 }
 
 fn load_owner(p: &Path) -> Result<OwnerKeys> {
@@ -99,17 +126,8 @@ fn main() -> Result<()> {
                 recipient.iter().map(hex::decode).collect::<std::result::Result<_, _>>()?;
             let recips_ref: Vec<&[u8]> = recips.iter().map(|v| v.as_slice()).collect();
             let mut opts = SealOptions::new(account.as_bytes(), name);
-            opts.policy = Policy {
-                default: match perm.as_str() {
-                    "deny" => Permission::Deny,
-                    "edit" => Permission::Edit,
-                    _ => Permission::ReadOnly,
-                },
-                ttl,
-                max: max_opens,
-                pin: true,
-                strict: false,
-            };
+            opts.policy =
+                Policy { default: parse_perm(&perm)?, ttl, max: max_opens, pin: true, strict: false };
             opts.extra_recipients = &recips_ref;
             let hdr = seal_to_path(&input, &output, &owner, &opts)?;
             println!(
@@ -137,6 +155,20 @@ fn main() -> Result<()> {
                 output.display(),
                 plain.len(),
                 opened.header.body.pol.default
+            );
+        }
+        Cmd::Reseal { key, input, container, perm, ttl, max_opens } => {
+            let owner = load_owner(&key)?;
+            let policy =
+                Policy { default: parse_perm(&perm)?, ttl, max: max_opens, pin: true, strict: false };
+            let hdr = reseal_to_path(&input, &container, &owner, policy)?;
+            println!(
+                "resealed {} -> version {} (prev={}) fid={} plen={}",
+                container.display(),
+                hdr.body.ver,
+                hdr.body.prev.map(|h| h.to_string()).unwrap_or_else(|| "-".into()),
+                hdr.body.fid,
+                hdr.body.plen
             );
         }
         Cmd::Inspect { input } => {

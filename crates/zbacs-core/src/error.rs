@@ -52,6 +52,9 @@ pub enum Error {
     /// Encrypted file name failed authentication.
     #[error("filename decryption failed")]
     NameAuth,
+    /// A container claims to supersede another but the version chain does not hold (T19).
+    #[error("broken version chain: {0}")]
+    BrokenChain(String),
     /// A key or identifier has the wrong length.
     #[error("key material has wrong length")]
     KeyLength,

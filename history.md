@@ -585,3 +585,21 @@ Z-1.H.10 완료 — P256Validator(ADR-0006 경로 B를 체인에서 받는 ERC-7
 
 문서: architecture §6에 P256Validator 행, dev_plan Z-1.H.10 ✅ + 부록 A(T12/T22/T23 근거), Deploy.s.sol에 배포 추가, CLAUDE.md.
 ```
+
+### #46 [C] 2026-09-19 (2단계: Z-1.C.4)
+```
+Z-1.C.4 완료 — 재봉인. 커밋·푸시 완료.
+
+Spec-first(container_format §5 확장): fid와 salt는 버전 간 불변임을 명문화했습니다. fid는 파일 정체성이자 온체인 FileRegistry의 키이고 bumpVersion(fileId, newHeaderHash)가 같은 fid 아래 최신 헤더를 갱신하므로, fid = SHA-256(plaintext_hash‖salt) 유도는 버전 1에만 적용됩니다(이후 내용 무결성은 header_hash + 트레일러). 이전 코드가 재봉인 때마다 fid를 새로 계산하던 것을 바로잡았습니다. 추가로 체인 규칙(ver+1, prev = 이전 헤더 해시, fid·salt 동일), 원자 교체(temp + rename), 새 DEK로 이전 승인 DEK 무효화(T20)를 스펙에 넣었습니다.
+
+코드
+- PrevVersion { header_hash, version, file_id, salt } + PrevVersion::of(&header, hash) — SealOptions.prev 타입 교체.
+- reseal_to_path(plaintext, container, owner, policy): 기존 헤더에서 정체성·청크 크기·원본 파일명(소유자 봉투로 복호)을 승계해 ver+1로 원자 교체.
+- verify_version_chain(&[(Header, HeaderHash)]): v1 시작, 연속 버전, prev 링크, fid·salt 불변, 헤더 해시 일치. 새 에러 Error::BrokenChain.
+- decrypt_name 공개(Agent가 헤더만으로 파일명 복원).
+- CLI: zbacs reseal --key --input --container [--perm --ttl --max-opens].
+
+테스트 10종(tests/reseal.rs): v1→v2→v3 체인·정체성 불변·파일명 유지, T20 버전마다 새 DEK·np(이전 DEK로는 NameAuth), 재봉인 후 수신자 봉투 제거·정책 갱신, 원자성(temp 잔여 없음), 소유자 봉투 없으면 NoEnvelope이고 이전 버전 보존, T19 체인 검증 4종(시작·링크·버전 점프·다른 파일 접합·해시 불일치), 수동 PrevVersion 경로.
+
+게이트: clippy -D warnings, rustdoc, test --workspace(core 61 + auth 13 + cli 1), 커버리지 97.3%.
+```

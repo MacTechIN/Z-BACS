@@ -4,7 +4,8 @@
 use std::io::Cursor;
 use zbacs_core::{
     inspect, read_header, Dek, DeviceKeys, Envelope, Error, GrantedDek, HeaderHash, Opener, OwnerKeys,
-    Permission, Policy, SealOptions, Sealer, MAGIC, MAX_HEADER_LEN, VERSION_MAJOR, VERSION_MINOR,
+    Permission, Policy, PrevVersion, SealOptions, Sealer, MAGIC, MAX_HEADER_LEN, VERSION_MAJOR,
+    VERSION_MINOR,
 };
 
 fn seal_bytes(owner: &OwnerKeys, plain: &[u8], opts: &SealOptions) -> Vec<u8> {
@@ -73,16 +74,17 @@ fn reseal_chain_links_versions_by_header_hash() {
     assert_eq!(h1.body.ver, 1);
 
     let mut opts = SealOptions::new(b"acct", "doc.txt");
-    opts.prev = Some((hh1, h1.body.ver));
+    opts.prev = Some(PrevVersion::of(&h1, hh1));
     opts.policy = Policy { default: Permission::Edit, ..Policy::default() };
     let v2 = seal_bytes(&owner, b"v2 edited", &opts);
     let (h2, _) = inspect(Cursor::new(&v2)).unwrap();
     assert_eq!(h2.body.ver, 2);
     assert_eq!(h2.body.prev, Some(hh1));
     assert_eq!(h2.body.pol.default, Permission::Edit);
-    // a new version gets a fresh nonce prefix and file id salt
+    // a new version gets a fresh nonce prefix, but keeps the file identity (spec §5)
     assert_ne!(h2.body.np, h1.body.np);
-    assert_ne!(h2.body.salt, h1.body.salt);
+    assert_eq!(h2.body.fid, h1.body.fid);
+    assert_eq!(h2.body.salt, h1.body.salt);
 }
 
 #[test]

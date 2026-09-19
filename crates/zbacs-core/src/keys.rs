@@ -32,6 +32,12 @@ impl Dek {
     }
 }
 
+impl AsRef<[u8]> for Dek {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 pub(crate) fn hpke() -> Hpke<HpkeRustCrypto> {
     Hpke::<HpkeRustCrypto>::new(
         hpke_rs::Mode::Base,
