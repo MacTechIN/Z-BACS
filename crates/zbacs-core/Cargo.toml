@@ -1,0 +1,27 @@
+[package]
+name = "zbacs-core"
+description = "Z-BACS container format, chunked AEAD, HPKE key envelopes, header signing"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+serde_bytes.workspace = true
+serde_repr = "0.1"
+ciborium.workspace = true
+rand.workspace = true
+sha2.workspace = true
+blake3.workspace = true
+chacha20poly1305.workspace = true
+ed25519-dalek.workspace = true
+hpke-rs.workspace = true
+hpke-rs-crypto.workspace = true
+hpke-rs-rust-crypto.workspace = true
+x25519-dalek.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

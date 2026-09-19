@@ -1,6 +1,6 @@
 # 스펙: `.zbacs` 컨테이너 포맷 v1
 
-| 상태 | Draft 1.0 (2026-09-18) |
+| 상태 | Draft 1.1 (2026-09-19, PoC 반영) |
 |---|---|
 | 구현 | `crates/zbacs-core/src/container/` |
 
@@ -10,10 +10,10 @@
 ## 2. 전체 레이아웃
 
 ```
-+----------------+----------------------+----------------------+--------------------+
-| Magic+Version  | Header (CBOR, signed)| Chunk 0 … Chunk N    | Trailer            |
-| 8 bytes        | LE u32 len + bytes   | AEAD frames          | header hash + tag  |
-+----------------+----------------------+----------------------+--------------------+
++----------------+----------------------+----------------------+--------------------------------+
+| Magic+Version  | Header (CBOR, signed)| Chunk 0 … Chunk N    | Trailer (72 B)                 |
+| 8 bytes        | LE u32 len + bytes   | AEAD frames          | hdr_hash(32) chunks(u64) b3(32)|
++----------------+----------------------+----------------------+--------------------------------+
 ```
 
 ### 2.1 Magic / Version
@@ -31,6 +31,7 @@
   "cipher": 1            // 1 = XChaCha20-Poly1305 chunked
   "chunk": 65536
   "plen":  uint          // 평문 길이
+  "np":    bstr(16)      // 청크 nonce prefix (§2.3)
   "name":  bstr          // AEAD로 암호화된 원본 파일명 (DEK 사용, AAD="name")
   "env":   [ { "kid": bstr(16), "alg": "hpke-x25519-chacha", "enc": bstr, "ct": bstr } ]
   "sigk":  bstr(32)      // Ed25519 서명 공개키 (소유자 컨테이너 서명키)
@@ -40,7 +41,7 @@
 - `env`에는 최소 소유자 자기 봉투 1개. 승인 시 Bob의 봉투는 **컨테이너에 쓰지 않고** GrantMsg로 전달(파일 재배포 시 봉투 누적 방지).
 
 ### 2.3 Chunk 프레임
-- 각 청크: `nonce = HKDF(DEK, "chunk-nonce") 24B prefix + LE u64 index` 방식 대신, **nonce = 16B random-per-file prefix || LE u64 index** (헤더에 prefix 저장).
+- **nonce = np(16B, 버전마다 난수) || LE u64 index** (24B XChaCha nonce). 파일명 암호화는 index `u64::MAX` 예약.
 - AAD = `header_hash(32) || index(u64) || is_last(u8)`.
 - 마지막 청크 `is_last=1` 로 절단(truncation) 공격 방지.
 
@@ -64,5 +65,9 @@
 - 새 DEK, `ver+1`, `prev = 이전 header_hash`, 소유자 봉투는 **소유자 공개키로 다시 생성**(수신자는 소유자 공개키를 헤더의 `env[0].kid`로 알고 있음. 소유자 X25519 공개키를 헤더 `own_pub`에 포함하도록 v1.1 검토).
 - 수신자 Agent는 자신의 봉투를 넣지 않는다. 다음 열람도 재승인 필요.
 
-## 6. 테스트 벡터
+## 6. 구현 상태
+- v1 PoC: `crates/zbacs-core` (Z-0.C.1/C.2 완료, 2026-09-19). 상세: `docs/research/crypto_container_poc.md`.
+- 헤더 CBOR 필드 순서 = 서명 정규화 규칙. 필드 순서·타입 변경 시 `minor`/`major` 상승 필수.
+
+## 7. 테스트 벡터
 - `crates/zbacs-core/tests/vectors/` 에 고정 키·평문으로 생성한 `.zbacs`와 기대 해시 보관.

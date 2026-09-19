@@ -1,0 +1,97 @@
+# Z-0.D.3 CI skeleton. Jobs for contracts/ and packages/ are skipped until those directories exist.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  rust:
+    name: rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: fmt
+        run: cargo fmt --all --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --locked
+      - name: test (debug)
+        run: cargo test --workspace --locked
+      - name: test (release, perf gate)
+        run: cargo test --workspace --release --locked -- perf_
+      - name: audit
+        if: matrix.os == 'ubuntu-latest'
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  contracts:
+    name: foundry
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: present
+        run: echo "yes=$([ -f contracts/foundry.toml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: foundry-rs/foundry-toolchain@v1
+        if: steps.present.outputs.yes == 'true'
+      - name: forge fmt / build / test
+        if: steps.present.outputs.yes == 'true'
+        working-directory: contracts
+        run: |
+          forge fmt --check
+          forge build --sizes
+          forge test -vvv
+      - name: skipped
+        if: steps.present.outputs.yes != 'true'
+        run: echo "contracts/ not present yet (Z-1.H.1)"
+
+  node:
+    name: node
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: present
+        run: echo "yes=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        if: steps.present.outputs.yes == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.present.outputs.yes == 'true'
+        run: |
+          npm ci
+          npm run lint --if-present
+          npm test --if-present
+      - if: steps.present.outputs.yes != 'true'
+        run: echo "no package.json yet (Z-1.H.8)"
+
+  docs:
+    name: docs links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: check relative markdown links
+        run: |
+          set -e
+          fail=0
+          while IFS= read -r f; do
+            grep -oE '\]\(([^)#]+)' "$f" | sed 's/](//' | grep -vE '^(https?:|mailto:)' | while read -r l; do
+              t="$(dirname "$f")/$(printf '%b' "${l//%/\\x}")"
+              [ -e "$t" ] || { echo "broken link in $f: $l"; exit 1; }
+            done || fail=1
+          done < <(find docs CLAUDE.md -name '*.md')
+          exit $fail

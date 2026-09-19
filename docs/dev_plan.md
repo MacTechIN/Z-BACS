@@ -32,9 +32,9 @@
 |---|---|---|---|---|
 | Z-0.D.1 ✅ | 리포지토리 초기화, 모노레포 레이아웃(`crates/ apps/ contracts/ packages/ tools/`), `.gitignore`, `CLAUDE.md` | architecture §3 | 디렉터리 골격 | `cargo build`가 빈 크레이트로 통과 |
 | Z-0.D.2 ✅ | 툴체인 설치 스크립트: Rust stable, Node 22, Foundry, Tauri CLI, Python 3.10+ | - | `tools/setup.sh`, `tools/setup.ps1` | 스크립트 실행 후 `cargo tauri --version` 성공 (2026-09-19 완료) |
-| Z-0.D.3 | CI 골격(GitHub Actions): fmt/clippy/test, forge test, npm test | - | `.github/workflows/ci.yml` | PR에서 녹색 |
-| Z-0.C.1 | 컨테이너 PoC: 청크 XChaCha20-Poly1305 + CBOR 헤더 + Ed25519 서명 | specs/container_format | `zbacs-core` seal/open CLI | 100MB 파일 왕복 ≤ 2s, 변조 시 실패 |
-| Z-0.C.2 | HPKE 봉투 PoC (hpke-rs) | - | `envelope.rs` | DEK 왕복, 테스트 벡터 |
+| Z-0.D.3 ✅ | CI 골격(GitHub Actions): fmt/clippy/test, forge test, npm test | - | `.github/workflows/ci.yml` | PR에서 녹색 |
+| Z-0.C.1 ✅ | 컨테이너 PoC: 청크 XChaCha20-Poly1305 + CBOR 헤더 + Ed25519 서명 | specs/container_format | `zbacs-core` seal/open CLI | 100MB 파일 왕복 ≤ 2s, 변조 시 실패 (2026-09-19: 0.35s, 테스트 10종 통과) |
+| Z-0.C.2 ✅ | HPKE 봉투 PoC (hpke-rs) | - | `envelope.rs` | DEK 왕복, 테스트 벡터 |
 | Z-0.A.1 | Windows Hello 네이티브 스파이크: `webauthn.dll`로 MakeCredential/GetAssertion (windows-rs 또는 keyroost) | research §1.2 | `spikes/win-hello/` | 생체 프롬프트 뜨고 assertion 반환 |
 | Z-0.A.2 | `webauthn-rs`로 위 assertion 검증 | Z-0.A.1 | 테스트 | 검증 통과 |
 | Z-0.A.3 | BSA 샌드박스 Client Key 신청(OR-1), SDK 문서 수령·요약 | research §1.1 | `docs/research/bsa_sdk_notes.md` | API 흐름 문서화 |
