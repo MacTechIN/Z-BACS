@@ -1,0 +1,18 @@
+[package]
+name = "zbacs-proto"
+description = "Z-BACS relay wire protocol: CBOR message types and Ed25519 signed envelopes (Z-1.R.1)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+zbacs-core = { path = "../zbacs-core" }
+thiserror.workspace = true
+serde.workspace = true
+serde_bytes.workspace = true
+ciborium.workspace = true
+ed25519-dalek.workspace = true
+sha2.workspace = true
+rand.workspace = true
+hex.workspace = true

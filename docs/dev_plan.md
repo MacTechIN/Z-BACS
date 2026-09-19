@@ -88,7 +88,7 @@
 ### 1.4 Relay (R)
 | ID | 태스크 | DoD |
 |---|---|---|
-| Z-1.R.1 | Relay 프로토콜 정의(`AccessRequest/GrantMsg/Revoke`, CBOR over HTTPS+WebSocket) | 스키마 문서 |
+| Z-1.R.1 ✅ | Relay 프로토콜 정의(`AccessRequest/GrantMsg/Revoke`, CBOR over HTTPS+WebSocket) | 스키마 문서 (2026-09-19: `docs/specs/relay_protocol.md` v1 — 엔드포인트 7개, `Signed<T>` 서명 봉투(kind 바인딩·ts·nonce), 메시지 8종, 오류 9종↔HTTP, 할당량·프라이버시·셀프호스팅. 실행 가능한 스키마로 `crates/zbacs-proto` 신설, 테스트 14종) |
 | Z-1.R.2 | axum 서버: 큐, 기기 등록, 서명 검증, 레이트리밋 | 부하 테스트 100 req/s |
 | Z-1.R.3 | 푸시 연동: FCM(승인 앱), ntfy 폴백 | 푸시 도달 ≤ 10s |
 | Z-1.R.4 | Docker 이미지, 셀프호스팅 문서 | `docker compose up` |
@@ -194,7 +194,7 @@
 | T02 헤더 정책 변조 | Z-1.C.5 (정책 해시), Z-1.H.1 (온체인 커밋), Z-1.G.4 (양쪽 비교) | core `t02_header_tamper_policy_is_detected`, malicious `t02_10/11/12` |
 | T03 티켓 재전송 | Z-1.H.2 (nonce·chainId), Z-1.R.1 (요청 nonce), Z-1.G.4 (세션 1회 소비) | contracts `test_t03_*` 3종, aa-passkey `test_t03_replay_rejected` |
 | T04 Relay DEK 탈취 | Z-1.C.1 (HPKE 봉투 정식화), Z-1.R.2 (Relay는 암호문만) | core `t04_wrong_key_cannot_open`, `extra_recipient_envelope_opens` |
-| T05 요청자 바꿔치기 | Z-1.A.3 (기기 키), Z-1.R.1 (요청 서명·devicePub 해시), Z-1.H.2 (티켓에 deviceKid) | — (Z-1.R.1 테스트 예정) |
+| T05 요청자 바꿔치기 | Z-1.A.3 (기기 키), Z-1.R.1 (요청 서명·devicePub 해시), Z-1.H.2 (티켓에 deviceKid) | proto `t05_*` 2종 |
 | T06 승인 피싱 | Z-1.G.10, Z-1.P.2 (EIP-712 구조화 표시), Z-1.U.5 (알림 액션에 파일·권한 표시) | contracts EIP-712 타입 해시 벡터 |
 | T07 승인 후 평문 복사 | Z-1.G.5/7 (ACL·읽기전용), Z-1.H.3 + Z-1.G.12 (감사 로그), Z-2.G.4 (워터마크), Z-3.G.1 (미니필터) | contracts `AuditLog.t.sol` 5종; `tools/chain-demo.sh` 가스 예산 검사 |
 | T08 화면 촬영 | 범위 밖(명시). 추적성만: Z-2.G.4 | — |
@@ -205,7 +205,7 @@
 | T13 온체인 식별 | Z-1.C.5 (fileId 솔트, 파일명 길이 패딩), Z-1.H.9 (페이마스터), Z-3.Z.1/2 (ZK) | contracts fileId = H(hash‖salt); core `name_padding_hides_length_and_roundtrips` |
 | T14 컨트랙트 검증 우회 | Z-1.H.2 (EIP-712·ERC-1271·low-s), Z-1.H.5 (Slither/Echidna), Z-1.H.6 (HF 감사), Z-1.H.8 (WebAuthn 서명 인코딩) | contracts `test_t14_*` 3종, aa-passkey `test_t14_tampered_signature_rejected` |
 | T15 만료 우회 | Z-1.H.2 (체인 시간), Z-1.G.4 (로컬 시계 병행) | contracts `test_t15_*` 2종 |
-| T16 Relay DoS | Z-1.R.2 (서명·레이트리밋), Z-1.R.4 (셀프호스팅), Z-1.H.7 (체인 이벤트 폴백), Z-2.R.1 | — |
+| T16 Relay DoS | Z-1.R.1 (본문 상한·할당량 정의), Z-1.R.2 (서명·레이트리밋), Z-1.R.4 (셀프호스팅), Z-1.H.7 (체인 이벤트 폴백), Z-2.R.1 | proto `oversized_bodies_are_refused_on_both_sides` |
 | T17 스텁 위장 | Z-1.S.1/S.2 (코드 서명·해시 고정), Z-1.C.2 (Agent는 컨테이너만 파싱), Z-1.G.13 (서명된 업데이트) | tauri-assoc: 파일 인자를 경로로만 취급, `inspect`만 수행 |
 | T18 파서 취약점 | Z-1.C.2 (길이 상한·악성 입력 20종), Z-1.C.3 (cargo-fuzz) | core `tests/malicious.rs` 31종 (`t17_*`, `t18_*`, `t19_*`), `t18_chunk_*` |
 | T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책), Z-1.C.4 (`verify_version_chain`), Z-1.H.2 (온체인 버전 바인딩) | core `t19_*`; reseal `t19_*` 3종; contracts `test_t19_grant_must_name_the_current_version` |

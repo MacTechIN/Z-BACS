@@ -668,3 +668,22 @@ Z-1.H.3 완료 — AuditLog. 커밋·푸시 완료.
 
 컨트랙트 전체: 55 tests, 커버리지 라인·구문·브랜치·함수 100%.
 ```
+
+### #46 [C] 2026-09-19 (7단계: Z-1.R.1)
+```
+Z-1.R.1 완료 — Relay 프로토콜 정의. 커밋·푸시 완료.
+
+스펙 docs/specs/relay_protocol.md v1
+- 전제: Relay는 무신뢰. 평문·DEK·개인키를 못 보고 검열·지연만 가능. 보안은 소유자 EIP-712 서명과 HPKE 봉투에서 나오고 Relay는 배달만 합니다.
+- 엔드포인트 7개: /v1/devices, /v1/requests, /v1/grants, /v1/revocations, /v1/inbox(폴링 폴백), /v1/stream(WebSocket), /v1/health.
+- 서명 봉투 Signed<T>: payload(CBOR) + kid + kind + ts + nonce + Ed25519 서명. 서명 대상에 **메시지 종류(kind)** 를 포함해 한 메시지의 서명을 다른 종류로 재사용할 수 없게 했습니다.
+- 메시지 8종(DeviceAnnounce/AccessRequest/GrantMsg/Revoke/Subscribe/Ack/Envelope + Kind), 오류 9종과 HTTP 매핑, 수명·할당량(본문 64KiB, 큐 24h, nonce 5분, 기기당 30/분, WS ping 60s), 프라이버시(Relay가 보는 것/못 보는 것, hint는 Phase 2에서 암호화), 셀프호스팅.
+- 배달 방식: Relay는 원본 서명 바이트를 그대로 전달하고 수신자가 스스로 검증합니다(Envelope.body). Relay 서명은 배달 증거일 뿐 권한 근거가 아닙니다.
+
+crates/zbacs-proto 신설 — 스펙을 실행 가능한 스키마로:
+- Signed::sign/verify(kind 바인딩, ts 스큐 ±120s, kid 대조, payload 디코딩), to_bytes/from_bytes(64KiB 상한).
+- DeviceIdentity(X25519 + Ed25519), kid = SHA-256(ed25519_pub)[..16] — 봉투 kid(X25519 해시)와 구분됨을 테스트로 고정.
+- 테스트 14종: CBOR 왕복, T05 타 기기 서명·전 필드 변조 거부, T03 kind 재사용 거부, 스큐 경계, 본문 상한, 쓰레기 입력 무패닉, T04 Relay가 불투명 바이트를 전달하고 수신자가 검증, Deny엔 봉투 없음, 전 메시지 종류 서명·검증, 오류→HTTP 매핑, 비밀키 복원.
+
+게이트: clippy -D warnings, rustdoc, cargo test --workspace 전부 통과.
+```
