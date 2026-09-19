@@ -618,3 +618,17 @@ Spec v1.2
 
 게이트: clippy -D warnings, rustdoc, test --workspace 11 스위트 전부 ok, 커버리지 97.5%.
 ```
+
+### #46 [C] 2026-09-19 (4단계: Z-1.C.6 — C 트랙 완료)
+```
+Z-1.C.6 완료 — 키 자료 위생 감사. 커밋·푸시 완료. 이로써 Core(C) 트랙은 C.3의 24시간 퍼징 실행만 남고 전부 완료입니다.
+
+변경
+- Dek을 secrecy::SecretBox<[u8;32]>로 전환 — drop 시 wipe, 접근은 expose_secret() 경유, Clone/Display 없음(규칙 3의 "SecretBox/secrecy" 명시를 코드로 반영).
+- 모든 키 타입에 마스킹 Debug: Dek(REDACTED), DeviceKeys(kid=…, secret=REDACTED), SigningKeys(pub=…, secret=REDACTED), OwnerKeys. 파생 Debug는 금지.
+- 평문 버퍼 wipe: seal의 스테이징 버퍼를 Zeroizing으로, open은 복호 청크를 기록 직후 zeroize, decrypt_name은 패딩 평문을 반환 전에 wipe.
+- 회귀 방지: ZeroizeOnDrop 컴파일 타임 단언 + Debug 출력에 실제 비밀 16진수가 없는지 검사하는 테스트(t11_…).
+- 감사 기록 docs/research/key_hygiene_audit.md: 비밀 자료 표(어디에 있고 어떻게 지워지는지), 코드 규칙 확인 결과, PR 체크리스트 5항목, 잔여 위험 4건(zeroize의 best-effort 한계·평문 파일·스왑/하이버네이션·코어 덤프)과 각각의 담당 태스크. dev_guidelines §2에 체크리스트 링크.
+
+게이트: clippy -D warnings, rustdoc, test --workspace 전부 ok, 커버리지 97.6%, cargo audit 취약점 0(빌드 전용 매크로 크레이트 proc-macro-error2의 unmaintained 경고 1건만, 허용 범위).
+```

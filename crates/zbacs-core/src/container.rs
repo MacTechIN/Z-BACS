@@ -23,6 +23,7 @@ use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
+use zeroize::{Zeroize, Zeroizing};
 
 const TAG_LEN: usize = 16;
 const NAME_INDEX: u64 = u64::MAX;
@@ -160,7 +161,8 @@ pub fn seal<R: Read + Seek, W: Write>(
     // pass 1: plaintext hash + length
     let mut hasher = Sha256::new();
     let mut plen: u64 = 0;
-    let mut buf = vec![0u8; opts.chunk_size];
+    // Staging buffer for plaintext; wiped when it goes out of scope (T11).
+    let mut buf = Zeroizing::new(vec![0u8; opts.chunk_size]);
     loop {
         let n = input.read(&mut buf)?;
         if n == 0 {
@@ -383,13 +385,15 @@ pub fn open_with_dek<R: Read, W: Write>(
         r.read_exact(&mut frame[..want]).map_err(|_| Error::Truncated)?;
         ct_hash.update(&frame[..want]);
         let is_last = index + 1 == total;
-        let pt = aead
+        let mut pt = aead
             .decrypt(
                 &nonce(np, index),
                 Payload { msg: &frame[..want], aad: &chunk_aad(&header_hash, index, is_last) },
             )
             .map_err(|_| Error::ChunkAuth(index))?;
-        w.write_all(&pt)?;
+        let write = w.write_all(&pt);
+        pt.zeroize(); // decrypted plaintext must not linger in freed memory (T11)
+        write?;
         remaining -= (want - TAG_LEN) as u64;
     }
     // trailer
@@ -483,7 +487,10 @@ pub fn decrypt_name(header: &Header, dek: &Dek) -> Result<String> {
             Payload { msg: &header.body.name, aad: b"name" },
         )
         .map_err(|_| Error::NameAuth)?;
-    unpad_name(&padded)
+    let name = unpad_name(&padded);
+    let mut padded = padded;
+    padded.zeroize();
+    name
 }
 
 /// Inspect a container without keys: verified header + its hash (file name stays encrypted).

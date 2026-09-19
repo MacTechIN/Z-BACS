@@ -7,34 +7,47 @@ use hpke_rs::Hpke;
 use hpke_rs_crypto::types::{AeadAlgorithm, KdfAlgorithm, KemAlgorithm};
 use hpke_rs_rust_crypto::HpkeRustCrypto;
 use rand::{rngs::OsRng, RngCore};
+use secrecy::{ExposeSecret, SecretBox};
 use sha2::{Digest, Sha256};
+use std::fmt;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// 32-byte file data encryption key (spec §3 step 1). Random per seal; never derived from a
 /// password (T01).
-#[derive(Zeroize, ZeroizeOnDrop)]
-pub struct Dek(pub(crate) [u8; 32]);
+///
+/// Held in a [`SecretBox`] so the bytes are zeroized on drop and can only be reached through
+/// an explicit accessor — there is no `Debug`, `Clone` or `Display` that could leak them into
+/// a log line (T11, dev_guidelines §2).
+pub struct Dek(SecretBox<[u8; 32]>);
 
 impl Dek {
     /// Fresh random key from the OS RNG.
     pub fn generate() -> Self {
         let mut k = [0u8; 32];
         OsRng.fill_bytes(&mut k);
-        Self(k)
+        let me = Self(SecretBox::new(Box::new(k)));
+        k.zeroize();
+        me
     }
     /// Wrap 32 raw bytes (e.g. after opening an out-of-band envelope).
     pub fn from_bytes(b: &[u8]) -> Result<Self> {
         let arr: [u8; 32] = b.try_into().map_err(|_| Error::KeyLength)?;
-        Ok(Self(arr))
+        Ok(Self(SecretBox::new(Box::new(arr))))
     }
     pub(crate) fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
+        self.0.expose_secret()
     }
 }
 
 impl AsRef<[u8]> for Dek {
     fn as_ref(&self) -> &[u8] {
-        &self.0
+        self.0.expose_secret()
+    }
+}
+
+impl fmt::Debug for Dek {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Dek(REDACTED)")
     }
 }
 
@@ -85,6 +98,13 @@ impl DeviceKeys {
     }
 }
 
+impl fmt::Debug for DeviceKeys {
+    /// Prints the public key id only; the secret never reaches a formatter.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DeviceKeys(kid={}, secret=REDACTED)", self.key_id())
+    }
+}
+
 /// `SHA-256(pk)[..16]` — envelope recipient id (spec §2.2 `env.kid`).
 pub fn key_id_of(pk: &[u8]) -> KeyId {
     let h = Sha256::digest(pk);
@@ -125,12 +145,24 @@ impl SigningKeys {
     }
 }
 
+impl fmt::Debug for SigningKeys {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SigningKeys(pub={}, secret=REDACTED)", hex::encode(self.verifying_key().to_bytes()))
+    }
+}
+
 /// Owner key bundle: sealing (X25519, self-envelope) + header signing (Ed25519).
 pub struct OwnerKeys {
     /// Receives the owner's self-envelope so the owner can always reopen their own file.
     pub sealing: DeviceKeys,
     /// Signs container headers.
     pub signing: SigningKeys,
+}
+
+impl fmt::Debug for OwnerKeys {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "OwnerKeys({:?}, {:?})", self.sealing, self.signing)
+    }
 }
 
 impl OwnerKeys {
@@ -159,6 +191,28 @@ mod tests {
 
         assert!(matches!(Dek::from_bytes(&[0; 16]), Err(Error::KeyLength)));
         assert_eq!(Dek::from_bytes(&[7; 32]).unwrap().as_bytes(), &[7; 32]);
+    }
+
+    /// Z-1.C.6: the drop-time wipe must not be removed by accident.
+    #[test]
+    fn t11_key_types_zeroize_on_drop_and_redact_in_logs() {
+        fn assert_zeroize_on_drop<T: ZeroizeOnDrop>() {}
+        assert_zeroize_on_drop::<DeviceKeys>();
+        assert_zeroize_on_drop::<SigningKeys>();
+        // Dek's SecretBox zeroizes its contents on drop (secrecy guarantees it).
+
+        let dek = Dek::from_bytes(&[0xAB; 32]).unwrap();
+        assert_eq!(format!("{dek:?}"), "Dek(REDACTED)");
+        let d = DeviceKeys::generate().unwrap();
+        let shown = format!("{d:?}");
+        assert!(shown.contains("REDACTED"));
+        assert!(!shown.contains(&hex::encode(d.secret_key())));
+        let s = SigningKeys::generate();
+        let shown = format!("{s:?}");
+        assert!(shown.contains("REDACTED"));
+        assert!(!shown.contains(&hex::encode(s.secret_bytes())));
+        let o = OwnerKeys::generate().unwrap();
+        assert!(format!("{o:?}").contains("REDACTED"));
     }
 
     #[test]

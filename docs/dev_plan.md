@@ -58,7 +58,7 @@
 | Z-1.C.3 ◐ | `cargo-fuzz` 타깃(header, chunk) | 24h 퍼징 무크래시 (2026-09-19: 타깃 4종 `header`/`header_signed`/`open_mutated`/`envelope` + `tools/fuzz.sh` + 야간 CI `fuzz.yml`. 스모크 150s×4 = 약 300만 실행 무크래시, cov 966 edges. **24h 실행은 `tools/fuzz.sh 24h`로 사용자 머신에서** — 완료 시 ✅) |
 | Z-1.C.4 ✅ | 재봉인(Reseal): 새 DEK, 버전 체인, 원자적 교체 | v1→v2→v3 체인 검증 테스트 (2026-09-19: spec §5 확장 — `fid`/`salt` 버전 불변(온체인 `bumpVersion` 키), 체인 규칙, 원자 교체, 새 DEK로 이전 승인 무효화(T20). `PrevVersion`, `reseal_to_path`, `verify_version_chain`, `decrypt_name`, CLI `zbacs reseal`; 테스트 10종) |
 | Z-1.C.5 ✅ | 파일명 암호화, 정책 해시, 테스트 벡터 고정 | vectors 디렉터리 (2026-09-19: spec v1.2 — 파일명 64B 배수 패딩(길이 노출 차단, T13) + §2.2a `policy_hash = SHA-256("ZBACS-POL-v1"‖CBOR(pol))`; `crates/zbacs-core/tests/vectors/`(v1/v2 컨테이너·소유자 키·manifest) 고정 + 회귀 테스트 2종, 재생성은 `--ignored regenerate`) |
-| Z-1.C.6 | 키 자료 zeroize 감사, `secrecy` 적용 | 리뷰 체크리스트 통과 |
+| Z-1.C.6 ✅ | 키 자료 zeroize 감사, `secrecy` 적용 | 리뷰 체크리스트 통과 (2026-09-19: `Dek`을 `secrecy::SecretBox`로 전환, 모든 키 타입에 마스킹 `Debug`, seal/open/파일명 평문 버퍼 wipe, `ZeroizeOnDrop` 컴파일 타임 단언, 감사 기록 `docs/research/key_hygiene_audit.md`) |
 
 ### 1.2 Auth (A)
 | ID | 태스크 | DoD |
@@ -200,7 +200,7 @@
 | T08 화면 촬영 | 범위 밖(명시). 추적성만: Z-2.G.4 | — |
 | T09 평문 잔존 | Z-1.G.8 (재봉인·안전 삭제), Z-1.Q.2 (포렌식 CI), Z-2.G.3 (가상 드라이브) | — |
 | T10 앱 임시파일 | Z-1.G.6 (경로 고정·저장 감지), Z-1.G.8 (앱별 잔존 청소), Z-2.G.3 | — |
-| T11 메모리 덤프 | Z-1.C.6 (zeroize·secrecy), Z-1.A.3 (DPAPI), Z-3.G.2 (TEE/VBS) | core `secrecy`/`zeroize` 적용 |
+| T11 메모리 덤프 | Z-1.C.6 (zeroize·secrecy), Z-1.A.3 (DPAPI), Z-3.G.2 (TEE/VBS) | core `t11_key_types_zeroize_on_drop_and_redact_in_logs`; 감사 `research/key_hygiene_audit.md` |
 | T12 소유자 기기 분실 | Z-1.A.4 (암호화 백업), Z-1.H.10 (다른 기기에서 해지), Z-2.A.1 (다중 기기·소셜 복구), Z-2.U.1 (복구 UX) | contracts `test_t12_*` 3종; 포크 `test_t12_enroll_second_device_then_revoke_first` |
 | T13 온체인 식별 | Z-1.C.5 (fileId 솔트, 파일명 길이 패딩), Z-1.H.9 (페이마스터), Z-3.Z.1/2 (ZK) | contracts fileId = H(hash‖salt); core `name_padding_hides_length_and_roundtrips` |
 | T14 컨트랙트 검증 우회 | Z-1.H.2 (EIP-712·ERC-1271·low-s), Z-1.H.5 (Slither/Echidna), Z-1.H.6 (HF 감사), Z-1.H.8 (WebAuthn 서명 인코딩) | contracts `test_t14_*` 3종, aa-passkey `test_t14_tampered_signature_rejected` |

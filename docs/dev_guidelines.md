@@ -7,6 +7,7 @@
 ## 2. 보안 코딩 규칙
 - 암호 프리미티브 자체 구현 금지. RustCrypto / hpke-rs / webauthn-rs / OpenZeppelin만 사용.
 - 키·평문은 `SecretBox`/`secrecy` 타입으로만 다루고, 로그·에러 메시지에 절대 출력하지 않는다.
+- 비밀을 담는 타입에 `#[derive(Debug)]` 금지 — 수동 구현으로 마스킹하고, `Zeroize`/`ZeroizeOnDrop`을 붙인다. 평문 버퍼(`Vec<u8>`)는 스코프를 벗어나기 전에 wipe 한다. 감사 기록·체크리스트: [research/key_hygiene_audit.md](research/key_hygiene_audit.md).
 - 난수는 `rand::rngs::OsRng` 또는 `getrandom`만.
 - 파일 쓰기는 temp + fsync + rename 원자적 교체.
 - 입력 파싱은 길이 상한과 버전 검사를 먼저 한다.

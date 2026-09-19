@@ -8,6 +8,7 @@
 | `crypto_container_poc.md` | 청크 AEAD + HPKE 봉투 PoC 기록 (Z-0.C.1/C.2 완료) |
 | `tauri_file_association.md` | → `spikes/tauri-assoc/README.md` 참조 (Z-0.G.1 완료) |
 | `contracts_eip712_grant.md` | AccessGrant 타입 해시, 검증 설계, 교차 구현 벡터 (Z-0.H.1 완료) |
+| `key_hygiene_audit.md` | 키 자료 zeroize/secrecy 감사와 PR 체크리스트 (Z-1.C.6 완료) |
 | `aa_passkey_spike.md` | RIP-7212 실측(OR-2), Kernel v3.1 + WebAuthn 패스키 UserOp 포크 실행, 가스 (Z-0.H.2 완료) |
 | `pre_umbral_notes.md` | umbral-pre API, kfrag/cfrag 흐름 (Phase 3) |
 | `hf_audit_pipeline.md` | HF 모델 로컬 추론 스크립트, Slither 연동 (권장) |
