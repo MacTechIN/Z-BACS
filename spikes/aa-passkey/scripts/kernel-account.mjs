@@ -2,12 +2,14 @@
 // Z-0.H.2 stage 1: passkey -> Kernel v3.1 smart account (WebAuthn validator) -> signed
 // ERC-4337 v0.7 UserOperation, using permissionless.js exactly as the Approve app will.
 //
-//   node scripts/kernel-account.mjs [--out vectors/userop.json] [--rpc URL]
+//   node scripts/kernel-account.mjs [--out vectors/userop.json] [--rpc URL] [--send [--precompile]]
 //
 // No bundler key is needed: the counterfactual address and factory data come from the
 // public Base Sepolia RPC, and the resulting UserOperation is written to a JSON file that
 // test/PasskeyUserOp.t.sol replays through the real EntryPoint on a Base Sepolia fork.
-// With PIMLICO_API_KEY set, `--send` submits the same UserOperation to a live bundler.
+// With PIMLICO_API_KEY set, `--send` submits a UserOperation from the same passkey account
+// through the Pimlico bundler + testnet paymaster; `--precompile` re-encodes the WebAuthn
+// signature with usePrecompiled=true.
 import {writeFileSync} from 'node:fs';
 import {
   concatHex,
@@ -34,6 +36,7 @@ const opt = (flag, dflt) => {
 const OUT = opt('--out', 'vectors/userop.json');
 const RPC = opt('--rpc', process.env.BASE_SEPOLIA_RPC_URL ?? 'https://sepolia.base.org');
 const SEND = args.includes('--send');
+const PRECOMPILE = args.includes('--precompile');
 
 // The fork test etches a recorder contract at this fixed address, so the call target is
 // known before the UserOperation is signed.
@@ -133,22 +136,44 @@ console.log(`wrote ${OUT}`);
 if (SEND) {
   const apiKey = process.env.PIMLICO_API_KEY;
   if (!apiKey) {
-    console.error('--send needs PIMLICO_API_KEY');
+    console.error('--send needs PIMLICO_API_KEY (put it in spikes/aa-passkey/.env and run with node --env-file=.env)');
     process.exit(2);
   }
-  const {createBundlerClient} = await import('viem/account-abstraction');
-  const bundler = createBundlerClient({
-    client,
-    transport: http(`https://api.pimlico.io/v2/${baseSepolia.id}/rpc?apikey=${apiKey}`),
+  const {createSmartAccountClient} = await import('permissionless');
+  const {createPimlicoClient} = await import('permissionless/clients/pimlico');
+  const pimlicoUrl = `https://api.pimlico.io/v2/${baseSepolia.id}/rpc?apikey=${apiKey}`;
+  const pimlico = createPimlicoClient({transport: http(pimlicoUrl), entryPoint});
+
+  if (PRECOMPILE) {
+    // Override permissionless' hard-coded usePrecompiled=false so the bundler's validation
+    // tracer and the on-chain validator both take the RIP-7212 path (T21 / ERC-7562 check).
+    const signUserOperation = account.signUserOperation.bind(account);
+    account.signUserOperation = async (p) => reencodeWithPrecompile(await signUserOperation(p));
+    const getStubSignature = account.getStubSignature.bind(account);
+    account.getStubSignature = async () => reencodeWithPrecompile(await getStubSignature());
+  }
+
+  // The Pimlico paymaster sponsors gas on testnets, so the counterfactual account needs no
+  // balance. Same passkey, same Kernel account; the bundler estimates gas itself.
+  const smartAccountClient = createSmartAccountClient({
+    account,
+    chain: baseSepolia,
+    bundlerTransport: http(pimlicoUrl),
+    paymaster: pimlico,
+    userOperation: {
+      estimateFeesPerGas: async () => (await pimlico.getUserOperationGasPrice()).fast,
+    },
   });
-  const hash = await bundler.sendUserOperation({
-    entryPointAddress: entryPoint.address,
-    ...userOperation,
-    signature,
+  console.log(`submitting via Pimlico bundler (usePrecompiled=${PRECOMPILE}) ...`);
+  const hash = await smartAccountClient.sendUserOperation({
+    calls: [{to: TARGET, value: 0n, data: encodeFunctionData({abi: TARGET_ABI, functionName: 'record', args: [recorded]})}],
   });
-  console.log(`submitted to bundler: ${hash}`);
-  const receipt = await bundler.waitForUserOperationReceipt({hash});
-  console.log(`included in tx ${receipt.receipt.transactionHash} success=${receipt.success}`);
+  console.log(`userOpHash: ${hash}`);
+  const receipt = await smartAccountClient.waitForUserOperationReceipt({hash, timeout: 120_000});
+  console.log(`included: tx ${receipt.receipt.transactionHash} block ${receipt.receipt.blockNumber} success=${receipt.success}`);
+  console.log(`actualGasUsed=${receipt.actualGasUsed} actualGasCost=${receipt.actualGasCost} wei (sponsored)`);
+  console.log(`account code deployed: ${(await client.getCode({address: sender}))?.length > 2}`);
+  console.log(`https://sepolia.basescan.org/tx/${receipt.receipt.transactionHash}`);
 }
 
 /** Re-encode Kernel's WebAuthn signature tuple with usePrecompiled=true. */

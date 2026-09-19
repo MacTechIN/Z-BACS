@@ -236,3 +236,35 @@ PIMLICO_API_KEY 등록 방법
    (또는 셸에서 export PIMLICO_API_KEY=pim_… 후 --send)
 3. 주의: 현재 --send는 계정 잔고로 가스를 내는 경로만 있어 실제 체인에서는 잔고 0으로 실패합니다. 키를 채워 놓으셨다고 알려주시면 Pimlico 페이마스터(스폰서) 경로를 붙여 1건 제출하고 결과를 기록하겠습니다. 키 값 자체는 저에게 보내지 마세요 — .env에만 두면 됩니다.
 ```
+
+### #31 [U] 2026-09-19
+```
+cp spikes/aa-passkey/.env.example spikes/aa-passkey/.env
+sam@maindev:~/workspace/security/BSA_remote_file_auth_system/Z-BACS$ nano .env
+sam@maindev:~/workspace/security/BSA_remote_file_auth_system/Z-BACS$ cd spikes/aa-passkey && node --env-file=.env scripts/kernel-account.mjs --send
+passkey credential: J-fTVJ695SulhZx1JGc6uB38Xy8KYNp3qk7oZGZ0FcM
+public key x=0x51f279fdc7069acf49d57e2ce753b4b3267e9cfdc3128282d031e58dce34dd4f
+           y=0xf20a0a346b5c52fe4272cd20b0717990297dc246deae8fc16af9cd13980edf9d
+Kernel v3.1 account (counterfactual): 0xc5EeD39265fcf6447d778B902830EbEaB3878001 deployed=false
+factory: 0xd703aaE79538628d27099B8c4f621bE4CCd142d5 (516 bytes init data)
+userOpHash: 0x3bf3d9c478c68f32a19813b28d1ecdb162c8a979934b34510390f0f998f0c741
+signature: 480 bytes (WebAuthn assertion, usePrecompiled=false)
+wrote vectors/userop.json
+--send needs PIMLICO_API_KEY
+```
+
+### #31 [C] 2026-09-19
+```
+키가 잘못된 파일에 들어갔습니다. nano .env를 리포 루트(Z-BACS/)에서 열었는데, 스크립트는 spikes/aa-passkey/.env를 읽습니다. 확인 결과 spikes/aa-passkey/.env는 .env.example과 바이트 단위로 동일(키 비어 있음)하고, 루트에는 .env 파일이 아예 없습니다(저장이 안 됐거나 다른 곳에 저장됨). 키 값 자체는 확인하지 않았습니다.
+
+고치는 방법:
+  nano spikes/aa-passkey/.env      ← PIMLICO_API_KEY=pim_… 한 줄만 채우고 저장
+  cd spikes/aa-passkey && node --env-file=.env scripts/kernel-account.mjs --send
+
+그 사이 --send 경로를 실제로 동작하게 바꿔 커밋했습니다:
+- Pimlico 번들러 + 테스트넷 페이마스터(가스 스폰서) 연결 → 계정 잔고 0이어도 제출 가능.
+- --precompile 플래그: usePrecompiled=true로 서명·스텁 서명을 재인코딩해 번들러가 0x…0100 호출을 허용하는지(T21/ERC-7562) 측정.
+- 출력: userOpHash, 포함된 tx·블록, success, 실제 가스, Basescan 링크.
+
+키를 채우고 알려주시면 제가 두 번(기본 → --precompile) 제출하고 결과를 docs/research/aa_passkey_spike.md에 기록하겠습니다. 직접 돌려보셔도 됩니다.
+```
