@@ -170,7 +170,7 @@ Bob.agent            Relay              Alice.approve/agent          Ledger
 | ------------ | --------------------------------------------------------------------------- | --------------------------------- |
 | FileRegistry | `register(fileId, owner)`, `bumpVersion(fileId, newHash)`, `retire(fileId)` | Registered, VersionBumped         |
 | AccessPolicy | `grant(AccessGrant, sig)`, `revoke(grantId)`, `isValid(grantId)`            | Granted, Revoked                  |
-| AuditLog     | `log(fileId, kind, actorCommit)` (Agent가 기기키로 서명한 어테스테이션)                   | Requested, Denied, Opened, Sealed |
+| AuditLog     | `log(fileId, kind, actorCommit, detail)` — 이벤트 전용(스토리지·외부 호출 없음, 실측 25,515 gas/건). 항목은 `reporter`의 **주장**이며 증명이 아님(기기 서명 온체인 검증 불가 → Z-3.H.3) | `Logged(fileId, kind, reporter, actorCommit, detail)`, kind = Requested/Denied/Opened/Sealed/Failed |
 | P256Validator | ERC-7579 검증기(모듈 타입 1): `enrollKey(x,y,requireOsConfirm)`, `revokeKey(keyId)`, `validateUserOp`, `isValidSignatureWithSender`. 계정별 기기 키 집합, 서명 `keyId‖r‖s`(96B), OZ `P256.verify`(프리컴파일+폴백, low-s 강제) | DeviceEnrolled, DeviceRevoked |
 
 

@@ -653,3 +653,18 @@ AccessPolicy(H.2)
 스펙: approval_protocol v1.2 §3에 grant() 검증 순서(등록→폐기→버전 바인딩→권한→시간창→만료→nonce→서명), consumeOpen 서명과 한계, FileRegistry 함수 목록.
 CI: contracts 잡에 forge coverage 요약 추가. tools/chain-demo.sh 재실행해 시나리오 정상 동작 확인.
 ```
+
+### #46 [C] 2026-09-19 (6단계: Z-1.H.3)
+```
+Z-1.H.3 완료 — AuditLog. 커밋·푸시 완료.
+
+컨트랙트: 이벤트 전용. Logged(fileId indexed, kind indexed, reporter indexed, actorCommit, detail), kind = Requested/Denied/Opened/Sealed/Failed. 스토리지·외부 호출 없음. actorCommit = keccak(deviceKid‖salt)로 기기 식별자를 가리고(T13), detail은 32바이트 자유 슬롯(Sealed의 새 헤더 해시, Denied의 사유 코드 등).
+
+가스 DoD(≤30k/log): 처음엔 "등록된 파일만 기록" 검사를 넣었는데 레지스트리 조회의 콜드 접근(~4.7k) 때문에 실제 트랜잭션이 31,030 gas로 예산을 넘었습니다. 아키텍처 명세대로 이벤트 전용으로 되돌려 실측 25,515 gas로 통과. 대신 "누구나 아무 fileId로 기록할 수 있다"는 성질이 생기므로, 읽는 쪽이 자기가 아는 fileId로만 구독하고 항목은 reporter의 주장으로 취급한다는 점을 컨트랙트 주석·아키텍처에 명시했습니다(기기 서명의 온체인 검증은 Ed25519 프리컴파일이 없어 불가 — Z-3.H.3).
+
+측정 방법 관련: 이 Foundry 버전에서 테스트 프레임 안의 gasleft()/lastCallGas는 하네스 오버헤드가 섞여 실제 트랜잭션과 크게 다릅니다(무동작 외부 호출이 21k로 측정). 그래서 가스 예산 검사는 tools/chain-demo.sh가 실제 Anvil 트랜잭션 영수증으로 하고(초과 시 실패), 단위 테스트는 비용을 평평하게 유지하는 구조적 성질(스토리지 쓰기 0, 이벤트 정확히 1개, 토픽 4개)을 고정합니다.
+
+데모: chain-demo에 [4b] 단계 추가 — Bob이 Opened를, Alice가 Sealed를 기록하고, 마지막에 AuditLog.log 실제 가스를 예산과 대조해 출력합니다.
+
+컨트랙트 전체: 55 tests, 커버리지 라인·구문·브랜치·함수 100%.
+```

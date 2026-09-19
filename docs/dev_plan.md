@@ -76,7 +76,7 @@
 |---|---|---|
 | Z-1.H.1 ✅ | `FileRegistry.sol` (register/bumpVersion/retire) + 테스트 | 100% 브랜치 (2026-09-19: `retire`·`currentVersion`·동일 헤더 해시 거부 추가, `forge coverage` 라인·구문·브랜치·함수 **100%**) |
 | Z-1.H.2 ✅ | `AccessPolicy.sol` (grant/revoke/isValid, EIP-712, ERC-1271 지원) | 재전송·만료·회수 테스트 (2026-09-19: T19 버전 바인딩(옛 헤더 해시 거부)·retire 차단·`consumeOpen`을 기기 공개키에 바인딩·grant 레코드에 deviceKeyHash/headerHash 저장, 22 tests, 브랜치 100%) |
-| Z-1.H.3 | `AuditLog.sol` 이벤트 계약 | 가스 ≤ 30k/log |
+| Z-1.H.3 ✅ | `AuditLog.sol` 이벤트 계약 | 가스 ≤ 30k/log (2026-09-19: 이벤트 전용 `Logged(fileId, kind, reporter, actorCommit, detail)`, 실제 Anvil 트랜잭션 **25,515 gas** — `tools/chain-demo.sh`가 매번 실측·검사. 초안의 레지스트리 조회(~4.7k)는 31,030으로 예산 초과라 제거) |
 | Z-1.H.4 | UUPS 프록시 + Timelock 배포 스크립트(Anvil, Base Sepolia) | 주소 파일 생성 |
 | Z-1.H.5 | Slither + Echidna 불변식 CI | CI 게이트 |
 | Z-1.H.6 | HF 감사 파이프라인(`tools/audit`): Qwen3-Coder-Audit 로컬/원격 추론 → PR 코멘트 | 샘플 PR 리포트 |
@@ -196,7 +196,7 @@
 | T04 Relay DEK 탈취 | Z-1.C.1 (HPKE 봉투 정식화), Z-1.R.2 (Relay는 암호문만) | core `t04_wrong_key_cannot_open`, `extra_recipient_envelope_opens` |
 | T05 요청자 바꿔치기 | Z-1.A.3 (기기 키), Z-1.R.1 (요청 서명·devicePub 해시), Z-1.H.2 (티켓에 deviceKid) | — (Z-1.R.1 테스트 예정) |
 | T06 승인 피싱 | Z-1.G.10, Z-1.P.2 (EIP-712 구조화 표시), Z-1.U.5 (알림 액션에 파일·권한 표시) | contracts EIP-712 타입 해시 벡터 |
-| T07 승인 후 평문 복사 | Z-1.G.5/7 (ACL·읽기전용), Z-1.H.3 + Z-1.G.12 (감사 로그), Z-2.G.4 (워터마크), Z-3.G.1 (미니필터) | — |
+| T07 승인 후 평문 복사 | Z-1.G.5/7 (ACL·읽기전용), Z-1.H.3 + Z-1.G.12 (감사 로그), Z-2.G.4 (워터마크), Z-3.G.1 (미니필터) | contracts `AuditLog.t.sol` 5종; `tools/chain-demo.sh` 가스 예산 검사 |
 | T08 화면 촬영 | 범위 밖(명시). 추적성만: Z-2.G.4 | — |
 | T09 평문 잔존 | Z-1.G.8 (재봉인·안전 삭제), Z-1.Q.2 (포렌식 CI), Z-2.G.3 (가상 드라이브) | — |
 | T10 앱 임시파일 | Z-1.G.6 (경로 고정·저장 감지), Z-1.G.8 (앱별 잔존 청소), Z-2.G.3 | — |

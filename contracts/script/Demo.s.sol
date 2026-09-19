@@ -5,6 +5,7 @@ import {Script, console2} from "forge-std/Script.sol";
 import {FileRegistry} from "../src/FileRegistry.sol";
 import {AccessPolicy} from "../src/AccessPolicy.sol";
 import {AccessGrantLib} from "../src/AccessGrantLib.sol";
+import {AuditLog} from "../src/AuditLog.sol";
 
 /// @notice End-to-end walkthrough of what Z-BACS puts on chain, runnable against a local
 ///         Anvil node (see tools/chain-demo.sh and docs/chain_guide.md):
@@ -31,9 +32,11 @@ contract Demo is Script {
         vm.startBroadcast(ALICE_PK);
         FileRegistry registry = new FileRegistry();
         AccessPolicy policy = new AccessPolicy(registry);
+        AuditLog audit = new AuditLog();
         vm.stopBroadcast();
         console2.log("    FileRegistry :", address(registry));
         console2.log("    AccessPolicy :", address(policy));
+        console2.log("    AuditLog     :", address(audit));
 
         // ---------------------------------------------------------------- [2] seal + register
         // fileId is a salted hash: the chain never sees the file name or content (T13).
@@ -82,6 +85,15 @@ contract Demo is Script {
         vm.stopBroadcast();
         console2.log("    opens used   :", policy.grantOf(grantId).opens);
 
+        // ---------------------------------------------------------------- [4b] agents report
+        console2.log("\n[4b] Bob's agent reports the open, and the reseal, to the audit log");
+        vm.startBroadcast(BOB_PK);
+        audit.log(fileId, AuditLog.Kind.Opened, keccak256("bob-device||salt"), bytes32(0));
+        vm.stopBroadcast();
+        vm.startBroadcast(ALICE_PK);
+        audit.log(fileId, AuditLog.Kind.Sealed, keccak256("alice-device||salt"), keccak256("header v2"));
+        vm.stopBroadcast();
+
         // ---------------------------------------------------------------- [5] replay attempt (simulated, not sent)
         console2.log("\n[5] Replay: resubmitting the same signed grant");
         try policy.grant(g, aliceSig) returns (bytes32) {
@@ -101,6 +113,7 @@ contract Demo is Script {
         string memory json = "demo";
         vm.serializeAddress(json, "registry", address(registry));
         vm.serializeAddress(json, "policy", address(policy));
+        vm.serializeAddress(json, "audit", address(audit));
         vm.serializeBytes32(json, "fileId", fileId);
         string memory out = vm.serializeBytes32(json, "grantId", grantId);
         vm.writeJson(out, "out/demo.json");

@@ -34,11 +34,13 @@ forge script script/Demo.s.sol --rpc-url "$RPC" --broadcast -vv 2>&1 \
   | awk '/== Logs ==/{f=1; next} /## Setting up/{f=0} /ONCHAIN EXECUTION COMPLETE/{print "  (all transactions mined)"} f'
 
 POLICY=$(jq -r .policy out/demo.json)
+AUDIT=$(jq -r .audit out/demo.json)
+FILE_ID=$(jq -r .fileId out/demo.json)
 GRANT_ID=$(jq -r .grantId out/demo.json)
 
 echo
 echo "== on-chain evidence (read with cast, no keys needed)"
-echo "   blocks mined: $(cast block-number --rpc-url "$RPC")  (one per transaction: 2 deploys + register + grant + open + revoke = 6)"
+echo "   blocks mined: $(cast block-number --rpc-url "$RPC")  (one per transaction: 3 deploys + register + grant + open + 2 audit + revoke)"
 echo "   AccessPolicy.isValid(grantId) -> $(cast call "$POLICY" 'isValid(bytes32)(bool)' "$GRANT_ID" --rpc-url "$RPC")"
 echo "   events emitted by AccessPolicy (topic0 = keccak256 of the event signature, decoded from the ABI):"
 declare -A EVENT_NAME
@@ -48,6 +50,17 @@ done < <(jq -r '.abi[] | select(.type=="event") | [.name, (.name + "(" + ([.inpu
 while IFS=$'\t' read -r block topic0 tx; do
   printf "     block %d  %-8s tx %s…\n" "$((block))" "${EVENT_NAME[$topic0]:-?}" "${tx:0:14}"
 done < <(cast logs --rpc-url "$RPC" --from-block 0 --address "$POLICY" --json | jq -r '.[] | [.blockNumber, .topics[0], .transactionHash] | @tsv')
+echo "   audit entries (AuditLog): $(cast logs --rpc-url "$RPC" --from-block 0 --address "$AUDIT" --json | jq 'length')"
+
+# Z-1.H.3 budget: one audit entry must cost <= 30,000 gas as a whole transaction.
+ALICE_PK=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+AUDIT_GAS=$(cast send "$AUDIT" 'log(bytes32,uint8,bytes32,bytes32)' "$FILE_ID" 2 \
+  0x3333333333333333333333333333333333333333333333333333333333333333 \
+  0x4444444444444444444444444444444444444444444444444444444444444444 \
+  --rpc-url "$RPC" --private-key "$ALICE_PK" | awk '/^gasUsed/{print $2}')
+printf "   AuditLog.log gas: %s (budget 30000)" "$AUDIT_GAS"
+if [[ "$AUDIT_GAS" -le 30000 ]]; then echo "  OK"; else echo "  OVER BUDGET"; exit 1; fi
+
 LAST_TX=$(cast logs --rpc-url "$RPC" --from-block 0 --address "$POLICY" --json | jq -r '.[-1].transactionHash')
 echo
 echo "== last transaction (the revoke), as any block explorer would show it:"
