@@ -41,10 +41,10 @@
 | Z-0.A.3 | BSA 샌드박스 Client Key 신청(OR-1), SDK 문서 수령·요약 | research §1.1 | `docs/research/bsa_sdk_notes.md` | API 흐름 문서화 |
 | Z-0.G.1 ✅ | Tauri 2 스파이크: `.zbacs` 파일 연결, `RunEvent::Opened` 로 경로 수신, 단일 인스턴스 | research §3 | `spikes/tauri-assoc/` | 더블클릭 시 앱 실행·경로 로그 (2026-09-19 Linux headless: 인자 수신·단일 인스턴스 전달·deb 파일연결 확인. Windows 실기 확인은 Z-0.A.1과 함께) |
 | Z-0.H.1 ✅ | Foundry 프로젝트 + Anvil, `AccessGrant` EIP-712 서명·검증 PoC | specs/approval_protocol | `contracts/` | `forge test` 통과 (2026-09-19: 18 tests, T03/T14/T15/T20 매핑, 벡터 기록) |
-| Z-0.H.2 | Base Sepolia RIP-7212 실측(OR-2), Kernel+Passkey Validator 계정 생성 스파이크(permissionless.js) | research §4 | `spikes/aa-passkey/` | 패스키로 UserOp 1건 성공 |
+| Z-0.H.2 ✅ | Base Sepolia RIP-7212 실측(OR-2), Kernel+Passkey Validator 계정 생성 스파이크(permissionless.js) | research §4 | `spikes/aa-passkey/` | 패스키로 UserOp 1건 성공 (2026-09-19: Base Sepolia·메인넷 P256VERIFY 활성 3,885 gas, Kernel v3.1+WebAuthn UserOp가 포크의 실제 EntryPoint v0.7 통과, 10 tests. 번들러 실제 제출은 Z-1.H.8) |
 | Z-0.Q.1 | 위협모델 리뷰 워크숍, T01~T20 → 태스크 매핑 | threat_model | 매핑표(이 문서 §부록) | 누락 없음 |
 
-**Phase 0 종료 기준**: 5개 스파이크(C.1, A.1, G.1, H.1, H.2) 모두 성공 또는 대안 ADR 작성.
+**Phase 0 종료 기준**: 5개 스파이크(C.1, A.1, G.1, H.1, H.2) 모두 성공 또는 대안 ADR 작성. — 2026-09-19 현재 4/5 완료(C.1, G.1, H.1, H.2), A.1은 Windows 실기 필요.
 
 ---
 

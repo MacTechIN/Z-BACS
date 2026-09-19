@@ -114,14 +114,14 @@
 | foundry-rs/foundry | Solidity 빌드·테스트·퍼징·Anvil 로컬체인 | MIT/Apache | https://github.com/foundry-rs/foundry |
 | OpenZeppelin/openzeppelin-contracts (v5) | AccessControl, EIP712, ECDSA, UUPS 프록시, TimelockController | MIT | https://github.com/OpenZeppelin/openzeppelin-contracts |
 | eth-infinitism/account-abstraction | ERC-4337 EntryPoint 레퍼런스 | GPL-3.0 | https://github.com/eth-infinitism/account-abstraction |
-| pimlicolabs/permissionless.js | 번들러/페이마스터/스마트계정 TS 클라이언트(viem) | MIT | https://github.com/pimlicolabs/permissionless.js |
-| zerodevapp/kernel | ERC-7579 모듈러 계정(가장 많이 배포) | MIT | https://github.com/zerodevapp/kernel |
+| pimlicolabs/permissionless.js | 번들러/페이마스터/스마트계정 TS 클라이언트(viem). 0.4.1 `toKernelSmartAccount` WebAuthn 소유자 지원 확인, 단 `usePrecompiled=false` 하드코딩 | MIT | https://github.com/pimlicolabs/permissionless.js |
+| zerodevapp/kernel | ERC-7579 모듈러 계정(가장 많이 배포). v3.1 + WebAuthn 검증기 `0x7ab1…9e69` Base Sepolia 배포 확인, 스파이크 통과 | MIT | https://github.com/zerodevapp/kernel |
 | rhinestonewtf/core-modules (Passkeys Validator) | 패스키(WebAuthn) 검증 모듈 | MIT/GPL 확인 | https://github.com/rhinestonewtf/core-modules |
 | exactly/webauthn-owner-plugin | ERC-6900 secp256r1 서명 검증 플러그인 | 확인 필요 | https://github.com/exactly/webauthn-owner-plugin |
 | daimo-eth/p256-verifier, FreshCryptoLib | Solidity P-256 검증기(RIP-7212 미지원 체인 폴백) | MIT | https://github.com/daimo-eth/p256-verifier |
 | wevm/viem, ox | TS EVM 클라이언트, EIP-712, WebAuthn 유틸 | MIT | https://github.com/wevm/viem |
 | alloy-rs/alloy | Rust EVM 클라이언트(Agent가 체인 조회·서명) | MIT/Apache | https://github.com/alloy-rs/alloy |
-| Base / Optimism / Arbitrum | L2 배포 대상. RIP-7212 지원 여부 확인(Base: Pectra 이후 지원) | - | https://docs.base.org |
+| Base / Optimism / Arbitrum | L2 배포 대상. P256VERIFY(`0x…0100`) Base Sepolia·메인넷·OP Sepolia 활성 실측(2026-09-19, OR-2) | - | https://docs.base.org |
 | Hyperledger Besu / Anvil | 프라이빗·로컬 체인 옵션 | Apache-2.0 | https://github.com/hyperledger/besu |
 
 **컨트랙트 설계 초안** (specs/approval_protocol.md 참조)
@@ -241,7 +241,7 @@
 | ID | 항목 | 담당 단계 |
 |---|---|---|
 | OR-1 | BSA 샌드박스 Client Key 신청 및 Web SDK 실제 API 확인 | Phase 0 |
-| OR-2 | Base 메인넷/세폴리아 RIP-7212 프리컴파일 활성 여부 실측 | Phase 0 |
+| OR-2 ✅ | Base 메인넷/세폴리아 RIP-7212 프리컴파일 활성 여부 실측 — 2026-09-19 활성 확인, 3,885 gas. [research/aa_passkey_spike.md](research/aa_passkey_spike.md) | Phase 0 |
 | OR-3 | `keyroost-winwebauthn` vs `windows-rs` 직접 호출 안정성 비교 | Phase 0 |
 | OR-4 | Windows SmartScreen/Defender 오탐 최소화를 위한 EV 코드서명 비용·절차 | Phase 1 |
 | OR-5 | umbral-pre GPL 격리 아키텍처 vs Lit v8 비용 비교 | Phase 3 |

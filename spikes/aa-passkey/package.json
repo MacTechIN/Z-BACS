@@ -1,0 +1,15 @@
+{
+  "name": "zbacs-spike-aa-passkey",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Z-0.H.2 spike: RIP-7212 measurement + passkey smart account UserOp",
+  "scripts": {
+    "probe": "node scripts/probe-rip7212.mjs",
+    "account": "node scripts/kernel-account.mjs"
+  },
+  "dependencies": {
+    "permissionless": "^0.4.1",
+    "viem": "^2.56.8"
+  }
+}

@@ -120,3 +120,65 @@ deb 번들 빌드는 진행 중이며 결과는 다음 커밋에 반영합니다
 ```
 deb 번들을 빌드해 파일 연결 등록을 확인했습니다. Tauri 기본 .desktop 템플릿은 Exec에 %U가 없어 Linux 더블클릭 시 경로가 앱에 전달되지 않는 문제가 있었고, 커스텀 템플릿(Exec %U)과 shared-mime-info XML(*.zbacs, ZBACS 매직)을 번들에 추가해 해결했습니다. 재빌드한 deb에 Exec %U, MimeType, zbacs.xml이 들어간 것을 확인했습니다.
 ```
+
+### #25 [U] 2026-09-19
+```
+현재 진행 상황
+```
+
+### #25 [C] 2026-09-19
+```
+테스트까지 돌려서 실제 상태를 확인했습니다.
+
+## 현재 위치: Phase 0 (셋업·스파이크), 종료 기준 5개 중 3개 완료
+
+완료 (main 클린, 원격 동기화됨 — 최신 28be090)
+- Z-0.D.1/D.2/D.3 모노레포 스캐폴드, tools/setup.sh, GitHub Actions CI
+- Z-0.C.1/C.2 컨테이너(XChaCha20-Poly1305 청크 + CBOR 헤더 + Ed25519) + HPKE 봉투 — cargo test 9 passed / 1 ignored(perf), 100MB 왕복 0.35s
+- Z-0.H.1 FileRegistry, AccessPolicy, EIP-712 AccessGrant — forge test 18 passed (T03/T14/T15/T20 매핑)
+- Z-0.G.1 Tauri 2 .zbacs 파일 연결 스파이크 — Linux headless 확인(인자 수신, 단일 인스턴스 전달, deb Exec %U + MIME 등록)
+- Z-1.U.0 ◐ docs/design/ui_guideline.md, packages/design-tokens/tokens.css — 부분(Figma URL 연결·Code Connect 남음)
+
+남은 Phase 0 항목
+- Z-0.H.2 — Base Sepolia RIP-7212 실측 + permissionless.js 패스키 스마트계정. Linux에서 지금 바로 가능한 유일한 게이트 스파이크.
+- Z-0.A.1/A.2 — Windows Hello webauthn.dll 네이티브 호출. Windows 실기 필요(Z-0.G.1 Windows 더블클릭 확인도 같이).
+- Z-0.A.3 — BSA 샌드박스 Client Key 신청(OR-1, 외부 의존).
+- Z-0.Q.1 — 위협 T01~T20 → 태스크 매핑 검토(문서 작업).
+
+결정이 필요한 것 두 가지
+1. 다음 작업으로 Z-0.H.2(체인 스파이크)를 진행할지, Z-0.Q.1(위협모델 매핑)을 먼저 정리할지. 추천은 Z-0.H.2 — 게이트 항목이고 Windows 없이 끝낼 수 있는 마지막 스파이크.
+2. BSA Client Key 신청(OR-1)은 제가 할 수 없는 외부 절차. 진행 여부를 알려주시면 Z-1.A.5를 mock 기반으로 설계할지 판단.
+
+참고로 CLAUDE.md의 "5개 스파이크 중 4개 완료"는 실제로는 3개(C.1, G.1, H.1)입니다 — C.2를 게이트 항목으로 중복 계산한 것으로 보입니다. 다음 커밋에서 같이 고칠까요?
+```
+
+### #26 [U] 2026-09-19
+```
+Z-0.H.2 진행하고 CLAUDE.md도 같이 고쳐줘
+```
+
+### #27 [U] 2026-09-19 (작업 중 추가 메시지)
+```
+개발 진행 상황
+```
+
+### #26~#27 [C] 2026-09-19
+```
+Z-0.H.2 완료, 커밋·푸시했습니다. spikes/aa-passkey/ (Node + Foundry, 루트 CI 제외).
+
+결과
+- OR-2: P256VERIFY(0x…0100)가 Base Sepolia·Base 메인넷·OP Sepolia·Ethereum Sepolia 모두 활성. 포크 실측 3,885 gas vs Daimo Solidity 폴백 334,897 gas.
+- 패스키 UserOp: permissionless.js toKernelSmartAccount(Kernel v3.1 + WebAuthn 검증기)로 소프트웨어 패스키 계정 생성 → 서명된 UserOp → Base Sepolia 포크의 실제 EntryPoint v0.7 handleOps 통과(계정 배포 + 호출 실행). 10/10 tests. T14 변조 → AA24, T03 재전송 → AA25, viem userOpHash == 온체인 해시.
+- 가스: permissionless 기본(Solidity P-256) 789,620 → usePrecompiled=true 450,310 (−43%).
+
+발견
+1. permissionless.js 0.4.1이 Kernel WebAuthn 서명에 usePrecompiled=false를 하드코딩(소스 TODO) — Phase 1 Z-1.H.8에서 서명 인코딩을 직접 제어해야 함.
+2. 프리컴파일은 high-s 서명을 거부하지 않음 — low-s 정규화는 클라이언트(ox가 처리)·검증기 책임.
+3. node:crypto sign(null, digest)가 digest를 다시 SHA-256 함 — 온체인 검증기 교차검증으로 발견, 벡터 생성기 수정.
+
+미실행: 실제 번들러 제출은 PIMLICO_API_KEY 필요 → --send 옵션만 구현, Z-1.H.8로 이관. 포크의 EntryPoint 직접 호출과 번들러 경로의 차이는 mempool 규칙(ERC-7562)뿐.
+
+문서: CLAUDE.md(3/5→4/5 정정, 스파이크·다음 작업 반영), dev_plan Z-0.H.2 ✅, research.md OR-2 ✅, ADR-0005 실측치, docs/research/aa_passkey_spike.md 신규.
+
+Phase 0 남은 것: Z-0.A.1(Windows 실기 필요), Z-0.A.3(BSA Client Key 신청 — 외부, 결정 필요), Z-0.Q.1(위협 매핑 리뷰, 바로 가능).
+```
