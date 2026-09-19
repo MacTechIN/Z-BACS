@@ -1,8 +1,10 @@
 # Z-BACS 시스템 아키텍처 (Architecture)
 
-| 문서 버전 | 1.0 (2026-09-18) |
-|---|---|
+
+| 문서 버전 | 1.0 (2026-09-18)                                                                                                                                                                                                   |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 관련 문서 | [project_definition.md](project_definition.md), [specs/container_format.md](specs/container_format.md), [specs/approval_protocol.md](specs/approval_protocol.md), [threat_model.md](threat_model.md), [adr/](adr/) |
+
 
 ## 1. 설계 원칙
 
@@ -17,7 +19,7 @@
 
 ```
 ┌──────────────────────────────┐          ┌──────────────────────────────┐
-│  Owner (Alice) 기기          │          │  Recipient (Bob) 기기        │
+│  Owner (Alice) 기기           │          │  Recipient (Bob) 기기        │
 │  ┌────────────────────────┐  │          │  ┌────────────────────────┐  │
 │  │ zbacs-agent (Tauri 2)  │  │          │  │ zbacs-agent (Tauri 2)  │  │
 │  │  - Seal / Reseal       │  │          │  │  - Open / Reseal       │  │
@@ -34,13 +36,13 @@
            │                                         │
      ┌─────┴─────────────────────────────────────────┴─────┐
      │  zbacs-relay (무신뢰)                                │
-     │   - 요청/응답 큐, 푸시 발송(FCM/APNs/ntfy)            │
-     │   - 봉투(암호문) 전달만, 복호화 불가                   │
+     │   - 요청/응답 큐, 푸시 발송(FCM/APNs/ntfy)             │
+     │   - 봉투(암호문) 전달만, 복호화 불가                    │
      └─────┬─────────────────────────────────────────┬─────┘
            │                                         │
      ┌─────┴─────────────────────────────────────────┴─────┐
      │  Ledger (EVM L2: Base / 로컬 Anvil / 프라이빗 Besu)   │
-     │   FileRegistry · AccessPolicy · AuditLog             │
+     │   FileRegistry · AccessPolicy · AuditLog            │
      │   Owner = ERC-4337/7579 패스키 스마트계정             │
      └──────────────────────────────────────────────────────┘
                      (Phase 3) Guardian Nodes / Lit  ─ 오프라인 위임
@@ -94,6 +96,7 @@ pub trait AuthProvider {
     fn kind(&self) -> AuthKind; // Passkey | Bsa | Otak
 }
 ```
+
 - `PasskeyProvider`: Windows `webauthn.dll` / macOS Secure Enclave / Linux libfido2.
 - `BsaProvider`: BSA Web/Mobile SDK 래핑. 결과 콜백을 `ApprovalAssertion`으로 변환.
 - `OtakProvider`: X.1284 스타일 자체 구현(폴백).
@@ -106,11 +109,13 @@ Closed ──open()──▶ Requesting ──grant──▶ Decrypting ──�
    │                  ▼                         ▼              ▼
    └──────────── Denied                     Failed        Resealing ──▶ Closed
 ```
+
 - `Active(Edit)`: `notify`로 작업공간 변경 감시, 열람 앱 PID 종료 감지(`sysinfo`).
 - `Resealing`: 새 DEK 생성 → 청크 암호화 → 새 헤더(version+1, prev_version) → 원자적 교체 → 평문 안전 삭제(덮어쓰기 + 삭제, SSD는 best-effort 명시) → `AuditLog.Sealed`.
 - `Active(ReadOnly)`: 작업공간 파일 읽기전용 ACL, 변경 감지 시 경고·폐기.
 
 ### 3.4 보호 작업공간(Protected Workspace)
+
 - 위치: `%LOCALAPPDATA%\ZBACS\ws\<session-id>\` 사용자 전용 ACL(SYSTEM + 현재 사용자만), 인덱싱 제외, 백업 제외 속성.
 - Phase 2: Dokan 가상 드라이브로 평문을 디스크에 쓰지 않는 모드.
 - Phase 3: 미니필터로 허용 프로세스 외 접근 차단.
@@ -132,49 +137,57 @@ Bob.agent            Relay              Alice.approve/agent          Ledger
    │ 10. HPKE 열기 → DEK → 복호화 → 앱 실행                          │
    ├──────────── 11. AuditLog.Opened ─────────────────────────────▶│
 ```
+
 - 온체인 기록은 **감사·회수 용도**이며, 개봉 자체는 8번 봉투 수신으로 가능하다. 온체인 확정 대기 옵션(`strict_onchain`)은 정책으로 켠다.
 - 회수: Alice가 `revoke(grantId)` → Relay 브로드캐스트 + 체인 이벤트 → Bob.agent 세션 종료·재봉인.
 
 ## 5. 키 계층
 
-| 키 | 생성 위치 | 보관 | 용도 |
-|---|---|---|---|
-| 소유자 승인키 (패스키/BSA) | Secure Enclave/TPM/Windows Hello | 하드웨어 | EIP-712 승인 서명, 계정 소유 |
-| 소유자 봉인키 (X25519) | Agent | OS 키체인(DPAPI/Keychain) + 암호화 백업 | 자기 봉투(DEK 자기 복구) |
-| 기기 키 (X25519 + Ed25519) | 각 Agent | OS 키체인 | 요청 서명, DEK 수신 봉투 |
-| DEK (32B) | Seal/Reseal 시 난수 | 봉투 안에서만 | 파일 청크 AEAD |
-| 컨테이너 서명키 (Ed25519) | 소유자 Agent | OS 키체인 | 헤더 무결성 |
+
+| 키                       | 생성 위치                            | 보관                              | 용도                   |
+| ----------------------- | -------------------------------- | ------------------------------- | -------------------- |
+| 소유자 승인키 (패스키/BSA)       | Secure Enclave/TPM/Windows Hello | 하드웨어                            | EIP-712 승인 서명, 계정 소유 |
+| 소유자 봉인키 (X25519)        | Agent                            | OS 키체인(DPAPI/Keychain) + 암호화 백업 | 자기 봉투(DEK 자기 복구)     |
+| 기기 키 (X25519 + Ed25519) | 각 Agent                          | OS 키체인                          | 요청 서명, DEK 수신 봉투     |
+| DEK (32B)               | Seal/Reseal 시 난수                 | 봉투 안에서만                         | 파일 청크 AEAD           |
+| 컨테이너 서명키 (Ed25519)      | 소유자 Agent                        | OS 키체인                          | 헤더 무결성               |
+
 
 복구: 소유자 봉인키를 Shamir(2-of-3)로 분할하여 다른 기기·클라우드(암호화)·인쇄 코드에 분산 (Phase 2).
 
 ## 6. 온체인 계약 개요
 
-| 계약 | 함수 | 이벤트 |
-|---|---|---|
-| FileRegistry | `register(fileId, owner)`, `bumpVersion(fileId, newHash)`, `retire(fileId)` | Registered, VersionBumped |
-| AccessPolicy | `grant(AccessGrant, sig)`, `revoke(grantId)`, `isValid(grantId)` | Granted, Revoked |
-| AuditLog | `log(fileId, kind, actorCommit)` (Agent가 기기키로 서명한 어테스테이션) | Requested, Denied, Opened, Sealed |
+
+| 계약           | 함수                                                                          | 이벤트                               |
+| ------------ | --------------------------------------------------------------------------- | --------------------------------- |
+| FileRegistry | `register(fileId, owner)`, `bumpVersion(fileId, newHash)`, `retire(fileId)` | Registered, VersionBumped         |
+| AccessPolicy | `grant(AccessGrant, sig)`, `revoke(grantId)`, `isValid(grantId)`            | Granted, Revoked                  |
+| AuditLog     | `log(fileId, kind, actorCommit)` (Agent가 기기키로 서명한 어테스테이션)                   | Requested, Denied, Opened, Sealed |
+
 
 - 소유자 계정: ERC-7579 Kernel + Passkey Validator(RIP-7212 또는 P-256 검증기 폴백). 가스는 페이마스터 대납.
 - 프라이버시: `actorCommit = H(deviceKid || salt)`. Phase 3에서 Semaphore 증명으로 교체.
 
 ## 7. 기술 스택 요약
 
-| 계층 | 선택 | 근거(ADR) |
-|---|---|---|
-| 코어 언어 | Rust (stable) | 메모리 안전, 암호 생태계, Tauri 호환 (ADR-0001) |
-| 데스크톱 | Tauri 2 + React/TS | 파일 연결·경량·코드 서명 (ADR-0001) |
-| 암호 | RustCrypto + hpke-rs | (ADR-0002) |
-| 승인 인증 | AuthProvider: Passkey 우선, BSA 어댑터 | (ADR-0003) |
-| 체인 | Base Sepolia → Base, 로컬 Anvil | L2 지연, RIP-7212 (ADR-0005) |
-| 컨트랙트 | Solidity 0.8.x + Foundry + OZ v5 | |
-| Relay | Rust axum + NATS(옵션) | |
-| 푸시 | FCM/APNs, 셀프호스팅 ntfy 폴백 | |
-| PRE(3단계) | umbral-pre 자체 노드 또는 Lit v8 | (ADR-0004) |
+
+| 계층       | 선택                                | 근거(ADR)                             |
+| -------- | --------------------------------- | ----------------------------------- |
+| 코어 언어    | Rust (stable)                     | 메모리 안전, 암호 생태계, Tauri 호환 (ADR-0001) |
+| 데스크톱     | Tauri 2 + React/TS                | 파일 연결·경량·코드 서명 (ADR-0001)           |
+| 암호       | RustCrypto + hpke-rs              | (ADR-0002)                          |
+| 승인 인증    | AuthProvider: Passkey 우선, BSA 어댑터 | (ADR-0003)                          |
+| 체인       | Base Sepolia → Base, 로컬 Anvil     | L2 지연, RIP-7212 (ADR-0005)          |
+| 컨트랙트     | Solidity 0.8.x + Foundry + OZ v5  |                                     |
+| Relay    | Rust axum + NATS(옵션)              |                                     |
+| 푸시       | FCM/APNs, 셀프호스팅 ntfy 폴백           |                                     |
+| PRE(3단계) | umbral-pre 자체 노드 또는 Lit v8        | (ADR-0004)                          |
+
 
 ## 8. 배포 형태
 
-- Windows: NSIS 설치기(`.zbacs` 파일 연결) + 선택적 `zbacs-stub.exe` 래퍼. Authenticode EV 서명.
+- Windows: NSIS 설치기(`.zbs` 파일 연결) + 선택적 `zbacs-stub.exe` 래퍼. Authenticode EV 서명.
 - macOS: `.dmg` + notarization, Linux: AppImage/deb.
 - Relay: Docker 컨테이너, 상태 최소(큐 + 푸시 토큰). 셀프호스팅 가능.
 - 컨트랙트: Foundry 스크립트, UUPS 프록시 + 48h 타임락.
+

@@ -27,7 +27,7 @@
 Rust(stable) + Tauri 2 / RustCrypto + hpke-rs / Foundry + OpenZeppelin v5 / viem + permissionless.js / axum Relay / Base L2(Anvil 로컬)
 
 ## 현재 단계
-Phase 0 (셋업·스파이크). 다음 태스크: `Z-0.D.2` 툴체인 설치 스크립트, `Z-0.C.1` 컨테이너 PoC, `Z-0.A.1` Windows Hello 스파이크. 머신에 Rust 미설치 상태.
+Phase 0 (셋업·스파이크). Z-0.D.1(스캐폴드), Z-0.D.2(툴체인: Rust 1.98, tauri-cli 2.11, Foundry 1.8.3, cargo-audit/fuzz — `tools/setup.sh --check`로 점검) 완료. 다음 태스크: `Z-0.D.3` CI 골격, `Z-0.C.1` 컨테이너 PoC, `Z-0.A.1` Windows Hello 스파이크.
 
 ## 디렉터리 (예정)
 `crates/` `apps/` `contracts/` `packages/` `tools/` `spikes/` `docs/`

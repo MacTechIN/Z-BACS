@@ -30,8 +30,8 @@
 
 | ID | 태스크 | 입력 | 산출물 | DoD |
 |---|---|---|---|---|
-| Z-0.D.1 | 리포지토리 초기화, 모노레포 레이아웃(`crates/ apps/ contracts/ packages/ tools/`), `.gitignore`, `CLAUDE.md` | architecture §3 | 디렉터리 골격 | `cargo build`가 빈 크레이트로 통과 |
-| Z-0.D.2 | 툴체인 설치 스크립트: Rust stable, Node 22, Foundry, Tauri CLI, Python 3.10+ | - | `tools/setup.sh`, `tools/setup.ps1` | 스크립트 실행 후 `cargo tauri --version` 성공 |
+| Z-0.D.1 ✅ | 리포지토리 초기화, 모노레포 레이아웃(`crates/ apps/ contracts/ packages/ tools/`), `.gitignore`, `CLAUDE.md` | architecture §3 | 디렉터리 골격 | `cargo build`가 빈 크레이트로 통과 |
+| Z-0.D.2 ✅ | 툴체인 설치 스크립트: Rust stable, Node 22, Foundry, Tauri CLI, Python 3.10+ | - | `tools/setup.sh`, `tools/setup.ps1` | 스크립트 실행 후 `cargo tauri --version` 성공 (2026-09-19 완료) |
 | Z-0.D.3 | CI 골격(GitHub Actions): fmt/clippy/test, forge test, npm test | - | `.github/workflows/ci.yml` | PR에서 녹색 |
 | Z-0.C.1 | 컨테이너 PoC: 청크 XChaCha20-Poly1305 + CBOR 헤더 + Ed25519 서명 | specs/container_format | `zbacs-core` seal/open CLI | 100MB 파일 왕복 ≤ 2s, 변조 시 실패 |
 | Z-0.C.2 | HPKE 봉투 PoC (hpke-rs) | - | `envelope.rs` | DEK 왕복, 테스트 벡터 |
