@@ -200,3 +200,39 @@ Kernel v3.1 + WebAuthn 검증기 자체는 Pimlico가 공식 지원하는 조합
 
 키를 주시면(PIMLICO_API_KEY=…) 페이마스터 스폰서 경로를 붙여서 바로 1건 제출해 보겠습니다. 없으면 이대로 Z-1.H.8에 남겨둡니다.
 ```
+
+### #29 [U] 2026-09-19
+```
+Z-0.Q.1 위협 매핑 리뷰 진행해줘
+```
+
+### #30 [U] 2026-09-19 (작업 중 추가 메시지)
+```
+PIMLICO_API_KEY 키 등록 방법 알려줘
+```
+
+### #29~#30 [C] 2026-09-19
+```
+Z-0.Q.1 완료, 커밋·푸시했습니다.
+
+리뷰 결과 (docs/dev_plan.md 부록 A 전면 개정, threat_model.md v1.1)
+- 누락: T08(화면 촬영)이 표에 없었음 → "범위 밖, 추적성만 Z-2.G.4"로 명시.
+- 깨진 참조: T17이 Z-2.S.1/2를 가리켰는데 이 태스크는 Phase 1(Z-1.S.1/2)로 이동해 존재하지 않는 ID였음 → 정정.
+- 잘못된 매핑: T04/T05가 "Z-1.C.2(HPKE)"를 가리켰으나 C.2는 파서 견고화. HPKE 정식화는 Z-1.C.1, T05(요청자 바꿔치기)는 기기 키(Z-1.A.3)+요청 서명(Z-1.R.1)이 실제 완화 → 정정.
+- 완화 항목이 있는데 태스크가 빠진 것 보강: T03 세션 1회 소비(G.4), T06 알림 액션 표시(U.5), T07 감사 로그(H.3/G.12), T10 저장 감지(G.6), T11 DPAPI(A.3), T12 백업·복구 UX(A.4/2.U.1), T13 페이마스터(H.9), T16 체인 이벤트 폴백(H.7), T20 이벤트 구독·코드 서명(H.7/G.13).
+- "현재 근거" 열 신설: Phase 0 테스트 이름(t02/t04/t18/t19 core, t03/t14/t15/t20 contracts, t03/t14 aa-passkey)을 위협에 연결. 근거가 아직 없는 위협은 "—"로 보이게 해서 Phase 1에서 채울 목록이 됨.
+- 스파이크에서 나온 새 위협 2건 추가:
+  T21 번들러·페이마스터 검열/지연(D) → 다중 번들러, 자체 예치 폴백, EntryPoint 직접 handleOps 경로 유지.
+  T22 클라우드 동기화 패스키 복제(BE/BS 플래그)(S) → 등록 시 플래그 기록, 기기 바운드 우선, 소유자 정책 옵션.
+- T14에 "P-256 low-s 강제(프리컴파일은 high-s 거부 안 함)", T17에 "파일 연결/단일 인스턴스 인자는 경로로만 취급" 보강.
+
+Phase 0 남은 것: Z-0.A.1(Windows 실기), Z-0.A.3(BSA 키 신청).
+
+PIMLICO_API_KEY 등록 방법
+1. https://dashboard.pimlico.io 가입(GitHub/이메일) → 왼쪽 메뉴 API Keys → Create API Key → 이름 아무거나 → 생성된 키(pim_…) 복사. 무료 티어로 충분하고 Base Sepolia 가스 스폰서(페이마스터)도 테스트넷은 무료입니다.
+2. 프로젝트 등록: spikes/aa-passkey/.env.example을 .env로 복사해 값만 채우면 됩니다(.env는 gitignore 대상, 절대 커밋되지 않음).
+   cp spikes/aa-passkey/.env.example spikes/aa-passkey/.env  →  PIMLICO_API_KEY=pim_… 입력
+   실행: cd spikes/aa-passkey && node --env-file=.env scripts/kernel-account.mjs --send
+   (또는 셸에서 export PIMLICO_API_KEY=pim_… 후 --send)
+3. 주의: 현재 --send는 계정 잔고로 가스를 내는 경로만 있어 실제 체인에서는 잔고 0으로 실패합니다. 키를 채워 놓으셨다고 알려주시면 Pimlico 페이마스터(스폰서) 경로를 붙여 1건 제출하고 결과를 기록하겠습니다. 키 값 자체는 저에게 보내지 마세요 — .env에만 두면 됩니다.
+```

@@ -42,7 +42,7 @@
 | Z-0.G.1 ✅ | Tauri 2 스파이크: `.zbacs` 파일 연결, `RunEvent::Opened` 로 경로 수신, 단일 인스턴스 | research §3 | `spikes/tauri-assoc/` | 더블클릭 시 앱 실행·경로 로그 (2026-09-19 Linux headless: 인자 수신·단일 인스턴스 전달·deb 파일연결 확인. Windows 실기 확인은 Z-0.A.1과 함께) |
 | Z-0.H.1 ✅ | Foundry 프로젝트 + Anvil, `AccessGrant` EIP-712 서명·검증 PoC | specs/approval_protocol | `contracts/` | `forge test` 통과 (2026-09-19: 18 tests, T03/T14/T15/T20 매핑, 벡터 기록) |
 | Z-0.H.2 ✅ | Base Sepolia RIP-7212 실측(OR-2), Kernel+Passkey Validator 계정 생성 스파이크(permissionless.js) | research §4 | `spikes/aa-passkey/` | 패스키로 UserOp 1건 성공 (2026-09-19: Base Sepolia·메인넷 P256VERIFY 활성 3,885 gas, Kernel v3.1+WebAuthn UserOp가 포크의 실제 EntryPoint v0.7 통과, 10 tests. 번들러 실제 제출은 Z-1.H.8) |
-| Z-0.Q.1 | 위협모델 리뷰 워크숍, T01~T20 → 태스크 매핑 | threat_model | 매핑표(이 문서 §부록) | 누락 없음 |
+| Z-0.Q.1 ✅ | 위협모델 리뷰 워크숍, T01~T20 → 태스크 매핑 | threat_model | 매핑표(이 문서 §부록) | 누락 없음 (2026-09-19: T01~T22 전부 매핑, 사라진 ID(Z-2.S.1/2) 정정, 스파이크 근거 열 추가, T21·T22 신규) |
 
 **Phase 0 종료 기준**: 5개 스파이크(C.1, A.1, G.1, H.1, H.2) 모두 성공 또는 대안 ADR 작성. — 2026-09-19 현재 4/5 완료(C.1, G.1, H.1, H.2), A.1은 Windows 실기 필요.
 
@@ -181,26 +181,34 @@
 
 ---
 
-## 부록 A. 위협 → 태스크 매핑
+## 부록 A. 위협 → 태스크 매핑 (Z-0.Q.1 리뷰 2026-09-19)
 
-| 위협 | 태스크 |
-|---|---|
-| T01 | Z-1.C.1 |
-| T02 | Z-1.C.5, Z-1.H.1 |
-| T03 | Z-1.H.2 |
-| T04, T05 | Z-1.C.2(HPKE), Z-1.R.2 |
-| T06 | Z-1.G.10, Z-1.P.2 |
-| T07 | Z-1.G.5/7, Z-2.G.4, Z-3.G.1 |
-| T09, T10 | Z-1.G.8, Z-1.Q.2, Z-2.G.3 |
-| T11 | Z-1.C.6, Z-3.G.2 |
-| T12 | Z-2.A.1 |
-| T13 | Z-1.C.5, Z-3.Z.1/2 |
-| T14 | Z-1.H.2/5/6 |
-| T15 | Z-1.H.2, Z-1.G.4 |
-| T16 | Z-1.R.2, Z-2.R.1 |
-| T17 | Z-2.S.1/2 |
-| T18, T19 | Z-1.C.2/3 |
-| T20 | Z-1.G.11, Z-3.H.3 |
+규칙: 위협마다 **완화 태스크**(구현)와 **현재 근거**(T-ID를 이름에 단 테스트·스파이크)를 유지한다. 새 위협을 추가하면 이 표와 `threat_model.md`를 같은 커밋에서 갱신한다. 태스크 ID가 이동하면 여기도 고친다.
+
+| 위협 | 완화 태스크 | 현재 근거 (Phase 0) |
+|---|---|---|
+| T01 무차별 대입 | Z-1.C.1 (난수 DEK, 비밀번호 파생 없음) | `zbacs-core` DEK = OsRng 32B |
+| T02 헤더 정책 변조 | Z-1.C.5 (정책 해시), Z-1.H.1 (온체인 커밋), Z-1.G.4 (양쪽 비교) | core `t02_header_tamper_policy_is_detected` |
+| T03 티켓 재전송 | Z-1.H.2 (nonce·chainId), Z-1.R.1 (요청 nonce), Z-1.G.4 (세션 1회 소비) | contracts `test_t03_*` 3종, aa-passkey `test_t03_replay_rejected` |
+| T04 Relay DEK 탈취 | Z-1.C.1 (HPKE 봉투 정식화), Z-1.R.2 (Relay는 암호문만) | core `t04_wrong_key_cannot_open`, `extra_recipient_envelope_opens` |
+| T05 요청자 바꿔치기 | Z-1.A.3 (기기 키), Z-1.R.1 (요청 서명·devicePub 해시), Z-1.H.2 (티켓에 deviceKid) | — (Z-1.R.1 테스트 예정) |
+| T06 승인 피싱 | Z-1.G.10, Z-1.P.2 (EIP-712 구조화 표시), Z-1.U.5 (알림 액션에 파일·권한 표시) | contracts EIP-712 타입 해시 벡터 |
+| T07 승인 후 평문 복사 | Z-1.G.5/7 (ACL·읽기전용), Z-1.H.3 + Z-1.G.12 (감사 로그), Z-2.G.4 (워터마크), Z-3.G.1 (미니필터) | — |
+| T08 화면 촬영 | 범위 밖(명시). 추적성만: Z-2.G.4 | — |
+| T09 평문 잔존 | Z-1.G.8 (재봉인·안전 삭제), Z-1.Q.2 (포렌식 CI), Z-2.G.3 (가상 드라이브) | — |
+| T10 앱 임시파일 | Z-1.G.6 (경로 고정·저장 감지), Z-1.G.8 (앱별 잔존 청소), Z-2.G.3 | — |
+| T11 메모리 덤프 | Z-1.C.6 (zeroize·secrecy), Z-1.A.3 (DPAPI), Z-3.G.2 (TEE/VBS) | core `secrecy`/`zeroize` 적용 |
+| T12 소유자 기기 분실 | Z-1.A.4 (암호화 백업), Z-2.A.1 (다중 기기·소셜 복구), Z-2.U.1 (복구 UX) | — |
+| T13 온체인 식별 | Z-1.C.5 (fileId 솔트), Z-1.H.9 (페이마스터), Z-3.Z.1/2 (ZK) | contracts fileId = H(hash‖salt) |
+| T14 컨트랙트 검증 우회 | Z-1.H.2 (EIP-712·ERC-1271·low-s), Z-1.H.5 (Slither/Echidna), Z-1.H.6 (HF 감사), Z-1.H.8 (WebAuthn 서명 인코딩) | contracts `test_t14_*` 3종, aa-passkey `test_t14_tampered_signature_rejected` |
+| T15 만료 우회 | Z-1.H.2 (체인 시간), Z-1.G.4 (로컬 시계 병행) | contracts `test_t15_*` 2종 |
+| T16 Relay DoS | Z-1.R.2 (서명·레이트리밋), Z-1.R.4 (셀프호스팅), Z-1.H.7 (체인 이벤트 폴백), Z-2.R.1 | — |
+| T17 스텁 위장 | Z-1.S.1/S.2 (코드 서명·해시 고정), Z-1.C.2 (Agent는 컨테이너만 파싱), Z-1.G.13 (서명된 업데이트) | tauri-assoc: 파일 인자를 경로로만 취급, `inspect`만 수행 |
+| T18 파서 취약점 | Z-1.C.2 (길이 상한·악성 입력 20종), Z-1.C.3 (cargo-fuzz) | core `t18_chunk_tamper_is_detected`, `t18_chunk_reorder_is_detected` |
+| T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책) | core `t19_truncation_is_detected`, `bad_magic_and_version` |
+| T20 회수 무시 | Z-1.G.4 (TTL·주기 확인), Z-1.G.11 (revoke), Z-1.H.7 (이벤트 구독), Z-1.G.13 (코드 서명), Z-3.H.3 (어테스테이션) | contracts `test_t20_revoke_only_owner` |
+| T21 번들러·페이마스터 검열/지연 | Z-1.H.8 (다중 번들러 엔드포인트), Z-1.H.9 (페이마스터 폴백: 자체 예치), Z-1.G.4 (`strict_onchain` 아닌 경우 체인 확정 미대기) | aa-passkey: EntryPoint 직접 `handleOps` 경로 확인 |
+| T22 동기화 패스키 복제 | Z-1.A.2 (BE/BS 플래그 기록·정책), Z-1.U.1 (기기 바운드 우선 등록), Z-2.A.1 (기기 목록·해지) | aa-passkey: authenticatorData 플래그 파싱 |
 
 ## 부록 B. 마일스톤 요약
 
