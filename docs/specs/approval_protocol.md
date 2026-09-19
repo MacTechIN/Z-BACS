@@ -1,6 +1,6 @@
 # 스펙: 접근 요청·승인 프로토콜 v1
 
-| 상태 | Draft 1.1 (2026-09-19: §1.5 소유자 서명 방식 추가, ADR-0006) |
+| 상태 | Draft 1.2 (2026-09-19: §3 버전 바인딩·retire·consumeOpen 기기 바인딩 — Z-1.H.1/H.2) |
 |---|---|
 | 구현 | `crates/zbacs-core/src/grant.rs`, `contracts/src/AccessPolicy.sol`, `apps/relay` |
 
@@ -75,11 +75,17 @@ DeviceRevoke { account, keyId, ts }                                             
 ## 3. 온체인 함수
 
 ```solidity
-function grant(AccessGrant calldata g, bytes calldata ownerSig) external;   // 이벤트 Granted(grantId, fileId, permission, expiry)
+function grant(AccessGrant calldata g, bytes calldata ownerSig) external returns (bytes32 grantId);
 function revoke(bytes32 grantId) external;                                    // onlyOwnerOf(fileId)
-function isValid(bytes32 grantId) external view returns (bool);              // !revoked && block.timestamp < expiry
-function consumeOpen(bytes32 grantId, bytes calldata deviceAttestation) external; // maxOpens 카운트 (옵션)
+function isValid(bytes32 grantId) external view returns (bool);              // !revoked && 시간창 && opens 여유
+function consumeOpen(bytes32 grantId, bytes calldata devicePubKeys) external; // maxOpens 카운트
+// FileRegistry: register(fileId, headerHash) / bumpVersion(fileId, newHeaderHash) / retire(fileId)
+//               currentVersion(fileId) -> (headerHash, version, retired)
 ```
+
+`grant()` 검증 순서(Z-1.H.2): 등록 여부 → **폐기(retire) 여부** → **`g.headerHash`가 레지스트리의 현재 헤더 해시와 일치**(T19: 재봉인 이후 옛 버전은 다시 승인될 수 없다) → 권한 값 → 시간창 → 만료 → 소유자 nonce → 요청 nonce → 서명(ERC-1271 포함).
+
+`consumeOpen(grantId, devicePubKeys)`은 `keccak256(devicePubKeys) == deviceKeyHash`를 요구해 카운터를 승인된 기기의 공개키를 아는 호출자에게 묶는다. 체인에 Ed25519 프리컴파일이 없어 **기기 자체의 서명 증명은 아니며**, 원격 어테스테이션은 `Z-3.H.3`이다. 카운터는 감사용이고 `maxOpens` 강제의 1차 책임은 수신자 Agent에 있다.
 - 가스는 소유자 스마트계정 + 페이마스터 대납. Bob은 트랜잭션을 보내지 않는다(`AuditLog.Opened`는 Relay 또는 Bob Agent가 선택적으로 기록).
 
 ## 4. 타임아웃과 상태

@@ -6,11 +6,13 @@ import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/Signa
 import {AccessGrantLib} from "./AccessGrantLib.sol";
 import {FileRegistry} from "./FileRegistry.sol";
 
-/// @title AccessPolicy (PoC, Z-0.H.1)
+/// @title AccessPolicy
 /// @notice Verifies owner-signed EIP-712 `AccessGrant` tickets, records them on-chain for audit and
 ///         revocation. Anyone (relayer / paymaster-sponsored UserOp) may submit a valid grant.
 /// @dev Threats covered: T03 replay (grantNonce + requestNonce), T14 signature checks via OZ
-///      SignatureChecker (EOA ECDSA or ERC-1271 smart account), T15 time checks with on-chain time.
+///      SignatureChecker (EOA ECDSA or ERC-1271 smart account), T15 time checks with on-chain
+///      time, T19 version binding (the grant must name the registry's current header hash, so a
+///      superseded version cannot be granted after a reseal), T20 revoke + retire.
 contract AccessPolicy is EIP712 {
     using AccessGrantLib for AccessGrantLib.AccessGrant;
 
@@ -23,6 +25,10 @@ contract AccessPolicy is EIP712 {
         uint16 opens;
         uint8 permission;
         bool revoked;
+        /// @dev keccak256(device_x25519_pub || device_ed25519_pub) the grant was bound to.
+        bytes32 deviceKeyHash;
+        /// @dev Container header hash this grant was issued against (T19).
+        bytes32 headerHash;
     }
 
     FileRegistry public immutable registry;
@@ -44,6 +50,9 @@ contract AccessPolicy is EIP712 {
     event Opened(bytes32 indexed grantId, uint16 opens);
 
     error FileNotRegistered(bytes32 fileId);
+    error FileRetired(bytes32 fileId);
+    error StaleVersion(bytes32 expected, bytes32 given);
+    error WrongDevice(bytes32 expected, bytes32 given);
     error InvalidSignature();
     error BadNonce(uint256 expected, uint256 given);
     error RequestNonceUsed(bytes16 requestNonce);
@@ -92,6 +101,10 @@ contract AccessPolicy is EIP712 {
     {
         address owner = registry.ownerOf(g.fileId);
         if (owner == address(0)) revert FileNotRegistered(g.fileId);
+        (bytes32 currentHeader,, bool retired) = registry.currentVersion(g.fileId);
+        if (retired) revert FileRetired(g.fileId);
+        // T19: a grant names one sealed version; after a reseal the old one can no longer be granted.
+        if (g.headerHash != currentHeader) revert StaleVersion(currentHeader, g.headerHash);
         if (g.permission > uint8(AccessGrantLib.Permission.Edit)) revert InvalidPermission(g.permission);
         if (g.notBefore >= g.expiry) revert InvalidWindow(g.notBefore, g.expiry);
         if (g.expiry <= block.timestamp) revert AlreadyExpired(g.expiry);
@@ -113,7 +126,9 @@ contract AccessPolicy is EIP712 {
             maxOpens: g.maxOpens,
             opens: 0,
             permission: g.permission,
-            revoked: false
+            revoked: false,
+            deviceKeyHash: g.deviceKeyHash,
+            headerHash: g.headerHash
         });
         // SignatureChecker uses staticcall for ERC-1271, so no state can change before this emit.
         // forge-lint: disable-next-line(reentrancy-events)
@@ -129,12 +144,20 @@ contract AccessPolicy is EIP712 {
         emit Revoked(grantId, r.fileId);
     }
 
-    /// @notice Count one open against maxOpens. PoC: open to anyone; production binds a device
-    ///         attestation (spec §3 consumeOpen).
-    function consumeOpen(bytes32 grantId) external {
+    /// @notice Count one open against `maxOpens`, proving which device is opening.
+    /// @param devicePubKeys `device_x25519_pub || device_ed25519_pub`; its keccak256 must equal the
+    ///        `deviceKeyHash` the owner signed into the grant.
+    /// @dev This binds the counter to a caller who knows the granted device's public keys. It is
+    ///      not an attestation that the device itself is calling: verifying an Ed25519 device
+    ///      signature on-chain needs a precompile this chain does not have, so remote attestation
+    ///      stays Z-3.H.3. The counter is advisory; the recipient agent enforces `maxOpens`
+    ///      locally and the chain keeps the audit trail.
+    function consumeOpen(bytes32 grantId, bytes calldata devicePubKeys) external {
         GrantRecord storage r = _grants[grantId];
         if (r.owner == address(0)) revert UnknownGrant(grantId);
         if (!isValid(grantId)) revert GrantNotActive(grantId);
+        bytes32 given = keccak256(devicePubKeys);
+        if (given != r.deviceKeyHash) revert WrongDevice(r.deviceKeyHash, given);
         r.opens += 1;
         emit Opened(grantId, r.opens);
     }

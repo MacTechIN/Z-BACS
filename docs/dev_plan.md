@@ -74,8 +74,8 @@
 ### 1.3 Chain (H)
 | ID | 태스크 | DoD |
 |---|---|---|
-| Z-1.H.1 | `FileRegistry.sol` (register/bumpVersion/retire) + 테스트 | 100% 브랜치 |
-| Z-1.H.2 | `AccessPolicy.sol` (grant/revoke/isValid, EIP-712, ERC-1271 지원) | 재전송·만료·회수 테스트 |
+| Z-1.H.1 ✅ | `FileRegistry.sol` (register/bumpVersion/retire) + 테스트 | 100% 브랜치 (2026-09-19: `retire`·`currentVersion`·동일 헤더 해시 거부 추가, `forge coverage` 라인·구문·브랜치·함수 **100%**) |
+| Z-1.H.2 ✅ | `AccessPolicy.sol` (grant/revoke/isValid, EIP-712, ERC-1271 지원) | 재전송·만료·회수 테스트 (2026-09-19: T19 버전 바인딩(옛 헤더 해시 거부)·retire 차단·`consumeOpen`을 기기 공개키에 바인딩·grant 레코드에 deviceKeyHash/headerHash 저장, 22 tests, 브랜치 100%) |
 | Z-1.H.3 | `AuditLog.sol` 이벤트 계약 | 가스 ≤ 30k/log |
 | Z-1.H.4 | UUPS 프록시 + Timelock 배포 스크립트(Anvil, Base Sepolia) | 주소 파일 생성 |
 | Z-1.H.5 | Slither + Echidna 불변식 CI | CI 게이트 |
@@ -208,7 +208,7 @@
 | T16 Relay DoS | Z-1.R.2 (서명·레이트리밋), Z-1.R.4 (셀프호스팅), Z-1.H.7 (체인 이벤트 폴백), Z-2.R.1 | — |
 | T17 스텁 위장 | Z-1.S.1/S.2 (코드 서명·해시 고정), Z-1.C.2 (Agent는 컨테이너만 파싱), Z-1.G.13 (서명된 업데이트) | tauri-assoc: 파일 인자를 경로로만 취급, `inspect`만 수행 |
 | T18 파서 취약점 | Z-1.C.2 (길이 상한·악성 입력 20종), Z-1.C.3 (cargo-fuzz) | core `tests/malicious.rs` 31종 (`t17_*`, `t18_*`, `t19_*`), `t18_chunk_*` |
-| T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책), Z-1.C.4 (`verify_version_chain`) | core `t19_03_other_major_version_rejected`, `t19_16_version_chain_invariants`, `t19_2x_*`; reseal `t19_*` 3종 |
+| T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책), Z-1.C.4 (`verify_version_chain`), Z-1.H.2 (온체인 버전 바인딩) | core `t19_*`; reseal `t19_*` 3종; contracts `test_t19_grant_must_name_the_current_version` |
 | T20 회수 무시 | Z-1.C.4 (재봉인 시 새 DEK로 이전 승인 무효화), Z-1.G.4 (TTL·주기 확인), Z-1.G.11 (revoke), Z-1.H.7 (이벤트 구독), Z-1.G.13 (코드 서명), Z-3.H.3 (어테스테이션) | contracts `test_t20_revoke_only_owner`; core `t20_each_version_gets_a_fresh_dek_and_nonce_prefix` |
 | T21 번들러·페이마스터 검열/지연 | Z-1.H.8 (다중 번들러 엔드포인트), Z-1.H.9 (페이마스터 폴백: 자체 예치), Z-1.G.4 (`strict_onchain` 아닌 경우 체인 확정 미대기) | aa-passkey: EntryPoint 직접 `handleOps` 경로 + Pimlico 실제 제출(프리컴파일 호출 허용 확인) |
 | T22 동기화 패스키 복제 | Z-1.A.2 (BE/BS 플래그 기록·정책), Z-1.A.7 (기기 바운드 키 대안), Z-1.H.10 (등록·해지 온체인), Z-1.U.7 (선택 UI) | auth `t22_synced_passkey_flags_detected`; contracts `test_t22_keys_are_scoped_to_the_enrolling_account` |

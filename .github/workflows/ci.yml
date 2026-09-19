@@ -73,6 +73,7 @@ jobs:
           forge fmt --check
           forge build --sizes
           forge test -vvv
+          forge coverage --ir-minimum --no-match-coverage script --report summary
       - name: skipped
         if: steps.present.outputs.yes != 'true'
         run: echo "contracts/ not present yet (Z-1.H.1)"

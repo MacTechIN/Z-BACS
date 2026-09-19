@@ -17,7 +17,8 @@ contract AccessPolicyTest is Test {
 
     bytes32 constant FILE_ID = keccak256("fid");
     bytes32 constant HEADER = keccak256("hdr");
-    bytes32 constant DEVICE = keccak256("bob-device");
+    bytes constant DEVICE_PUBKEYS = "bob-x25519-pub||bob-ed25519-pub";
+    bytes32 constant DEVICE = keccak256(DEVICE_PUBKEYS);
 
     function setUp() public {
         owner = vm.addr(OWNER_PK);
@@ -69,10 +70,10 @@ contract AccessPolicyTest is Test {
     function test_consumeOpen_respects_maxOpens() public {
         AccessGrantLib.AccessGrant memory g = _grant(2, 0);
         bytes32 id = policy.grant(g, _sign(OWNER_PK, g));
-        policy.consumeOpen(id);
+        policy.consumeOpen(id, DEVICE_PUBKEYS);
         assertFalse(policy.isValid(id), "maxOpens=1 exhausted");
         vm.expectRevert(abi.encodeWithSelector(AccessPolicy.GrantNotActive.selector, id));
-        policy.consumeOpen(id);
+        policy.consumeOpen(id, DEVICE_PUBKEYS);
     }
 
     // ------------------------------------------------------------ T03 replay
@@ -157,11 +158,23 @@ contract AccessPolicyTest is Test {
         assertFalse(policy.isValid(id), "expired at expiry");
     }
 
-    function test_t15_already_expired_grant_rejected() public {
+    /// `notBefore == expiry`: an empty window never becomes valid.
+    function test_t15_empty_window_rejected() public {
         AccessGrantLib.AccessGrant memory g = _grant(1, 0);
         g.expiry = uint64(block.timestamp);
         bytes memory sig = _sign(OWNER_PK, g);
         vm.expectRevert(abi.encodeWithSelector(AccessPolicy.InvalidWindow.selector, g.notBefore, g.expiry));
+        policy.grant(g, sig);
+    }
+
+    /// A well-formed window that has already closed (e.g. a grant delayed in the relay queue)
+    /// is refused against on-chain time, not the submitter's clock.
+    function test_t15_already_expired_grant_rejected() public {
+        AccessGrantLib.AccessGrant memory g = _grant(1, 0);
+        g.notBefore = uint64(block.timestamp - 100);
+        g.expiry = uint64(block.timestamp);
+        bytes memory sig = _sign(OWNER_PK, g);
+        vm.expectRevert(abi.encodeWithSelector(AccessPolicy.AlreadyExpired.selector, g.expiry));
         policy.grant(g, sig);
     }
 
@@ -228,5 +241,95 @@ contract AccessPolicyTest is Test {
         (, string memory name, string memory version,,,,) = policy.eip712Domain();
         assertEq(name, "Z-BACS");
         assertEq(version, "1");
+    }
+
+    // ------------------------------------------------------------ Z-1.H.2: version + lifecycle binding
+
+    /// T19: after a reseal, a grant naming the superseded header hash is refused.
+    function test_t19_grant_must_name_the_current_version() public {
+        AccessGrantLib.AccessGrant memory g = _grant(1, 0);
+        bytes32 newHeader = keccak256("resealed v2");
+        vm.prank(owner);
+        registry.bumpVersion(FILE_ID, newHeader);
+
+        bytes memory sig = _sign(OWNER_PK, g);
+        vm.expectRevert(abi.encodeWithSelector(AccessPolicy.StaleVersion.selector, newHeader, HEADER));
+        policy.grant(g, sig);
+
+        // re-issued against the new version, the same owner signature path works
+        g.headerHash = newHeader;
+        bytes32 id = policy.grant(g, _sign(OWNER_PK, g));
+        assertTrue(policy.isValid(id));
+        assertEq(policy.grantOf(id).headerHash, newHeader);
+    }
+
+    /// T20: a retired file accepts no new grants (existing ones are revoked separately).
+    function test_t20_retired_file_accepts_no_new_grants() public {
+        vm.prank(owner);
+        registry.retire(FILE_ID);
+        AccessGrantLib.AccessGrant memory g = _grant(1, 0);
+        bytes memory sig = _sign(OWNER_PK, g);
+        vm.expectRevert(abi.encodeWithSelector(AccessPolicy.FileRetired.selector, FILE_ID));
+        policy.grant(g, sig);
+    }
+
+    function test_consumeOpen_is_bound_to_the_granted_device() public {
+        AccessGrantLib.AccessGrant memory g = _grant(1, 0);
+        g.maxOpens = 3;
+        bytes32 id = policy.grant(g, _sign(OWNER_PK, g));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(AccessPolicy.WrongDevice.selector, DEVICE, keccak256("eve-keys"))
+        );
+        policy.consumeOpen(id, "eve-keys");
+        assertEq(policy.grantOf(id).opens, 0);
+
+        policy.consumeOpen(id, DEVICE_PUBKEYS);
+        assertEq(policy.grantOf(id).opens, 1);
+        assertEq(policy.grantOf(id).deviceKeyHash, DEVICE);
+    }
+
+    function test_consumeOpen_unknown_grant_reverts() public {
+        bytes32 id = keccak256("nope");
+        vm.expectRevert(abi.encodeWithSelector(AccessPolicy.UnknownGrant.selector, id));
+        policy.consumeOpen(id, DEVICE_PUBKEYS);
+    }
+
+    function test_unlimited_opens_when_maxOpens_is_zero() public {
+        AccessGrantLib.AccessGrant memory g = _grant(1, 0);
+        g.maxOpens = 0;
+        bytes32 id = policy.grant(g, _sign(OWNER_PK, g));
+        for (uint256 i = 0; i < 5; ++i) {
+            policy.consumeOpen(id, DEVICE_PUBKEYS);
+        }
+        assertTrue(policy.isValid(id));
+        assertEq(policy.grantOf(id).opens, 5);
+    }
+
+    function test_revoke_rejects_unknown_grant_and_non_owner() public {
+        AccessGrantLib.AccessGrant memory g = _grant(1, 0);
+        bytes32 id = policy.grant(g, _sign(OWNER_PK, g));
+        bytes32 unknown = keccak256("nope");
+        vm.expectRevert(abi.encodeWithSelector(AccessPolicy.UnknownGrant.selector, unknown));
+        policy.revoke(unknown);
+        vm.prank(address(0xBAD));
+        vm.expectRevert(abi.encodeWithSelector(AccessPolicy.NotOwner.selector, id, address(0xBAD)));
+        policy.revoke(id);
+    }
+
+    function test_grant_for_unregistered_file_reverts() public {
+        AccessGrantLib.AccessGrant memory g = _grant(1, 0);
+        g.fileId = keccak256("unregistered");
+        bytes memory sig = _sign(OWNER_PK, g);
+        vm.expectRevert(abi.encodeWithSelector(AccessPolicy.FileNotRegistered.selector, g.fileId));
+        policy.grant(g, sig);
+    }
+
+    function test_invalid_time_window_rejected() public {
+        AccessGrantLib.AccessGrant memory g = _grant(1, 0);
+        g.notBefore = g.expiry; // empty window
+        bytes memory sig = _sign(OWNER_PK, g);
+        vm.expectRevert(abi.encodeWithSelector(AccessPolicy.InvalidWindow.selector, g.notBefore, g.expiry));
+        policy.grant(g, sig);
     }
 }

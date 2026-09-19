@@ -632,3 +632,24 @@ Z-1.C.6 완료 — 키 자료 위생 감사. 커밋·푸시 완료. 이로써 Co
 
 게이트: clippy -D warnings, rustdoc, test --workspace 전부 ok, 커버리지 97.6%, cargo audit 취약점 0(빌드 전용 매크로 크레이트 proc-macro-error2의 unmaintained 경고 1건만, 허용 범위).
 ```
+
+### #46 [C] 2026-09-19 (5단계: Z-1.H.1 + Z-1.H.2)
+```
+Z-1.H.1, Z-1.H.2 완료 — 컨트랙트 정식화. 커밋·푸시 완료. 커버리지 라인·구문·브랜치·함수 전부 100%.
+
+FileRegistry(H.1)
+- retire(fileId): 소유자가 파일을 폐기하면 새 버전도, 새 승인도 불가(일방향). Retired 이벤트.
+- currentVersion(fileId) -> (headerHash, version, retired) 뷰 추가.
+- bumpVersion이 동일한 헤더 해시를 거부(SameHeaderHash) — 무의미한 버전 증가 방지.
+- 테스트 8종, 브랜치 100%.
+
+AccessPolicy(H.2)
+- T19 버전 바인딩: grant()가 g.headerHash를 레지스트리의 현재 헤더 해시와 대조. 재봉인 후 옛 버전으로는 다시 승인할 수 없습니다(이게 없으면 회수 후에도 구버전 승인 티켓이 통과).
+- 폐기된 파일은 새 승인 거부(FileRetired).
+- consumeOpen(grantId, devicePubKeys): keccak256(devicePubKeys) == deviceKeyHash 요구 → 카운터를 승인된 기기의 공개키를 아는 호출자에게 바인딩. 체인에 Ed25519 프리컴파일이 없어 기기 자체의 서명 증명은 아니며 그 한계를 스펙·주석에 명시(원격 어테스테이션은 Z-3.H.3).
+- grant 레코드에 deviceKeyHash·headerHash 저장(감사).
+- 테스트 22종, 브랜치 100%. 기존 test_t15_already_expired_grant_rejected가 사실은 InvalidWindow를 검사하고 있어 이름을 바로잡고(empty window) 진짜 만료 경로 테스트를 추가했습니다.
+
+스펙: approval_protocol v1.2 §3에 grant() 검증 순서(등록→폐기→버전 바인딩→권한→시간창→만료→nonce→서명), consumeOpen 서명과 한계, FileRegistry 함수 목록.
+CI: contracts 잡에 forge coverage 요약 추가. tools/chain-demo.sh 재실행해 시나리오 정상 동작 확인.
+```

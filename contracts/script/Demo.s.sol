@@ -48,11 +48,11 @@ contract Demo is Script {
 
         // ---------------------------------------------------------------- [3] Bob asks, Alice approves
         // Bob's device keys would arrive via the Relay; only their hash goes on chain.
-        bytes32 deviceKeyHash = keccak256(abi.encodePacked("bob-x25519-pub", "bob-ed25519-pub"));
+        bytes memory devicePubKeys = abi.encodePacked("bob-x25519-pub", "bob-ed25519-pub");
         AccessGrantLib.AccessGrant memory g = AccessGrantLib.AccessGrant({
             fileId: fileId,
             headerHash: headerHash,
-            deviceKeyHash: deviceKeyHash,
+            deviceKeyHash: keccak256(devicePubKeys),
             permission: 1, // ReadOnly
             notBefore: uint64(block.timestamp),
             expiry: uint64(block.timestamp + 1 hours),
@@ -60,11 +60,14 @@ contract Demo is Script {
             requestNonce: bytes16(keccak256("bob-request-1")),
             grantNonce: 0
         });
-        bytes32 digest = policy.digestOf(g);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PK, digest);
-        bytes memory aliceSig = abi.encodePacked(r, s, v);
-        console2.log("\n[3] Alice approves: ReadOnly, 1 hour, max 2 opens -> EIP-712 signature");
-        console2.log("    digest signed:", vm.toString(digest));
+        bytes memory aliceSig;
+        {
+            bytes32 digest = policy.digestOf(g);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PK, digest);
+            aliceSig = abi.encodePacked(r, s, v);
+            console2.log("\n[3] Alice approves: ReadOnly, 1 hour, max 2 opens -> EIP-712 signature");
+            console2.log("    digest signed:", vm.toString(digest));
+        }
 
         vm.startBroadcast(ALICE_PK);
         bytes32 grantId = policy.grant(g, aliceSig);
@@ -75,7 +78,7 @@ contract Demo is Script {
         // ---------------------------------------------------------------- [4] Bob opens
         console2.log("\n[4] Bob's agent checks isValid() (free read) and records one open");
         vm.startBroadcast(BOB_PK);
-        policy.consumeOpen(grantId);
+        policy.consumeOpen(grantId, devicePubKeys);
         vm.stopBroadcast();
         console2.log("    opens used   :", policy.grantOf(grantId).opens);
 
