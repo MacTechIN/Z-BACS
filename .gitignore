@@ -4,6 +4,7 @@ crates/*/fuzz/artifacts/
 crates/*/fuzz/corpus/
 crates/*/fuzz/coverage/
 crates/*/fuzz/logs/
+crates/*/fuzz-*.log
 Cargo.lock.bak
 # Node
 node_modules/
