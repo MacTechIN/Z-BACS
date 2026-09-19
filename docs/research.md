@@ -72,7 +72,7 @@
 | 프로젝트 | 언어 | 역할 | 라이선스 | 링크 |
 |---|---|---|---|---|
 | RustCrypto (aes-gcm, chacha20poly1305, hkdf, sha2, x25519-dalek, ed25519-dalek) | Rust | AEAD, KDF, 서명 | MIT/Apache | https://github.com/RustCrypto |
-| cryspen/hpke-rs (+ hpke-rs-rust-crypto) | Rust | RFC 9180 HPKE 봉투 암호화(DEK → 수신자 공개키) | MPL-2.0 | https://github.com/cryspen/hpke-rs |
+| cryspen/hpke-rs (+ hpke-rs-rust-crypto) **≥ 0.6** (0.5 이하 RUSTSEC-2026-0069~0072) | Rust | RFC 9180 HPKE 봉투 암호화(DEK → 수신자 공개키) | MPL-2.0 | https://github.com/cryspen/hpke-rs |
 | str4d/rage (`age` crate) | Rust | 스트림 암호화·수신자 플러그인 포맷 참조 | MIT/Apache | https://github.com/str4d/rage |
 | libsodium / sodiumoxide | C/Rust | sealed box, secretstream 대안 | ISC | https://github.com/jedisct1/libsodium |
 | zeroize, secrecy | Rust | 메모리 내 키 자료 제로화 | MIT/Apache | https://github.com/RustCrypto/utils |

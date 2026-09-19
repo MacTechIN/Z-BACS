@@ -8,7 +8,7 @@
 | 크레이트 | 버전 | 라이선스 | 용도 |
 |---|---|---|---|
 | chacha20poly1305 (RustCrypto) | 0.10 | MIT/Apache-2.0 | XChaCha20-Poly1305 청크 AEAD |
-| hpke-rs + hpke-rs-rust-crypto (cryspen) | 0.2.0 | MPL-2.0 | RFC 9180 HPKE Base, DHKEM-X25519/HKDF-SHA256/ChaCha20-Poly1305 |
+| hpke-rs + hpke-rs-rust-crypto (cryspen) | 0.7.0 (0.2.0에서 상향: RUSTSEC-2026-0069/70/71/72, 특히 X25519 전부-0 공유비밀 미검사 수정) | MPL-2.0 | RFC 9180 HPKE Base, DHKEM-X25519/HKDF-SHA256/ChaCha20-Poly1305 |
 | x25519-dalek | 2 (`static_secrets`) | BSD-3 | X25519 키 생성·공개키 파생 (hpke-rs는 `hazmat` 없이는 비밀키 바이트를 노출하지 않음) |
 | ed25519-dalek | 2 | BSD-3 | 헤더 서명 |
 | sha2, blake3 | 0.10 / 1 | MIT/Apache | fid 커밋, 트레일러 무결성 |
@@ -41,6 +41,10 @@
 | `t19_truncation_is_detected` | T19 절단·다운그레이드 |
 | `bad_magic_and_version` | T19 |
 | `envelope::tests::roundtrip_and_aad_binding` | T04/T05 봉투 바인딩 |
+
+## CI 첫 실행에서 배운 것 (2026-09-19)
+- `cargo audit`가 hpke-rs 0.2.0의 권고 4건을 잡아냈다. 0.7.0으로 올리니 코드 변경 없이 빌드·테스트 통과. **암호 크레이트는 도입 시 `cargo audit`를 먼저 돌린다.**
+- `rustsec/audit-check`는 잡에 `checks: write` 권한이 필요하다.
 
 ## 남은 일
 - Z-1.C.2 견고화(길이 상한 세분화, 헤더 크기 DoS), Z-1.C.3 `cargo-fuzz` 타깃, Z-1.C.4 Reseal API(현재 `SealOptions.prev`로 버전 체인 필드만 지원).
