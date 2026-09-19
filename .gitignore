@@ -1,0 +1,31 @@
+# Rust
+target/
+Cargo.lock.bak
+# Node
+node_modules/
+dist/
+.turbo/
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+# Tauri
+apps/*/src-tauri/target/
+apps/*/src-tauri/gen/
+# Python
+__pycache__/
+.venv/
+# Secrets / keys — NEVER commit
+*.pem
+*.key
+*.p12
+.env
+.env.*
+!.env.example
+# Test artifacts
+*.zbacs
+!crates/zbacs-core/tests/vectors/*.zbacs
+spikes/**/out/
+# OS
+.DS_Store
+Thumbs.db
