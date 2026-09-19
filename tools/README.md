@@ -10,3 +10,6 @@
 
 ## chain-demo.sh
 로컬 Anvil에서 봉인 등록 → EIP-712 승인 → 열람 → 재전송 거부 → 회수까지 실제 트랜잭션으로 실행하고 `cast`로 블록·이벤트·영수증을 보여 준다. `--keep`이면 Anvil을 켜 둔다. 설명: `docs/chain_guide.md`.
+
+## fuzz.sh
+`zbacs-core` 퍼즈 타깃 4종을 nightly + cargo-fuzz로 돌린다. `tools/fuzz.sh 24h`가 Z-1.C.3 게이트, 기본은 5분 스모크. 크래시가 있으면 `fuzz/artifacts/` 목록을 출력하고 실패한다.

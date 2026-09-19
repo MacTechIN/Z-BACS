@@ -55,7 +55,7 @@
 |---|---|---|
 | Z-1.C.1 ✅ | `zbacs-core` 크레이트 정식화: 타입, 에러, `Sealer/Opener` 트레이트 | 문서화된 공개 API, 단위 테스트 90% (2026-09-19: `FileId/HeaderHash/KeyId/Salt/NoncePrefix` 고정 길이 타입(와이어 호환), 객체 안전 `Sealer/Opener` + `GrantedDek`, 에러 문서화·`non_exhaustive`, `missing_docs` + CI rustdoc -D warnings, `cargo llvm-cov` 90% 게이트 CI) |
 | Z-1.C.2 ✅ | 컨테이너 파서 견고화: 길이 상한, 버전 검사, 절단 방지(`is_last`), trailer | 악성 입력 테스트 20종 (2026-09-19: spec §2.2 필드 제한 명문화 → `validate_header`(서명 검증 후·키 사용 전: ver/prev 체인, own 1..64, name ≤1040, env 1..32·필드 ≤1024), 버전 오버플로 방지, `tests/malicious.rs` **31종**(프레이밍·서명·필드 제한·봉투·청크·트레일러·랜덤 변이 500회+전 길이 절단), 커버리지 게이트 유지) |
-| Z-1.C.3 | `cargo-fuzz` 타깃(header, chunk) | 24h 퍼징 무크래시 |
+| Z-1.C.3 ◐ | `cargo-fuzz` 타깃(header, chunk) | 24h 퍼징 무크래시 (2026-09-19: 타깃 4종 `header`/`header_signed`/`open_mutated`/`envelope` + `tools/fuzz.sh` + 야간 CI `fuzz.yml`. 스모크 150s×4 = 약 300만 실행 무크래시, cov 966 edges. **24h 실행은 `tools/fuzz.sh 24h`로 사용자 머신에서** — 완료 시 ✅) |
 | Z-1.C.4 | 재봉인(Reseal): 새 DEK, 버전 체인, 원자적 교체 | v1→v2→v3 체인 검증 테스트 |
 | Z-1.C.5 | 파일명 암호화, 정책 해시, 테스트 벡터 고정 | vectors 디렉터리 |
 | Z-1.C.6 | 키 자료 zeroize 감사, `secrecy` 적용 | 리뷰 체크리스트 통과 |

@@ -508,3 +508,33 @@ Spec-first: docs/specs/container_format.md v1.1 — §2.2에 필드 제한 표(f
 
 다음: Z-1.C.3 cargo-fuzz(헤더·청크 타깃) 또는 Z-1.H.10 P256Validator. 지정 없으면 Z-1.C.3.
 ```
+
+### #43 [U] 2026-09-19
+```
+당음
+```
+
+### #44 [U] 2026-09-19 (작업 중 추가 메시지)
+```
+다음
+```
+
+### #43~#44 [C] 2026-09-19
+```
+Z-1.C.3 cargo-fuzz 진행 — 타깃·스크립트·CI 완료, 24h 실행만 남음(◐). 커밋·푸시 완료.
+
+만든 것 (crates/zbacs-core/fuzz/, 루트 워크스페이스에서 제외)
+- header: 원시 바이트 → magic/길이/CBOR/서명/제한 (프레이밍·디코딩 표면)
+- header_signed: 퍼저가 HeaderBody를 구조적으로 생성 → 고정 키로 서명 → read_header + 임의 DEK로 open. 서명 이후 단계(validate_header, 청크 루프)까지 도달
+- open_mutated: 유효 컨테이너 5종(0B~1000B, 청크 4~64)에 비트플립·바이트 치환·삽입·삭제·절단 최대 16회 → 열리면 평문이 원본과 같아야 함(속성 검사)
+- envelope: HPKE enc/ct/aad/alg 임의값
+- tools/fuzz.sh [24h|5m] [target]: nightly + cargo-fuzz, 4 workers, 크래시 아티팩트 있으면 실패
+- .github/workflows/fuzz.yml: 매일 02:00 KST, 타깃당 20분, 크래시 입력 아티팩트 업로드
+- nightly 툴체인 설치, dev_guidelines·tools/README 퍼징 절차
+
+스모크 결과: 타깃당 150초, 총 약 300만 실행(header 1.55M @10k/s, header_signed 274k, open_mutated 659k, envelope 510k), 크래시 0, header 타깃 커버리지 966 edges.
+
+DoD(24h 무크래시)는 제 세션에서 하루를 점유할 수 없어 사용자 머신 실행으로 남겼습니다: tools/fuzz.sh 24h (24코어면 4 workers×4 타깃 병렬 가능). 끝나면 결과 알려주시면 ✅로 바꾸겠습니다.
+
+다음: Z-1.H.10 P256Validator(경로 B를 체인에서 받는 검증기 + 기기 등록/해지), 또는 Z-1.C.4 재봉인(버전 체인·원자적 교체). 지정 없으면 Z-1.H.10.
+```

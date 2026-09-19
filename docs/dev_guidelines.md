@@ -23,6 +23,7 @@
 - 단위 + 통합 + E2E(Windows VM). 암호 관련 코드는 테스트 벡터 필수.
 - 컨트랙트: `forge test`, 퍼즈, Slither, Echidna, HF 감사 리포트.
 - 보안 회귀: `docs/threat_model.md`의 T-ID를 테스트 이름에 표기 (`t09_no_plaintext_residue`).
+- 퍼징: `crates/zbacs-core/fuzz/` 타깃 4종(`header`, `header_signed`, `open_mutated`, `envelope`). `tools/fuzz.sh [24h|10m] [target]`, 야간 CI `fuzz.yml`(타깃당 20분). 크래시 입력은 `fuzz/artifacts/`에 남고 `cargo +nightly fuzz run <target> fuzz/artifacts/<target>/<file>`로 재현한다. 새 파서 코드는 타깃을 같이 추가한다.
 - 커버리지: `zbacs-core`, `zbacs-auth`는 라인 커버리지 90% 이상 (`cargo llvm-cov -p zbacs-core -p zbacs-auth --fail-under-lines 90`, CI 게이트). 공개 API는 `#![warn(missing_docs)]` + `RUSTDOCFLAGS=-D warnings cargo doc`.
 
 ## 5. 리서치 반영

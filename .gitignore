@@ -1,5 +1,8 @@
 # Rust
 target/
+crates/*/fuzz/artifacts/
+crates/*/fuzz/corpus/
+crates/*/fuzz/coverage/
 Cargo.lock.bak
 # Node
 node_modules/

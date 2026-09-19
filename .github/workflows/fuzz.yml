@@ -1,0 +1,31 @@
+name: fuzz
+# Z-1.C.3: nightly fuzzing of the container parser. 20 min per target; crash inputs are
+# uploaded as artifacts. Reproduce locally with tools/fuzz.sh.
+on:
+  schedule:
+    - cron: "0 17 * * *" # 02:00 KST
+  workflow_dispatch:
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [header, header_signed, open_mutated, envelope]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/zbacs-core/fuzz
+      - run: cargo install cargo-fuzz --locked
+      - name: fuzz ${{ matrix.target }}
+        working-directory: crates/zbacs-core
+        run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=1200 -max_len=8192
+      - name: upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: crates/zbacs-core/fuzz/artifacts
