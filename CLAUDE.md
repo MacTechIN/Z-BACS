@@ -34,15 +34,16 @@
 Rust(stable) + Tauri 2 / RustCrypto + hpke-rs / Foundry + OpenZeppelin v5 / viem + permissionless.js / axum Relay / Base L2(Anvil 로컬)
 
 ## 현재 단계
-Phase 0 (셋업·스파이크). 완료: Z-0.D.1 스캐폴드, Z-0.D.2 툴체인(`tools/setup.sh --check`), Z-0.D.3 CI(`.github/workflows/ci.yml`), Z-0.C.1/C.2 컨테이너·HPKE 봉투 PoC(`crates/zbacs-core`, CLI `zbacs`; 100MB 왕복 0.35s). 다음: `Z-0.H.1` Foundry EIP-712 PoC, `Z-0.A.1` Windows Hello 스파이크, `Z-0.G.1` Tauri 파일 연결 스파이크.
+Phase 0 (셋업·스파이크). 완료: Z-0.D.1 스캐폴드, Z-0.D.2 툴체인(`tools/setup.sh --check`), Z-0.D.3 CI(`.github/workflows/ci.yml`), Z-0.C.1/C.2 컨테이너·HPKE 봉투 PoC(`crates/zbacs-core`, CLI `zbacs`; 100MB 왕복 0.35s), Z-0.H.1 EIP-712 승인 티켓 PoC(`contracts/`: FileRegistry, AccessPolicy, 18 tests). 다음: `Z-0.H.2` 패스키 스마트계정 스파이크, `Z-0.G.1` Tauri 파일 연결 스파이크, `Z-0.A.1` Windows Hello(Windows 필요).
 
 ## 디렉터리
-`crates/zbacs-core`(컨테이너·암호) `crates/zbacs-cli`(PoC CLI) `tools/`(셋업) `docs/` — 예정: `apps/` `contracts/` `packages/` `spikes/`
+`crates/zbacs-core`(컨테이너·암호) `crates/zbacs-cli`(PoC CLI) `contracts/`(Foundry: FileRegistry, AccessPolicy) `packages/design-tokens/` `tools/`(셋업) `docs/` — 예정: `apps/` `spikes/`
 
 ## 빌드·테스트
 ```
 cargo fmt --all --check && cargo clippy --workspace --all-targets   # RUSTFLAGS=-D warnings in CI
 cargo test --workspace                     # 디버그 (perf 테스트는 ignore)
 cargo test --workspace --release -- perf_  # 100MB 성능 게이트
+cd contracts && forge fmt --check && forge test  # 컨트랙트 (PATH에 ~/.foundry/bin)
 ```
 PoC 기록: `docs/research/crypto_container_poc.md`

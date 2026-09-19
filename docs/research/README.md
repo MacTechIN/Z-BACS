@@ -5,9 +5,9 @@
 | 파일 | 내용 |
 |---|---|
 | `auth_passkey_windows.md` | webauthn.dll 호출 예제, webauthn-rs 검증 흐름 (수집 예정) |
-| `crypto_container_poc.md` | 청크 AEAD + HPKE 봉투 PoC 코드 (수집 예정) |
+| `crypto_container_poc.md` | 청크 AEAD + HPKE 봉투 PoC 기록 (Z-0.C.1/C.2 완료) |
 | `tauri_file_association.md` | tauri.conf.json fileAssociations 설정, RunEvent::Opened 처리 (수집 예정) |
-| `contracts_eip712_grant.md` | AccessGrant 타입 해시, 서명 검증 스니펫 (수집 예정) |
+| `contracts_eip712_grant.md` | AccessGrant 타입 해시, 검증 설계, 교차 구현 벡터 (Z-0.H.1 완료) |
 | `pre_umbral_notes.md` | umbral-pre API, kfrag/cfrag 흐름 (Phase 3) |
 | `hf_audit_pipeline.md` | HF 모델 로컬 추론 스크립트, Slither 연동 (권장) |
 
