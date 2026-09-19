@@ -13,7 +13,7 @@
 ## 파일 연결 설정
 `src-tauri/tauri.conf.json` → `bundle.fileAssociations`: ext `zbacs`, MIME `application/x-zbacs`, role Editor.
 - Windows(NSIS): 레지스트리 ProgId 등록. `installMode: currentUser`라 관리자 권한 불필요(UX 원칙).
-- Linux(deb): `.desktop`의 `MimeType=` + `/usr/share/mime/packages/*.xml`.
+- Linux(deb): Tauri 기본 `.desktop` 템플릿은 `Exec`에 `%U`가 없어 더블클릭 시 경로가 전달되지 않는다 → `linux/zbacs.desktop` 커스텀 템플릿(`Exec={{exec}} %U`)과 `linux/zbacs.xml`(shared-mime-info: `*.zbacs` glob + `ZBACS` 매직)을 `bundle.linux.deb.desktopTemplate` / `files`로 넣는다. MIME·desktop DB 갱신은 dpkg 트리거가 처리한다.
 - macOS(dmg): `Info.plist` `CFBundleDocumentTypes` + `UTExportedTypeDeclarations`.
 
 ## 실행
@@ -31,6 +31,7 @@ cd .. && cargo tauri build --bundles deb   # Windows: --bundles nsis
 - 첫 실행 인자 2개(정상 컨테이너, 깨진 파일) 모두 수신·검사·이벤트 발행 후 자동 종료.
 - 두 번째 인스턴스: 70ms 내 종료, 첫 인스턴스 로그에 `second instance argv` + `opened` 기록.
 - 단위 테스트 2개 통과(인자 필터, 비컨테이너 오류).
+- deb 번들: `.desktop`에 `Exec=zbacs-spike-assoc %U`, `MimeType=application/x-zbacs`, `/usr/share/mime/packages/zbacs.xml` 포함 확인.
 - Windows 더블클릭 실제 확인은 Windows 머신 필요(Z-0.A.1과 함께).
 
 ## 배운 것

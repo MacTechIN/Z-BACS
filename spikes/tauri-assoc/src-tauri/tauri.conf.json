@@ -22,7 +22,11 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["deb", "nsis", "dmg"],
+    "targets": [
+      "deb",
+      "nsis",
+      "dmg"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -32,7 +36,9 @@
     ],
     "fileAssociations": [
       {
-        "ext": ["zbacs"],
+        "ext": [
+          "zbacs"
+        ],
         "name": "Z-BACS Sealed File",
         "description": "File sealed with Z-BACS; opening asks the owner for approval",
         "mimeType": "application/x-zbacs",
@@ -42,6 +48,15 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser"
+      }
+    },
+    "category": "Utility",
+    "linux": {
+      "deb": {
+        "desktopTemplate": "linux/zbacs.desktop",
+        "files": {
+          "/usr/share/mime/packages/zbacs.xml": "linux/zbacs.xml"
+        }
       }
     }
   }

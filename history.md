@@ -115,3 +115,8 @@ Z-0.G.1 Tauri 파일 연결 스파이크를 spikes/tauri-assoc/에 만들었습�
 - 규칙 추가: CLAUDE.md 10번 "단계별 커밋", 메모리 저장.
 deb 번들 빌드는 진행 중이며 결과는 다음 커밋에 반영합니다.
 ```
+
+### #22~#24 [C] 2026-09-19 (2단계 커밋: deb 파일 연결)
+```
+deb 번들을 빌드해 파일 연결 등록을 확인했습니다. Tauri 기본 .desktop 템플릿은 Exec에 %U가 없어 Linux 더블클릭 시 경로가 앱에 전달되지 않는 문제가 있었고, 커스텀 템플릿(Exec %U)과 shared-mime-info XML(*.zbacs, ZBACS 매직)을 번들에 추가해 해결했습니다. 재빌드한 deb에 Exec %U, MimeType, zbacs.xml이 들어간 것을 확인했습니다.
+```
