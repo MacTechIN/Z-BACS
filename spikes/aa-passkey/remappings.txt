@@ -1,1 +1,3 @@
 forge-std/=../../contracts/lib/forge-std/src/
+@openzeppelin/contracts/=../../contracts/lib/openzeppelin-contracts/contracts/
+zbacs/=../../contracts/src/

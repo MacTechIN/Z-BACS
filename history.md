@@ -560,3 +560,28 @@ tools/fuzz.sh : 'tools/fuzz.sh' 용어가 cmdlet, 함수, 스크립트 파일 �
 
 직접 돌리고 싶을 때는 Windows에서 ssh sam@maindev 로 들어가 위 디렉터리에서 실행하면 됩니다.
 ```
+
+### #46 [U] 2026-09-19
+```
+다 진행 해줘
+```
+
+### #46 [C] 2026-09-19 (1단계: Z-1.H.10)
+```
+Z-1.H.10 완료 — P256Validator(ADR-0006 경로 B를 체인에서 받는 ERC-7579 검증기). 커밋·푸시 완료.
+
+컨트랙트 contracts/src/P256Validator.sol
+- 계정별 기기 키 집합: enrollKey(x,y,requireOsConfirm) / revokeKey(keyId) — 호출자는 소유자 스마트계정 자신(즉 이미 등록된 기기가 서명한 UserOp). 첫 기기는 onInstall로 등록.
+- keyId = keccak256(x‖y) — zbacs-auth와 동일. 서명 형식 keyId‖r‖s(96B) = spec §1.5 OwnerSig::P256Raw.
+- 검증은 OZ P256.verify(RIP-7212 프리컴파일 + Solidity 폴백, s > n/2 거부) — 자체 구현 없음(규칙 2).
+- validateUserOp는 view이고 _keys[sender][id]만 읽어 ERC-7562 번들러 스토리지 규칙 충족.
+- 마지막 키는 해지 불가(계정 잠김 방지). requireOsConfirm은 온체인 기록(강제는 Agent의 ConfirmationPolicy, T23).
+- ERC-1271 경로 + Agent용 dry-run isValidSignatureForAccount.
+
+테스트
+- 단위 16종(contracts/test/P256Validator.t.sol): 설치·등록·중복·잘못된 공개키, T12 두 번째 기기 등록/해지/마지막 키 보호/목록 일관성, T22 계정 격리, T14 변조·다이제스트 불일치·미등록 키, T03/T14 high-s 거부, 형식 오류, ERC-1271, 모듈 타입·언인스톨, 퍼즈(등록된 키만 통과).
+- 포크 통합 4종(spikes/aa-passkey/test/DeviceKeyUserOp.t.sol, Base Sepolia): 실제 Kernel v3.1 팩토리로 계정 생성(우리 검증기를 root validator로) → 기기 키 UserOp 성공 216,221 gas → 노트북이 폰을 등록 → 폰으로 승인 → 폰이 분실된 노트북을 해지 → 해지된 노트북은 AA24, 재전송은 AA25.
+- 가스 참고: 216k(기기 키, 계정 배포 후)와 418k(패스키, 계정 배포 포함)는 배포 포함 여부가 달라 직접 비교는 아닙니다. 다만 WebAuthn 래퍼(JSON·base64·이중 SHA-256)가 없어 검증 자체가 더 쌉니다.
+
+문서: architecture §6에 P256Validator 행, dev_plan Z-1.H.10 ✅ + 부록 A(T12/T22/T23 근거), Deploy.s.sol에 배포 추가, CLAUDE.md.
+```

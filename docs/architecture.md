@@ -171,6 +171,7 @@ Bob.agent            Relay              Alice.approve/agent          Ledger
 | FileRegistry | `register(fileId, owner)`, `bumpVersion(fileId, newHash)`, `retire(fileId)` | Registered, VersionBumped         |
 | AccessPolicy | `grant(AccessGrant, sig)`, `revoke(grantId)`, `isValid(grantId)`            | Granted, Revoked                  |
 | AuditLog     | `log(fileId, kind, actorCommit)` (Agent가 기기키로 서명한 어테스테이션)                   | Requested, Denied, Opened, Sealed |
+| P256Validator | ERC-7579 검증기(모듈 타입 1): `enrollKey(x,y,requireOsConfirm)`, `revokeKey(keyId)`, `validateUserOp`, `isValidSignatureWithSender`. 계정별 기기 키 집합, 서명 `keyId‖r‖s`(96B), OZ `P256.verify`(프리컴파일+폴백, low-s 강제) | DeviceEnrolled, DeviceRevoked |
 
 
 - 소유자 계정: ERC-7579 Kernel + WebAuthn Validator(플랫폼 패스키) + `P256Validator`(등록 기기 키 집합, add/remove = 기기 등록/해지). 둘 다 RIP-7212 프리컴파일, Daimo 폴백. 가스는 페이마스터 대납. (ADR-0006)

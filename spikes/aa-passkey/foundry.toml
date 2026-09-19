@@ -1,8 +1,10 @@
 [profile.default]
 src = "src"
+# P256Validator is compiled from the main contracts project via the `zbacs/` remapping.
 out = "out"
 test = "test"
 libs = ["../../contracts/lib"]
+allow_paths = ["../../contracts"]
 solc_version = "0.8.28"
 evm_version = "cancun"
 optimizer = true
