@@ -100,11 +100,11 @@
 | Z-1.G.1 | Tauri 앱 골격, 트레이, 단일 인스턴스, 파일 연결 | 설치 후 더블클릭 동작 |
 | Z-1.G.2 | 온보딩 UI: 소유자 계정 생성, 승인 방식 선택(Z-1.U.7), 기기 등록 | 신규 사용자 3분 내 완료 |
 | Z-1.G.3 | Seal UI: 파일 선택/드래그, 정책 설정(기본 권한, TTL, 횟수) | `.zbacs` 생성 |
-| Z-1.G.4 | 세션 상태머신(`zbacs-session`) 구현 | 상태 전이 테스트 |
-| Z-1.G.5 | 보호 작업공간: ACL 설정, 인덱싱·백업 제외 | ACL 검증 스크립트 |
+| Z-1.G.4 ✅ | 세션 상태머신(`zbacs-session`) 구현 | 상태 전이 테스트 (2026-09-19: `State`(Requested/Granted/Open/Resealing/Closed/Denied/Revoked/Failed) × `Event` → `Effect` 목록. 승인 창(T15)·회수(T20)·열람 횟수(T03)·ReadOnly 변경 폐기(T07)를 상태머신이 강제, 재시작 복구용 `Session::resume`, 테스트 18종) |
+| Z-1.G.5 ◐ | 보호 작업공간: ACL 설정, 인덱싱·백업 제외 | ACL 검증 스크립트 (2026-09-19: `zbacs-session::Workspace` — 세션별 디렉터리, Unix 0700 검증 테스트, Windows는 `FILE_ATTRIBUTE_NOT_CONTENT_INDEXED|TEMPORARY`(크로스 컴파일 통과). 남은 것: Windows 상속 ACL 제거(설치 단계)와 실기 ACL 검증 스크립트) |
 | Z-1.G.6 | 열람 앱 실행 + PID 추적 + `notify` 저장 감지 | Word/메모장/PDF 3종 |
-| Z-1.G.7 | ReadOnly 모드: 읽기전용 속성, 변경 폐기 | 테스트 |
-| Z-1.G.8 | Edit 모드: 종료/TTL/revoke 시 재봉인, 안전 삭제 | 포렌식 스크립트 통과(T09) |
+| Z-1.G.7 ✅ | ReadOnly 모드: 읽기전용 속성, 변경 폐기 | 테스트 (2026-09-19: `mark_read_only`/`clear_read_only` + 쓰기 거부 확인, 상태머신이 ReadOnly 저장을 `DiscardChanges`로 처리하고 버전을 만들지 않음) |
+| Z-1.G.8 ◐ | Edit 모드: 종료/TTL/revoke 시 재봉인, 안전 삭제 | 포렌식 스크립트 통과(T09) (2026-09-19: 상태머신의 Saved→Reseal→Resealed 흐름과 회수/만료 시 미봉인 변경 폐기, `Workspace::wipe`/`secure_delete`(0 덮어쓰기 후 삭제, 하드링크로 덮어쓰기 확인). 남은 것: Z-1.Q.2 디스크 포렌식 스크립트) |
 | Z-1.G.9 | 승인 대기 UI, 거부/만료 처리 | UX 리뷰 |
 | Z-1.G.10 | 데스크톱 승인 UI(소유자가 PC에서 승인) — 패스키 프롬프트 + EIP-712 내용 표시 | T06 체크 |
 | Z-1.G.11 | 회수(Revoke) 기능 + 활성 세션 목록 | E2E |
@@ -196,9 +196,9 @@
 | T04 Relay DEK 탈취 | Z-1.C.1 (HPKE 봉투 정식화), Z-1.R.2 (Relay는 암호문만) | core `t04_wrong_key_cannot_open`, `extra_recipient_envelope_opens` |
 | T05 요청자 바꿔치기 | Z-1.A.3 (기기 키), Z-1.R.1 (요청 서명·devicePub 해시), Z-1.H.2 (티켓에 deviceKid) | proto `t05_*` 2종 |
 | T06 승인 피싱 | Z-1.G.10, Z-1.P.2 (EIP-712 구조화 표시), Z-1.U.5 (알림 액션에 파일·권한 표시) | contracts EIP-712 타입 해시 벡터 |
-| T07 승인 후 평문 복사 | Z-1.G.5/7 (ACL·읽기전용), Z-1.H.3 + Z-1.G.12 (감사 로그), Z-2.G.4 (워터마크), Z-3.G.1 (미니필터) | contracts `AuditLog.t.sol` 5종; `tools/chain-demo.sh` 가스 예산 검사 |
+| T07 승인 후 평문 복사 | Z-1.G.5/7 (ACL·읽기전용), Z-1.H.3 + Z-1.G.12 (감사 로그), Z-2.G.4 (워터마크), Z-3.G.1 (미니필터) | session `t07_read_only_marking_blocks_writes`, `workspace_is_private_*`; contracts `AuditLog.t.sol` 5종 |
 | T08 화면 촬영 | 범위 밖(명시). 추적성만: Z-2.G.4 | — |
-| T09 평문 잔존 | Z-1.G.8 (재봉인·안전 삭제), Z-1.Q.2 (포렌식 CI), Z-2.G.3 (가상 드라이브) | — |
+| T09 평문 잔존 | Z-1.G.8 (재봉인·안전 삭제), Z-1.Q.2 (포렌식 CI), Z-2.G.3 (가상 드라이브) | session `t09_wipe_overwrites_and_removes_everything`, `t09_secure_delete_overwrites_before_unlinking` |
 | T10 앱 임시파일 | Z-1.G.6 (경로 고정·저장 감지), Z-1.G.8 (앱별 잔존 청소), Z-2.G.3 | — |
 | T11 메모리 덤프 | Z-1.C.6 (zeroize·secrecy), Z-1.A.3 (DPAPI), Z-3.G.2 (TEE/VBS) | core `t11_key_types_zeroize_on_drop_and_redact_in_logs`; 감사 `research/key_hygiene_audit.md` |
 | T12 소유자 기기 분실 | Z-1.A.4 (암호화 백업), Z-1.H.10 (다른 기기에서 해지), Z-2.A.1 (다중 기기·소셜 복구), Z-2.U.1 (복구 UX) | contracts `test_t12_*` 3종; 포크 `test_t12_enroll_second_device_then_revoke_first` |

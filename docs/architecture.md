@@ -56,6 +56,7 @@ Z-BACS/
 ├── crates/
 │   ├── zbacs-core/      # 컨테이너 포맷, AEAD 스트림, HPKE 봉투, 정책/티켓 구조체, 서명
 │   ├── zbacs-proto/     # Relay 와이어 프로토콜: CBOR 메시지 + Ed25519 Signed<T> 봉투
+│   ├── zbacs-session/   # 세션 상태머신, 보호 작업공간, 안전 삭제
 │   ├── zbacs-auth/      # AuthProvider 트레이트 + Passkey(Win/mac/Linux) + DeviceKey(TPM/Keystore/SE) + BSA + OTAK
 │   ├── zbacs-chain/     # alloy 기반 컨트랙트 바인딩, EIP-712 타입, 이벤트 스트림
 │   ├── zbacs-session/   # 열람 세션 상태머신, 보호 작업공간, 감시자, 재봉인

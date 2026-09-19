@@ -1,0 +1,17 @@
+[package]
+name = "zbacs-session"
+description = "Z-BACS session lifecycle: state machine, protected workspace, secure delete (Z-1.G.4/G.5/G.7/G.8)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+zbacs-core = { path = "../zbacs-core" }
+thiserror.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+
+[dev-dependencies]
+tempfile = "3"

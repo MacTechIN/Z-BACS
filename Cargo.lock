@@ -2100,6 +2100,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zbacs-session"
+version = "0.0.1"
+dependencies = [
+ "tempfile",
+ "thiserror",
+ "windows",
+ "zbacs-core",
+]
+
+[[package]]
 name = "zbacs-wincheck"
 version = "0.0.1"
 dependencies = [
