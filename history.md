@@ -268,3 +268,26 @@ wrote vectors/userop.json
 
 키를 채우고 알려주시면 제가 두 번(기본 → --precompile) 제출하고 결과를 docs/research/aa_passkey_spike.md에 기록하겠습니다. 직접 돌려보셔도 됩니다.
 ```
+
+### #32 [U] 2026-09-19
+```
+여기 메세지가 copy 하기 위한 블록이 잡히지 않아
+```
+
+### #32 [C] 2026-09-19
+```
+코드 블록 없이 한 줄씩 적겠습니다. 각 줄을 드래그해서 복사하면 됩니다.
+
+1단계 — 키 넣기 (파일 편집기로 열어서 수정)
+파일 경로: spikes/aa-passkey/.env
+그 안의 PIMLICO_API_KEY= 줄 뒤에 키를 붙여 저장하면 됩니다. 터미널이면 아래 명령 한 줄(pim_여기에키 부분만 바꾸세요):
+sed -i 's/^PIMLICO_API_KEY=.*/PIMLICO_API_KEY=pim_여기에키/' spikes/aa-passkey/.env
+
+2단계 — 제출 실행
+cd spikes/aa-passkey
+node --env-file=.env scripts/kernel-account.mjs --send
+프리컴파일 변형까지 보려면:
+node --env-file=.env scripts/kernel-account.mjs --send --precompile
+
+키를 넣으신 뒤 "넣었어"라고만 알려주시면 제가 두 번 실행하고 결과를 기록하겠습니다.
+```
