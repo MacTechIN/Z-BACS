@@ -182,3 +182,21 @@ Z-0.H.2 완료, 커밋·푸시했습니다. spikes/aa-passkey/ (Node + Foundry, 
 
 Phase 0 남은 것: Z-0.A.1(Windows 실기 필요), Z-0.A.3(BSA Client Key 신청 — 외부, 결정 필요), Z-0.Q.1(위협 매핑 리뷰, 바로 가능).
 ```
+
+### #28 [U] 2026-09-19
+```
+실제 번들러 제출 문제 있나 ?
+```
+
+### #28 [C] 2026-09-19
+```
+짧게: 테스트를 안 했을 뿐, 알려진 막힘은 없습니다. 다만 실제 제출 전에 해결해야 할 것이 셋 있습니다.
+
+1. 가스 지불 — 포크에서는 vm.deal로 EntryPoint에 예치했지만 실제 체인의 카운터팩추얼 계정은 잔고가 0입니다. 해법은 (a) Pimlico 테스트넷 페이마스터(무료 스폰서) 또는 (b) 계정 주소에 Base Sepolia ETH 소량 입금. 현재 --send 경로는 (b)만 가정하고 있어 페이마스터 필드가 없습니다 — 실제로 쓰려면 paymaster 연결을 추가해야 합니다.
+2. 번들러 API 키 — PIMLICO_API_KEY가 없어서 --send가 미실행입니다. 무료 티어면 충분합니다.
+3. ERC-7562 mempool 규칙 리스크 — usePrecompiled=true는 검증 단계에서 0x…0100을 호출합니다. 번들러가 이 주소를 허용 프리컴파일 목록에 넣어놨는지가 관건입니다(Pimlico alto는 Base에서 RIP-7212 지원으로 알려져 있지만 실측 전). permissionless 기본값(usePrecompiled=false, Solidity 폴백)은 금지 opcode를 안 쓰므로 이 리스크가 없습니다. 그래서 첫 실제 제출은 기본값으로, 프리컴파일 변형은 두 번째로 시험하는 순서가 맞습니다.
+
+Kernel v3.1 + WebAuthn 검증기 자체는 Pimlico가 공식 지원하는 조합이고, 포크에서 EntryPoint 검증·실행이 통과했으므로 서명·인코딩 문제는 없습니다.
+
+키를 주시면(PIMLICO_API_KEY=…) 페이마스터 스폰서 경로를 붙여서 바로 1건 제출해 보겠습니다. 없으면 이대로 Z-1.H.8에 남겨둡니다.
+```
