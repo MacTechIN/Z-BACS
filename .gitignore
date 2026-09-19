@@ -29,3 +29,6 @@ spikes/**/out/
 # OS
 .DS_Store
 Thumbs.db
+
+# inbox for dropped source files (copied into docs/design when adopted)
+.orca/

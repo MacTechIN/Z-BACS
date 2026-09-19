@@ -9,6 +9,7 @@
 
 ## 항상 참조할 문서 (작업 시작 전 필독)
 - `docs/ux_principles.md` — 최상위 원칙과 UX DoD(U-1~U-6)
+- `docs/design/ui_guideline.md` — UI/UX 기본 골격: 토큰, 상태↔시각 매핑, 컴포넌트, 화면 S1~S10
 - `docs/README.md` — 문서 인덱스 (여기서 시작)
 - `docs/project_definition.md` — 범위·요구사항·MVP DoD
 - `docs/architecture.md` — 패키지 구조, 키 계층, 스택
@@ -26,7 +27,7 @@
 5. 커밋 메시지는 Conventional Commits + 태스크 ID: `feat(core): Z-1.C.4 reseal version chain`.
 6. 벤더(BSA, Lit, 체인, 푸시)는 항상 트레이트/인터페이스 뒤에 둔다.
 7. 문서는 한국어, 코드 식별자·주석은 영어.
-8. **UI는 Figma 디자인 가이드에서 생성한다.** UI 작업 전 `docs/reference/figma.md`의 파일을 Figma MCP로 열어 토큰·컴포넌트·프레임을 가져오고 그대로 구현한다. 가이드에 없는 화면은 Figma에 먼저 추가한 뒤 구현한다. 코드에서 임의의 색·간격·컴포넌트를 만들지 않는다.
+8. **UI는 디자인 가이드에서 생성한다.** 기본 골격은 `docs/design/ui_guideline.md`(D-GO Vault 키트 = 기본 테마, Foundations 올리브 = 대체 테마), 값은 `packages/design-tokens/tokens.css` 변수만 사용한다. Figma URL이 연결되면 `docs/reference/figma.md`의 파일을 Figma MCP로 열어 토큰·컴포넌트·프레임을 가져오고 그대로 구현한다. 가이드에 없는 화면은 Figma에 먼저 추가한 뒤 구현한다. 코드에서 임의의 색·간격·컴포넌트를 만들지 않는다.
 9. 사용자 대면 기능을 만들 때는 `docs/ux_principles.md` §6 체크리스트를 먼저 적용한다. 새로 "알아야 할 것"이 생기면 설계를 다시 한다.
 
 ## 스택 (ADR 참조)

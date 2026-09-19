@@ -61,7 +61,9 @@
 | U-5 용어 검사 | UI 문자열 전수 검사에서 금지 용어 0건 (CI lint) |
 | U-6 입력 검사 | 온보딩·봉인·승인·열람 흐름에서 텍스트 입력 필드 0개 |
 
-## 6. 디자인 소스: Figma 디자인 가이드 (Single Source of Truth)
+## 6. 디자인 소스: 디자인 가이드 (Single Source of Truth)
+
+- 현재 원본: `docs/design/`의 D-GO Vault UI 키트(기본)와 Foundations A안 올리브(대체). 골격 규칙은 [design/ui_guideline.md](design/ui_guideline.md), 코드 토큰은 `packages/design-tokens/`.
 
 - 모든 UI(Agent 데스크톱, 승인 앱, 설치기·스텁 화면, 웹 대시보드)는 **Figma의 Z-BACS 디자인 가이드**를 원본으로 삼는다. 코드는 그 가이드에서 생성·파생하며, 코드에서 임의로 색·간격·컴포넌트를 만들지 않는다.
 - 작업 절차: (1) Figma MCP로 디자인 가이드 파일을 연다 → (2) 변수(색·타이포·간격)와 컴포넌트를 가져온다(`get_variable_defs`, `get_design_context`) → (3) 디자인 토큰을 `apps/*/src/design/tokens.*`로 생성한다 → (4) 화면은 해당 프레임의 `get_design_context` 결과를 기준으로 구현한다 → (5) 구현 후 `get_screenshot`과 비교한다.
