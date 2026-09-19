@@ -23,17 +23,23 @@
 //! - Private keys never leave hardware in production providers; the software signers behind
 //!   the `software-signer` feature exist for tests and demos only.
 
+pub mod bsa;
 pub mod error;
 pub mod policy;
 pub mod provider;
 #[cfg(feature = "software-signer")]
 pub mod software;
+pub mod store;
 pub mod types;
 pub mod webauthn;
+#[cfg(windows)]
+pub mod windows;
 
+pub use bsa::{BsaClient, BsaProvider, MockBsaClient};
 pub use error::AuthError;
 pub use policy::ConfirmationPolicy;
 pub use provider::AuthProvider;
+pub use store::{KeyStore, MemoryKeyStore};
 pub use types::{
     ApprovalAssertion, ApprovalChallenge, ApprovalContext, Confirmation, DeviceEnroll, DeviceRevoke, KeyId,
     P256PublicKey, SignerKind,

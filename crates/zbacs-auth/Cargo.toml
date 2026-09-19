@@ -7,9 +7,14 @@ license.workspace = true
 repository.workspace = true
 
 [features]
-default = []
+default = ["os-keystore"]
 # Software P-256 signers that stand in for Windows Hello / TPM keys in tests and demos.
 software-signer = []
+# Persist device secrets in the OS keychain (Windows Credential Manager / macOS Keychain /
+# Linux Secret Service). Off in headless builds that use MemoryKeyStore.
+os-keystore = ["dep:keyring"]
+# Windows Hello (webauthn.dll) and TPM device keys (CNG). No effect on other platforms.
+windows-hardware = ["dep:windows"]
 
 [dependencies]
 zbacs-core = { path = "../zbacs-core" }
@@ -25,6 +30,16 @@ serde_json.workspace = true
 base64.workspace = true
 zeroize.workspace = true
 hex.workspace = true
+keyring = { version = "3", optional = true, features = ["windows-native", "apple-native", "sync-secret-service"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", optional = true, features = [
+    "Win32_Foundation",
+    "Win32_Security_Cryptography",
+    "Win32_Networking_WindowsWebServices",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Com",
+] }
 
 [dev-dependencies]
 zbacs-auth = { path = ".", features = ["software-signer"] }

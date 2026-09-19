@@ -4,7 +4,8 @@
 
 | 파일 | 내용 |
 |---|---|
-| `auth_passkey_windows.md` | webauthn.dll 호출 예제, webauthn-rs 검증 흐름 (수집 예정) |
+| `auth_passkey_windows.md` | webauthn.dll 호출 예제 → 구현은 `crates/zbacs-auth/src/windows/` (Z-1.A.2/A.7) |
+| `bsa_sdk_notes.md` | BSA SDK 조사와 신청 절차 (Z-0.A.3, 사용자 신청 대기) |
 | `crypto_container_poc.md` | 청크 AEAD + HPKE 봉투 PoC 기록 (Z-0.C.1/C.2 완료) |
 | `tauri_file_association.md` | → `spikes/tauri-assoc/README.md` 참조 (Z-0.G.1 완료) |
 | `contracts_eip712_grant.md` | AccessGrant 타입 해시, 검증 설계, 교차 구현 벡터 (Z-0.H.1 완료) |

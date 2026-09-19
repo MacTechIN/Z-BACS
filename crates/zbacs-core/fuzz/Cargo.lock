@@ -643,6 +643,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
 name = "hkdf"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1198,6 +1204,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "secrecy"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e891af845473308773346dc847b2c23ee78fe442e0472ac50e22a18a93d3ae5a"
+dependencies = [
+ "zeroize",
+]
+
+[[package]]
 name = "semver"
 version = "1.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1490,10 +1505,12 @@ dependencies = [
  "chacha20poly1305",
  "ciborium",
  "ed25519-dalek",
+ "hex",
  "hpke-rs",
  "hpke-rs-crypto",
  "hpke-rs-rust-crypto",
  "rand 0.8.8",
+ "secrecy",
  "serde",
  "serde_bytes",
  "serde_repr",

@@ -76,6 +76,8 @@
 | str4d/rage (`age` crate) | Rust | 스트림 암호화·수신자 플러그인 포맷 참조 | MIT/Apache | https://github.com/str4d/rage |
 | libsodium / sodiumoxide | C/Rust | sealed box, secretstream 대안 | ISC | https://github.com/jedisct1/libsodium |
 | zeroize, secrecy | Rust | 메모리 내 키 자료 제로화 | MIT/Apache | https://github.com/RustCrypto/utils |
+| keyring (3.x) | Rust | OS 자격 증명 저장소(Windows Credential Manager/DPAPI, macOS Keychain, Secret Service) — `zbacs-auth::store` (Z-1.A.3) | MIT/Apache | https://github.com/open-source-cooperative/keyring-rs |
+| microsoft/windows-rs (`windows` 0.58) | Rust | webauthn.dll·CNG(NCrypt) FFI — Windows Hello·TPM 기기 키 (Z-1.A.2/A.7) | MIT/Apache | https://github.com/microsoft/windows-rs |
 | RustCrypto p256 (ecdsa), sha3 (Keccak-256) | Rust | 소유자 승인 서명 P-256 검증·low-s 정규화, keyId 해시 (`zbacs-auth`, Z-1.A.1) | MIT/Apache | https://github.com/RustCrypto/elliptic-curves, https://github.com/RustCrypto/hashes |
 | hide-protocol/hide | Rust | X25519+ML-KEM-768 하이브리드 PQC 파일 암호화 실험(미감사) | 확인 필요 | https://github.com/hide-protocol/hide |
 
@@ -241,7 +243,7 @@
 
 | ID | 항목 | 담당 단계 |
 |---|---|---|
-| OR-1 | BSA 샌드박스 Client Key 신청 및 Web SDK 실제 API 확인 | Phase 0 |
+| OR-1 ◐ | BSA 샌드박스 Client Key 신청 및 Web SDK 실제 API 확인 — 절차·받아올 규격 정리 완료, **사용자 신청 대기**([research/bsa_sdk_notes.md](research/bsa_sdk_notes.md)) | Phase 0 |
 | OR-2 ✅ | Base 메인넷/세폴리아 RIP-7212 프리컴파일 활성 여부 실측 — 2026-09-19 활성 확인, 3,885 gas. [research/aa_passkey_spike.md](research/aa_passkey_spike.md) | Phase 0 |
 | OR-3 | `keyroost-winwebauthn` vs `windows-rs` 직접 호출 안정성 비교 | Phase 0 |
 | OR-4 | Windows SmartScreen/Defender 오탐 최소화를 위한 EV 코드서명 비용·절차 | Phase 1 |

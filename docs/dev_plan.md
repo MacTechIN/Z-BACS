@@ -38,7 +38,7 @@
 | Z-0.C.2 ✅ | HPKE 봉투 PoC (hpke-rs) | - | `envelope.rs` | DEK 왕복, 테스트 벡터 |
 | Z-0.A.1 | Windows Hello 네이티브 스파이크: `webauthn.dll`로 MakeCredential/GetAssertion (windows-rs 또는 keyroost) | research §1.2 | `spikes/win-hello/` | 생체 프롬프트 뜨고 assertion 반환 |
 | Z-0.A.2 | `webauthn-rs`로 위 assertion 검증 | Z-0.A.1 | 테스트 | 검증 통과 |
-| Z-0.A.3 | BSA 샌드박스 Client Key 신청(OR-1), SDK 문서 수령·요약 | research §1.1 | `docs/research/bsa_sdk_notes.md` | API 흐름 문서화 |
+| Z-0.A.3 ◐ | BSA 샌드박스 Client Key 신청(OR-1), SDK 문서 수령·요약 | research §1.1 | `docs/research/bsa_sdk_notes.md` | API 흐름 문서화 (2026-09-19: 메모 작성 — 막힌 이유, **사용자가 할 신청 절차와 받아올 4가지 규격**, 대체 구현 현황. 신청은 조직 명의 외부 절차라 대행 불가) |
 | Z-0.G.1 ✅ | Tauri 2 스파이크: `.zbacs` 파일 연결, `RunEvent::Opened` 로 경로 수신, 단일 인스턴스 | research §3 | `spikes/tauri-assoc/` | 더블클릭 시 앱 실행·경로 로그 (2026-09-19 Linux headless: 인자 수신·단일 인스턴스 전달·deb 파일연결 확인. Windows 실기 확인은 Z-0.A.1과 함께) |
 | Z-0.H.1 ✅ | Foundry 프로젝트 + Anvil, `AccessGrant` EIP-712 서명·검증 PoC | specs/approval_protocol | `contracts/` | `forge test` 통과 (2026-09-19: 18 tests, T03/T14/T15/T20 매핑, 벡터 기록) |
 | Z-0.H.2 ✅ | Base Sepolia RIP-7212 실측(OR-2), Kernel+Passkey Validator 계정 생성 스파이크(permissionless.js) | research §4 | `spikes/aa-passkey/` | 패스키로 UserOp 1건 성공 (2026-09-19: Base Sepolia·메인넷 P256VERIFY 활성 3,885 gas, Kernel v3.1+WebAuthn UserOp가 포크의 실제 EntryPoint v0.7 통과, 10 tests; Pimlico 번들러+페이마스터 실제 제출 2건 성공 757,792 / 418,432 gas) |
@@ -64,11 +64,11 @@
 | ID | 태스크 | DoD |
 |---|---|---|
 | Z-1.A.1 ✅ | `AuthProvider` 트레이트 + `ApprovalChallenge/Assertion` 타입 | 문서화 (2026-09-19: `crates/zbacs-auth` — 두 서명 경로 타입, `ConfirmationPolicy`(T23), `verify_assertion`(low-s·UP/UV·challenge), `DeviceEnroll/Revoke` 다이제스트, 소프트웨어 서명기, 12 tests incl. JS 스파이크 교차 벡터) |
-| Z-1.A.2 | `PasskeyProvider(Windows)` 구현 — 승인 서명 경로 A(플랫폼 패스키, ADR-0006) | 등록·승인 E2E |
-| Z-1.A.7 | `DeviceKeyProvider` — 승인 서명 경로 B: TPM(Windows CNG Platform Crypto Provider)/Android Keystore/Secure Enclave에 내보내기 불가 P-256 키 생성, raw 서명, 기기별 OS 확인 옵션 (ADR-0006) | Windows TPM 키 생성·서명, 내보내기 불가 확인, 재부팅 후 사용, T23 정책 테스트 |
-| Z-1.A.3 | 기기 키(X25519/Ed25519) 생성 + DPAPI/keyring 보관 | 재부팅 후 복원 |
+| Z-1.A.2 ◐ | `PasskeyProvider(Windows)` 구현 — 승인 서명 경로 A(플랫폼 패스키, ADR-0006) | 등록·승인 E2E (2026-09-19: `zbacs-auth::windows::passkey` — webauthn.dll MakeCredential/GetAssertion, COSE 공개키 파싱, DER→low-s, 취소 처리. `cargo check --target x86_64-pc-windows-gnu` 통과. **실기 확인 대기**: `cargo run -p zbacs-wincheck`, `docs/windows_checklist.md`) |
+| Z-1.A.7 ◐ | `DeviceKeyProvider` — 승인 서명 경로 B: TPM(Windows CNG)/Android Keystore/Secure Enclave에 내보내기 불가 P-256 키 생성, raw 서명, 기기별 OS 확인 옵션 (ADR-0006) | Windows TPM 키 생성·서명, 내보내기 불가 확인, 재부팅 후 사용, T23 정책 테스트 (2026-09-19: `zbacs-auth::windows::device_key` — NCrypt 영속 키(내보내기 정책 없음), UI 정책=OS 확인, low-s 정규화, 소프트웨어 KSP 폴백 표시. 크로스 컴파일 통과, **실기 확인 대기**) |
+| Z-1.A.3 ◐ | 기기 키(X25519/Ed25519) 생성 + DPAPI/keyring 보관 | 재부팅 후 복원 (2026-09-19: `zbacs-auth::store` — `KeyStore` 트레이트, `OsKeyStore`(Credential Manager/Keychain/Secret Service), `MemoryKeyStore`, `get_or_create`. **재부팅 확인만 Windows에서 대기**) |
 | Z-1.A.4 | 소유자 봉인키 생성·보관·암호화 백업 파일 내보내기 | 백업 복원 테스트 |
-| Z-1.A.5 | `BsaProvider` 골격 (SDK 확보 시 연결, 미확보 시 mock) | 인터페이스 호환 테스트 |
+| Z-1.A.5 ✅ | `BsaProvider` 골격 (SDK 확보 시 연결, 미확보 시 mock) | 인터페이스 호환 테스트 (2026-09-19: `BsaClient` 트레이트 + `BsaProvider` + `MockBsaClient`, 테스트 4종 — 토큰이 다이제스트·신원에 묶임, 거부는 Cancelled, P-256 검증기는 BSA assertion 판정 거부) |
 | Z-1.A.6 | `OtakProvider` 최소 구현(X.1284 흐름: 요청별 키 파생·폐기) | 재전송 테스트 |
 
 ### 1.3 Chain (H)

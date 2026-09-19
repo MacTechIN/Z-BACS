@@ -687,3 +687,24 @@ crates/zbacs-proto 신설 — 스펙을 실행 가능한 스키마로:
 
 게이트: clippy -D warnings, rustdoc, cargo test --workspace 전부 통과.
 ```
+
+### #47 [U] 2026-09-19
+```
+(Z-1.A.2/A.7, G 트랙 대부분)과 외부 절차(Z-0.A.3 BSA 키) 진행 해줘 내가 윈도우에서 할 것이 있으면 알려줘
+```
+
+### #47 [C] 2026-09-19 (1단계: Windows 하드웨어 경로 + BSA)
+```
+Windows 의존 코드를 전부 작성하고, Linux에서 cargo check --target x86_64-pc-windows-gnu로 컴파일까지 검증했습니다. 실제 하드웨어 동작만 Windows에서 확인하면 됩니다.
+
+구현
+- Z-1.A.3 zbacs-auth::store: KeyStore 트레이트 + OsKeyStore(Windows Credential Manager/DPAPI, macOS Keychain, Linux Secret Service) + MemoryKeyStore(헤드리스·테스트) + get_or_create(첫 실행 생성, 이후 로드 — 사용자에게 키를 보이지 않는 근거).
+- Z-1.A.7 zbacs-auth::windows::device_key: NCrypt로 Platform Crypto Provider(TPM)에 P-256 영속 키 생성. 내보내기 정책을 설정하지 않아 개인키가 프로세스 메모리에 존재하지 않음. require_os_confirm이면 CNG UI 정책으로 Windows가 매 사용 시 동의/PIN 창을 띄움(T23의 OS 절반). TPM이 없으면 소프트웨어 KSP 폴백을 명시적으로 표시. 서명은 low-s 정규화(온체인 P256Validator 규칙과 동일).
+- Z-1.A.2 zbacs-auth::windows::passkey: webauthn.dll MakeCredential/GetAssertion. clientDataJSON 직접 구성, UV 필수, attestedCredentialData에서 COSE 공개키(-2/-3) 파싱, DER 서명 → low-s (r,s). 사용자 취소는 AuthError::Cancelled로 구분(오류 아님).
+- Z-1.A.5 BsaProvider: BsaClient 트레이트 + MockBsaClient. 테스트 4종(토큰이 다이제스트·신원에 묶임, 거부는 Cancelled, P-256 검증기가 BSA assertion 판정을 거부).
+- zbacs-wincheck: Windows에서 한 번에 전부 검사하는 자가진단 바이너리.
+
+Z-0.A.3(BSA 키)는 조직 명의 외부 신청이라 제가 대행할 수 없습니다. docs/research/bsa_sdk_notes.md에 신청 시 적을 내용과 받아올 규격 4가지(Client Key 발급·보관, 인증 요청 API, 결과 검증 방식, SDK 배포 형태·라이선스)를 정리했습니다. 키 값 자체는 보내지 마시고 .env나 자격 증명 저장소에 두시면 됩니다.
+
+윈도우에서 하실 일은 docs/windows_checklist.md에 정리했고 요약은 최종 응답에 적었습니다.
+```
