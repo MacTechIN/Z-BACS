@@ -9,6 +9,7 @@ repository.workspace = true
 [dependencies]
 zbacs-core = { path = "../zbacs-core" }
 thiserror.workspace = true
+notify = "8"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }

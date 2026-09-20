@@ -1,8 +1,8 @@
 # Windows 실기 확인 체크리스트
 
-| 문서 버전 | 1.0 (2026-09-19) |
+| 문서 버전 | 1.1 (2026-09-20: §4 열람 앱 저장 감지 추가) |
 |---|---|
-| 대상 | Z-1.A.2(Windows Hello), Z-1.A.7(TPM 기기 키), Z-1.A.3(자격 증명 저장소), Z-0.G.1(파일 연결) |
+| 대상 | Z-1.A.2(Windows Hello), Z-1.A.7(TPM 기기 키), Z-1.A.3(자격 증명 저장소), Z-0.G.1(파일 연결), Z-1.G.6(열람 앱 저장 감지) |
 | 도구 | `crates/zbacs-wincheck` — 한 번에 전부 검사하고 PASS/FAIL을 출력 |
 
 Linux CI에서는 이 네 가지를 검증할 수 없다(TPM·Hello·레지스트리). 코드는 `cargo check --target x86_64-pc-windows-gnu`로 컴파일까지 확인했고, **실제 동작 확인만 Windows에서 필요**하다.
@@ -70,13 +70,30 @@ npx tauri build
 
 결과를 알려 주면 `docs/dev_plan.md`의 Z-0.G.1 항목에 Windows 확인을 기록한다.
 
-## 4. 결과 보고
+## 4. 열람 앱 3종 저장 감지 (Z-1.G.6 DoD)
+
+Word·메모장·PDF 뷰어가 실제로 파일을 어떻게 저장하는지는 Windows에서만 확인할 수 있다. Agent가 아직 없으므로 지금은 **감지 메커니즘만** 확인한다.
+
+```
+cargo test -p zbacs-session --test viewer
+```
+
+Linux에서 통과한 것과 같은 12개가 Windows에서도 통과해야 한다(`cmd /C timeout` 프로세스로 대체 실행). 그다음 실제 앱으로:
+
+1. 임시 폴더에 `test.txt`를 만들고 **메모장**으로 연 뒤 저장 → Agent가 붙으면 저장 1회가 감지되어야 한다.
+2. `test.docx`를 **Word**로 열고 저장 → Word는 `~$test.docx` 잠금 파일을 만들고 임시 파일을 rename 한다. 우리 감시자는 디렉터리를 보고 rename 대상만 인정하므로 **저장 1회**로 보여야 한다(잠금 파일은 무시).
+3. PDF 뷰어(Acrobat/Edge)로 주석을 달고 저장 → 위와 같은 패턴.
+
+Agent UI가 나오기 전(Z-1.G.1~G.3)에는 이 항목을 ◐로 두고, Agent가 생기면 세 앱으로 실제 세션을 돌려 확정한다.
+
+## 5. 결과 보고
 
 아래만 알려 주면 된다:
 
 - `cargo run -p zbacs-wincheck` 1회차 출력 전체
 - 재부팅 후 2회차의 summary 줄과 TPM keyId
 - 3번 더블클릭 결과 (성공/실패)
+- 4번 `cargo test -p zbacs-session --test viewer` 결과
 
 ## 부록: 무엇이 실제로 검사되나
 

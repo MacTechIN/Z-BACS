@@ -102,7 +102,7 @@
 | Z-1.G.3 | Seal UI: 파일 선택/드래그, 정책 설정(기본 권한, TTL, 횟수) | `.zbacs` 생성 |
 | Z-1.G.4 ✅ | 세션 상태머신(`zbacs-session`) 구현 | 상태 전이 테스트 (2026-09-19: `State`(Requested/Granted/Open/Resealing/Closed/Denied/Revoked/Failed) × `Event` → `Effect` 목록. 승인 창(T15)·회수(T20)·열람 횟수(T03)·ReadOnly 변경 폐기(T07)를 상태머신이 강제, 재시작 복구용 `Session::resume`, 테스트 18종) |
 | Z-1.G.5 ◐ | 보호 작업공간: ACL 설정, 인덱싱·백업 제외 | ACL 검증 스크립트 (2026-09-19: `zbacs-session::Workspace` — 세션별 디렉터리, Unix 0700 검증 테스트, Windows는 `FILE_ATTRIBUTE_NOT_CONTENT_INDEXED|TEMPORARY`(크로스 컴파일 통과). 남은 것: Windows 상속 ACL 제거(설치 단계)와 실기 ACL 검증 스크립트) |
-| Z-1.G.6 | 열람 앱 실행 + PID 추적 + `notify` 저장 감지 | Word/메모장/PDF 3종 |
+| Z-1.G.6 ◐ | 열람 앱 실행 + PID 추적 + `notify` 저장 감지 | Word/메모장/PDF 3종 (2026-09-20: `zbacs-session::viewer` — 추적 실행(PID·생존 확인·정상 종료 요청은 SIGTERM/taskkill, 드롭 시 강제 종료)과 `SaveWatcher`(디렉터리 감시 + 디바운스: 평문 쓰기·**임시파일 rename**(Word 방식)·연속 쓰기 묶기·잠금파일 무시·삭제는 Vanished). 테스트 12종. **실제 3종 앱 확인은 Windows + Agent UI 이후** — `docs/windows_checklist.md` §4) |
 | Z-1.G.7 ✅ | ReadOnly 모드: 읽기전용 속성, 변경 폐기 | 테스트 (2026-09-19: `mark_read_only`/`clear_read_only` + 쓰기 거부 확인, 상태머신이 ReadOnly 저장을 `DiscardChanges`로 처리하고 버전을 만들지 않음) |
 | Z-1.G.8 ◐ | Edit 모드: 종료/TTL/revoke 시 재봉인, 안전 삭제 | 포렌식 스크립트 통과(T09) (2026-09-19: 상태머신의 Saved→Reseal→Resealed 흐름과 회수/만료 시 미봉인 변경 폐기, `Workspace::wipe`/`secure_delete`(0 덮어쓰기 후 삭제, 하드링크로 덮어쓰기 확인). 남은 것: Z-1.Q.2 디스크 포렌식 스크립트) |
 | Z-1.G.9 | 승인 대기 UI, 거부/만료 처리 | UX 리뷰 |
@@ -199,7 +199,7 @@
 | T07 승인 후 평문 복사 | Z-1.G.5/7 (ACL·읽기전용), Z-1.H.3 + Z-1.G.12 (감사 로그), Z-2.G.4 (워터마크), Z-3.G.1 (미니필터) | session `t07_read_only_marking_blocks_writes`, `workspace_is_private_*`; contracts `AuditLog.t.sol` 5종 |
 | T08 화면 촬영 | 범위 밖(명시). 추적성만: Z-2.G.4 | — |
 | T09 평문 잔존 | Z-1.G.8 (재봉인·안전 삭제), Z-1.Q.2 (포렌식 CI), Z-2.G.3 (가상 드라이브) | session `t09_wipe_overwrites_and_removes_everything`, `t09_secure_delete_overwrites_before_unlinking` |
-| T10 앱 임시파일 | Z-1.G.6 (경로 고정·저장 감지), Z-1.G.8 (앱별 잔존 청소), Z-2.G.3 | — |
+| T10 앱 임시파일 | Z-1.G.6 (경로 고정·저장 감지), Z-1.G.8 (앱별 잔존 청소), Z-2.G.3 | session `a_temp_and_rename_save_is_detected`, `other_files_in_the_workspace_are_ignored` |
 | T11 메모리 덤프 | Z-1.C.6 (zeroize·secrecy), Z-1.A.3 (DPAPI), Z-3.G.2 (TEE/VBS) | core `t11_key_types_zeroize_on_drop_and_redact_in_logs`; 감사 `research/key_hygiene_audit.md` |
 | T12 소유자 기기 분실 | Z-1.A.4 (암호화 백업·복구 코드), Z-1.H.10 (다른 기기에서 해지), Z-2.A.1 (다중 기기·소셜 복구), Z-2.U.1 (복구 UX) | contracts `test_t12_*` 3종; 포크 `test_t12_enroll_second_device_then_revoke_first`; core `backup.rs` 9종 |
 | T13 온체인 식별 | Z-1.C.5 (fileId 솔트, 파일명 길이 패딩), Z-1.H.9 (페이마스터), Z-3.Z.1/2 (ZK) | contracts fileId = H(hash‖salt); core `name_padding_hides_length_and_roundtrips` |
