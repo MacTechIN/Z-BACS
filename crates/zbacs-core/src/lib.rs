@@ -8,6 +8,8 @@
 //!   self-envelope (and any extra recipients).
 //! - [`open`] — decrypt through an embedded envelope; [`open_with_dek`] — decrypt with a DEK
 //!   received out-of-band in a grant; [`inspect`] — read the header without any key.
+//! - [`export_backup`] / [`restore_backup`] — carry the owner's keys to a new machine under a
+//!   generated recovery code (Z-1.A.4).
 //! - [`reseal_to_path`] — write the edited plaintext back as the next version (new DEK,
 //!   `ver + 1`, atomic replace); [`verify_version_chain`] — check a `v1 → v2 → …` chain.
 //! - [`Sealer`] / [`Opener`] — object-safe traits over the above for the Agent.
@@ -19,6 +21,7 @@
 
 #![warn(missing_docs)]
 
+pub mod backup;
 pub mod container;
 pub mod envelope;
 pub mod error;
@@ -27,6 +30,7 @@ pub mod keys;
 pub mod traits;
 pub mod types;
 
+pub use backup::{export_backup, restore_backup, RecoveryCode};
 pub use container::{
     decrypt_name, inspect, open, open_with_dek, read_header, reseal_to_path, seal, seal_to_path,
     verify_version_chain, Opened, PrevVersion, SealOptions,

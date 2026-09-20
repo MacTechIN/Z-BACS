@@ -52,6 +52,12 @@ pub enum Error {
     /// Encrypted file name failed authentication.
     #[error("filename decryption failed")]
     NameAuth,
+    /// Backup file did not authenticate: wrong recovery code, or the file was modified.
+    #[error("recovery code is wrong or the backup is damaged")]
+    BackupAuth,
+    /// Recovery code is not in the expected shape.
+    #[error("recovery code is malformed")]
+    RecoveryCode,
     /// A container claims to supersede another but the version chain does not hold (T19).
     #[error("broken version chain: {0}")]
     BrokenChain(String),

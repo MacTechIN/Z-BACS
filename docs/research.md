@@ -76,6 +76,7 @@
 | str4d/rage (`age` crate) | Rust | 스트림 암호화·수신자 플러그인 포맷 참조 | MIT/Apache | https://github.com/str4d/rage |
 | libsodium / sodiumoxide | C/Rust | sealed box, secretstream 대안 | ISC | https://github.com/jedisct1/libsodium |
 | zeroize, secrecy | Rust | 메모리 내 키 자료 제로화 | MIT/Apache | https://github.com/RustCrypto/utils |
+| RustCrypto argon2 (Argon2id) | Rust | 복구 코드 스트레칭 — 소유자 키 백업 파일 (Z-1.A.4) | MIT/Apache | https://github.com/RustCrypto/password-hashes |
 | keyring (3.x) | Rust | OS 자격 증명 저장소(Windows Credential Manager/DPAPI, macOS Keychain, Secret Service) — `zbacs-auth::store` (Z-1.A.3) | MIT/Apache | https://github.com/open-source-cooperative/keyring-rs |
 | microsoft/windows-rs (`windows` 0.58) | Rust | webauthn.dll·CNG(NCrypt) FFI — Windows Hello·TPM 기기 키 (Z-1.A.2/A.7) | MIT/Apache | https://github.com/microsoft/windows-rs |
 | RustCrypto p256 (ecdsa), sha3 (Keccak-256) | Rust | 소유자 승인 서명 P-256 검증·low-s 정규화, keyId 해시 (`zbacs-auth`, Z-1.A.1) | MIT/Apache | https://github.com/RustCrypto/elliptic-curves, https://github.com/RustCrypto/hashes |

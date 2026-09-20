@@ -163,7 +163,7 @@ Bob.agent            Relay              Alice.approve/agent          Ledger
 | 컨테이너 서명키 (Ed25519)      | 소유자 Agent                        | OS 키체인                          | 헤더 무결성               |
 
 
-복구: 소유자 봉인키를 Shamir(2-of-3)로 분할하여 다른 기기·클라우드(암호화)·인쇄 코드에 분산 (Phase 2).
+복구: Phase 1은 **복구 코드 1개 + 암호화 백업 파일**(`export_backup`/`restore_backup`, Z-1.A.4). Phase 2에서 그 코드를 Shamir(2-of-3)로 분할해 다른 기기·클라우드(암호화)·인쇄 코드에 분산(Z-2.A.1).
 
 ## 6. 온체인 계약 개요
 

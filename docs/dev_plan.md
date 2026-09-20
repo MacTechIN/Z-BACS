@@ -67,7 +67,7 @@
 | Z-1.A.2 ◐ | `PasskeyProvider(Windows)` 구현 — 승인 서명 경로 A(플랫폼 패스키, ADR-0006) | 등록·승인 E2E (2026-09-19: `zbacs-auth::windows::passkey` — webauthn.dll MakeCredential/GetAssertion, COSE 공개키 파싱, DER→low-s, 취소 처리. `cargo check --target x86_64-pc-windows-gnu` 통과. **실기 확인 대기**: `cargo run -p zbacs-wincheck`, `docs/windows_checklist.md`) |
 | Z-1.A.7 ◐ | `DeviceKeyProvider` — 승인 서명 경로 B: TPM(Windows CNG)/Android Keystore/Secure Enclave에 내보내기 불가 P-256 키 생성, raw 서명, 기기별 OS 확인 옵션 (ADR-0006) | Windows TPM 키 생성·서명, 내보내기 불가 확인, 재부팅 후 사용, T23 정책 테스트 (2026-09-19: `zbacs-auth::windows::device_key` — NCrypt 영속 키(내보내기 정책 없음), UI 정책=OS 확인, low-s 정규화, 소프트웨어 KSP 폴백 표시. 크로스 컴파일 통과, **실기 확인 대기**) |
 | Z-1.A.3 ◐ | 기기 키(X25519/Ed25519) 생성 + DPAPI/keyring 보관 | 재부팅 후 복원 (2026-09-19: `zbacs-auth::store` — `KeyStore` 트레이트, `OsKeyStore`(Credential Manager/Keychain/Secret Service), `MemoryKeyStore`, `get_or_create`. **재부팅 확인만 Windows에서 대기**) |
-| Z-1.A.4 | 소유자 봉인키 생성·보관·암호화 백업 파일 내보내기 | 백업 복원 테스트 |
+| Z-1.A.4 ✅ | 소유자 봉인키 생성·보관·암호화 백업 파일 내보내기 | 백업 복원 테스트 (2026-09-20: `zbacs-core::backup` — **암호를 묻지 않고 복구 코드를 생성**(125비트, 헷갈리는 글자 제외 5×5 그룹)해 한 번 보여주고 Argon2id(64MiB·3패스)로 늘려 XChaCha20-Poly1305 봉인. 헤더는 AAD로 인증, KDF 파라미터 상한으로 악성 파일의 자원 소모 차단. 복원 시 잘못된 코드와 손상 파일을 같은 오류로 처리. 테스트 9종 + CLI `zbacs backup`/`restore` 실제 복구 리허설. 코드 입력은 복구 흐름에서만 — 온보딩·봉인·승인 흐름에는 여전히 입력 필드 없음) |
 | Z-1.A.5 ✅ | `BsaProvider` 골격 (SDK 확보 시 연결, 미확보 시 mock) | 인터페이스 호환 테스트 (2026-09-19: `BsaClient` 트레이트 + `BsaProvider` + `MockBsaClient`, 테스트 4종 — 토큰이 다이제스트·신원에 묶임, 거부는 Cancelled, P-256 검증기는 BSA assertion 판정 거부) |
 | Z-1.A.6 ✅ | `OtakProvider` 최소 구현(X.1284 흐름: 요청별 키 파생·폐기) | 재전송 테스트 (2026-09-19: 시드는 우리가 생성(발급기관 없음), 요청 다이제스트마다 HMAC-SHA256으로 일회용 키 파생 후 폐기, 서명자·검증자 양쪽이 독립적으로 1회 사용 강제 → 재전송 거부. 상수시간 MAC 비교, 시드 마스킹 Debug, 테스트 7종. 온체인 검증 불가(대칭키)라는 한계를 코드·문서에 명시) |
 
@@ -201,7 +201,7 @@
 | T09 평문 잔존 | Z-1.G.8 (재봉인·안전 삭제), Z-1.Q.2 (포렌식 CI), Z-2.G.3 (가상 드라이브) | session `t09_wipe_overwrites_and_removes_everything`, `t09_secure_delete_overwrites_before_unlinking` |
 | T10 앱 임시파일 | Z-1.G.6 (경로 고정·저장 감지), Z-1.G.8 (앱별 잔존 청소), Z-2.G.3 | — |
 | T11 메모리 덤프 | Z-1.C.6 (zeroize·secrecy), Z-1.A.3 (DPAPI), Z-3.G.2 (TEE/VBS) | core `t11_key_types_zeroize_on_drop_and_redact_in_logs`; 감사 `research/key_hygiene_audit.md` |
-| T12 소유자 기기 분실 | Z-1.A.4 (암호화 백업), Z-1.H.10 (다른 기기에서 해지), Z-2.A.1 (다중 기기·소셜 복구), Z-2.U.1 (복구 UX) | contracts `test_t12_*` 3종; 포크 `test_t12_enroll_second_device_then_revoke_first` |
+| T12 소유자 기기 분실 | Z-1.A.4 (암호화 백업·복구 코드), Z-1.H.10 (다른 기기에서 해지), Z-2.A.1 (다중 기기·소셜 복구), Z-2.U.1 (복구 UX) | contracts `test_t12_*` 3종; 포크 `test_t12_enroll_second_device_then_revoke_first`; core `backup.rs` 9종 |
 | T13 온체인 식별 | Z-1.C.5 (fileId 솔트, 파일명 길이 패딩), Z-1.H.9 (페이마스터), Z-3.Z.1/2 (ZK) | contracts fileId = H(hash‖salt); core `name_padding_hides_length_and_roundtrips` |
 | T14 컨트랙트 검증 우회 | Z-1.H.2 (EIP-712·ERC-1271·low-s), Z-1.H.5 (Slither/Echidna), Z-1.H.6 (HF 감사), Z-1.H.8 (WebAuthn 서명 인코딩) | contracts `test_t14_*` 3종, aa-passkey `test_t14_tampered_signature_rejected` |
 | T15 만료 우회 | Z-1.H.2 (체인 시간), Z-1.G.4 (로컬 시계 병행) | contracts `test_t15_*` 2종 |

@@ -16,6 +16,7 @@ rand.workspace = true
 sha2.workspace = true
 blake3.workspace = true
 chacha20poly1305.workspace = true
+argon2.workspace = true
 ed25519-dalek.workspace = true
 hpke-rs.workspace = true
 hpke-rs-crypto.workspace = true

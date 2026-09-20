@@ -8,7 +8,9 @@ use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use zbacs_core::container::{inspect, open, reseal_to_path, seal_to_path, SealOptions};
-use zbacs_core::{DeviceKeys, OwnerKeys, Permission, Policy, SigningKeys};
+use zbacs_core::{
+    export_backup, restore_backup, DeviceKeys, OwnerKeys, Permission, Policy, RecoveryCode, SigningKeys,
+};
 
 #[derive(Parser)]
 #[command(name = "zbacs", version, about = "Z-BACS container PoC")]
@@ -70,6 +72,23 @@ enum Cmd {
         ttl: u32,
         #[arg(long, default_value_t = 1)]
         max_opens: u16,
+    },
+    /// Write an encrypted backup of the owner keys and print the recovery code once.
+    Backup {
+        #[arg(short, long)]
+        key: PathBuf,
+        #[arg(short, long)]
+        out: PathBuf,
+    },
+    /// Restore owner keys from a backup file and its recovery code.
+    Restore {
+        #[arg(short, long)]
+        input: PathBuf,
+        /// Recovery code as printed by `backup` (dashes and case are ignored).
+        #[arg(short, long)]
+        code: String,
+        #[arg(short, long)]
+        out: PathBuf,
     },
     /// Print header metadata (no key needed).
     Inspect { input: PathBuf },
@@ -170,6 +189,36 @@ fn main() -> Result<()> {
                 hdr.body.fid,
                 hdr.body.plen
             );
+        }
+        Cmd::Backup { key, out } => {
+            let owner = load_owner(&key)?;
+            let (bytes, code) = export_backup(&owner, b"")?;
+            fs::write(&out, &bytes)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&out, fs::Permissions::from_mode(0o600))?;
+            }
+            println!("wrote {} ({} bytes)", out.display(), bytes.len());
+            println!("recovery code: {}", code.as_str());
+            println!("Write this down. It is shown once and is not stored anywhere.");
+        }
+        Cmd::Restore { input, code, out } => {
+            let code = RecoveryCode::parse(&code)?;
+            let (owner, _extra) = restore_backup(&fs::read(&input)?, &code)?;
+            let kf = KeyFile {
+                x25519_sk: hex::encode(owner.sealing.secret_key()),
+                x25519_pk: hex::encode(owner.sealing.public_key()),
+                ed25519_sk: hex::encode(owner.signing.secret_bytes()),
+                ed25519_pk: hex::encode(owner.signing.verifying_key().to_bytes()),
+            };
+            fs::write(&out, serde_json::to_vec_pretty(&kf)?)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&out, fs::Permissions::from_mode(0o600))?;
+            }
+            println!("restored {}\nx25519_pk={}\ned25519_pk={}", out.display(), kf.x25519_pk, kf.ed25519_pk);
         }
         Cmd::Inspect { input } => {
             let data = fs::read(&input)?;
