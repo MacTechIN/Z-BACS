@@ -1,0 +1,26 @@
+[package]
+name = "zbacs-relay-client"
+description = "Z-BACS relay client: endpoint failover, idempotent retries, inbox polling (Z-1.R.5)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+zbacs-proto = { path = "../zbacs-proto" }
+# rustls with the ring provider: the default (aws-lc-rs) needs a C toolchain, cmake and NASM,
+# which would land on every Windows developer building the Agent.
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "webpki-roots", "http2", "charset"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+tokio = { version = "1", features = ["time", "macros"] }
+ciborium.workspace = true
+thiserror.workspace = true
+rand.workspace = true
+hex.workspace = true
+
+[dev-dependencies]
+zbacs-relay = { path = "../../apps/relay" }
+axum = "0.8"
+ciborium.workspace = true
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "webpki-roots"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time"] }

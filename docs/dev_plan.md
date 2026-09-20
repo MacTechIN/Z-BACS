@@ -92,7 +92,7 @@
 | Z-1.R.2 ✅ | axum 서버: 큐, 기기 등록, 서명 검증, 레이트리밋 | 부하 테스트 100 req/s (2026-09-20: `apps/relay` — 엔드포인트 7개, 인증 순서(형식→크기→서명자→할당량→재전송)로 미등록 기기가 남의 할당량을 못 쓰고 나쁜 서명이 nonce를 태우지 못함, 요청 nonce로 답장 라우팅(소유자가 수신자를 말할 필요 없음), 24h 큐·5분 nonce·기기당 30/분. 테스트 16종. **실측 12,816 req/s**(release, DoD의 128배). CI perf 게이트가 `#[ignore]` 테스트를 건너뛰어 사실상 비어 있던 것도 함께 수정) |
 | Z-1.R.3 | 푸시 연동: FCM(승인 앱), ntfy 폴백 | 푸시 도달 ≤ 10s |
 | Z-1.R.4 | Docker 이미지, 셀프호스팅 문서 | `docker compose up` |
-| Z-1.R.5 | `zbacs-relay-client` 크레이트 | 재연결·재시도 |
+| Z-1.R.5 ✅ | `zbacs-relay-client` 크레이트 | 재연결·재시도 (2026-09-20: 엔드포인트 장애 조치(T21), 지수 백오프+지터, **같은 바이트로 재시도**해 중복 큐잉을 구조적으로 차단(재전송 응답=이미 전달됨), 영구 거부는 즉시 반환·일시 거부만 재시도, 끊긴 Relay가 돌아오면 자동 복구, `poll_device_inbox`는 장애 중에도 죽지 않음. 실제 서버를 띄워 HTTP로 검증하는 테스트 10종) |
 
 ### 1.5 Agent (G)
 | ID | 태스크 | DoD |
@@ -210,7 +210,7 @@
 | T18 파서 취약점 | Z-1.C.2 (길이 상한·악성 입력 20종), Z-1.C.3 (cargo-fuzz) | core `tests/malicious.rs` 31종 (`t17_*`, `t18_*`, `t19_*`), `t18_chunk_*` |
 | T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책), Z-1.C.4 (`verify_version_chain`), Z-1.H.2 (온체인 버전 바인딩) | core `t19_*`; reseal `t19_*` 3종; contracts `test_t19_grant_must_name_the_current_version` |
 | T20 회수 무시 | Z-1.C.4 (재봉인 시 새 DEK로 이전 승인 무효화), Z-1.G.4 (TTL·주기 확인), Z-1.G.11 (revoke), Z-1.H.7 (이벤트 구독), Z-1.G.13 (코드 서명), Z-3.H.3 (어테스테이션) | contracts `test_t20_revoke_only_owner`; core `t20_each_version_gets_a_fresh_dek_and_nonce_prefix` |
-| T21 번들러·페이마스터 검열/지연 | Z-1.H.8 (다중 번들러 엔드포인트), Z-1.H.9 (페이마스터 폴백: 자체 예치), Z-1.G.4 (`strict_onchain` 아닌 경우 체인 확정 미대기) | aa-passkey: EntryPoint 직접 `handleOps` 경로 + Pimlico 실제 제출(프리컴파일 호출 허용 확인) |
+| T21 번들러·페이마스터 검열/지연 | Z-1.H.8 (다중 번들러 엔드포인트), Z-1.H.9 (페이마스터 폴백: 자체 예치), Z-1.G.4 (`strict_onchain` 아닌 경우 체인 확정 미대기), Z-1.R.5 (다중 Relay 장애 조치) | aa-passkey: EntryPoint 직접 `handleOps` + Pimlico 실제 제출; client `t21_a_dead_endpoint_falls_over_to_a_live_one` |
 | T22 동기화 패스키 복제 | Z-1.A.2 (BE/BS 플래그 기록·정책), Z-1.A.7 (기기 바운드 키 대안), Z-1.H.10 (등록·해지 온체인), Z-1.U.7 (선택 UI) | auth `t22_synced_passkey_flags_detected`; contracts `test_t22_keys_are_scoped_to_the_enrolling_account` |
 | T23 무프롬프트 기기 키 남용 | Z-1.A.7 (OS 확인 옵션·속도 제한), Z-1.G.10 (명시적 탭에만 키 사용), Z-1.H.10 (즉시 해지), Z-3.G.2 (VBS) | auth `t23_*` 2종; contracts `requireOsConfirm` 온체인 기록 |
 

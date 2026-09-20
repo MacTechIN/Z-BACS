@@ -57,6 +57,7 @@ Z-BACS/
 │   ├── zbacs-core/      # 컨테이너 포맷, AEAD 스트림, HPKE 봉투, 정책/티켓 구조체, 서명
 │   ├── zbacs-proto/     # Relay 와이어 프로토콜: CBOR 메시지 + Ed25519 Signed<T> 봉투
 │   ├── zbacs-session/   # 세션 상태머신, 보호 작업공간, 안전 삭제, 열람 앱 실행·저장 감지
+│   ├── zbacs-relay-client/ # Relay 클라이언트: 장애 조치·멱등 재시도·폴링
 │   └── (apps/relay)     # axum Relay 서버: 큐·기기 등록·서명 검증·할당량
 │   ├── zbacs-auth/      # AuthProvider 트레이트 + Passkey(Win/mac/Linux) + DeviceKey(TPM/Keystore/SE) + BSA + OTAK
 │   ├── zbacs-chain/     # alloy 기반 컨트랙트 바인딩, EIP-712 타입, 이벤트 스트림

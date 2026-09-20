@@ -17,5 +17,5 @@ pub mod workspace;
 
 pub use error::SessionError;
 pub use state::{AuditKind, Effect, Event, Notice, Session, State, TransitionError};
-pub use viewer::{Launch, SaveEvent, SaveWatcher, Viewer, DEFAULT_DEBOUNCE};
+pub use viewer::{Debounce, Launch, SaveEvent, SaveWatcher, Viewer, DEFAULT_DEBOUNCE};
 pub use workspace::{secure_delete, Workspace};

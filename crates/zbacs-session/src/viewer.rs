@@ -40,6 +40,45 @@ pub enum SaveEvent {
     Vanished,
 }
 
+/// Collapses a burst of filesystem events into one save.
+///
+/// Kept separate from the watcher thread so the window logic can be tested with an explicit
+/// clock: timing assertions against the real one are unreliable on a loaded machine, and a
+/// flaky test about a security-relevant path is worse than no test.
+#[derive(Debug)]
+pub struct Debounce {
+    window: Duration,
+    pending: Option<Instant>,
+}
+
+impl Debounce {
+    /// A debouncer with the given quiet period.
+    pub fn new(window: Duration) -> Self {
+        Self { window, pending: None }
+    }
+
+    /// Record activity seen at `now`.
+    pub fn saw_event(&mut self, now: Instant) {
+        self.pending = Some(now);
+    }
+
+    /// Has the quiet period elapsed? Returns true once per burst.
+    pub fn is_due(&mut self, now: Instant) -> bool {
+        match self.pending {
+            Some(since) if now.duration_since(since) >= self.window => {
+                self.pending = None;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether a burst is currently in progress.
+    pub fn is_pending(&self) -> bool {
+        self.pending.is_some()
+    }
+}
+
 /// Watches one file inside the workspace and reports saves.
 ///
 /// Dropping it stops the watcher thread.
@@ -70,7 +109,7 @@ impl SaveWatcher {
         thread::spawn(move || {
             // `watcher` is moved in so it lives as long as the thread.
             let _watcher = watcher;
-            let mut pending: Option<Instant> = None;
+            let mut debounce = Debounce::new(debounce);
             loop {
                 if stop_rx.try_recv().is_ok() {
                     return;
@@ -78,20 +117,17 @@ impl SaveWatcher {
                 match raw_rx.recv_timeout(Duration::from_millis(50)) {
                     Ok(Ok(event)) => {
                         if touches(&event, &target) {
-                            pending = Some(Instant::now());
+                            debounce.saw_event(Instant::now());
                         }
                     }
                     Ok(Err(_)) => {} // a dropped inotify event is not worth failing a session over
                     Err(RecvTimeoutError::Timeout) => {}
                     Err(RecvTimeoutError::Disconnected) => return,
                 }
-                if let Some(since) = pending {
-                    if since.elapsed() >= debounce {
-                        pending = None;
-                        let state = if target.exists() { SaveEvent::Saved } else { SaveEvent::Vanished };
-                        if out_tx.send(state).is_err() {
-                            return;
-                        }
+                if debounce.is_due(Instant::now()) {
+                    let state = if target.exists() { SaveEvent::Saved } else { SaveEvent::Vanished };
+                    if out_tx.send(state).is_err() {
+                        return;
                     }
                 }
             }
@@ -282,5 +318,48 @@ impl Drop for Viewer {
         if self.is_running() == Some(true) {
             let _ = self.kill();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_burst_inside_the_window_is_one_save() {
+        let window = Duration::from_millis(400);
+        let mut d = Debounce::new(window);
+        let t0 = Instant::now();
+
+        // eight writes 10 ms apart, as an editor flushing a document
+        for i in 0..8 {
+            d.saw_event(t0 + Duration::from_millis(i * 10));
+            assert!(!d.is_due(t0 + Duration::from_millis(i * 10 + 1)), "still writing");
+        }
+        assert!(d.is_pending());
+        assert!(d.is_due(t0 + Duration::from_millis(70 + 400)), "quiet period elapsed");
+        assert!(!d.is_due(t0 + Duration::from_secs(10)), "and only once");
+        assert!(!d.is_pending());
+    }
+
+    #[test]
+    fn writes_further_apart_than_the_window_are_separate_saves() {
+        let window = Duration::from_millis(100);
+        let mut d = Debounce::new(window);
+        let t0 = Instant::now();
+
+        d.saw_event(t0);
+        assert!(d.is_due(t0 + Duration::from_millis(100)));
+
+        d.saw_event(t0 + Duration::from_millis(500));
+        assert!(!d.is_due(t0 + Duration::from_millis(550)));
+        assert!(d.is_due(t0 + Duration::from_millis(600)));
+    }
+
+    #[test]
+    fn nothing_is_due_without_activity() {
+        let mut d = Debounce::new(Duration::from_millis(10));
+        assert!(!d.is_due(Instant::now()));
+        assert!(!d.is_pending());
     }
 }

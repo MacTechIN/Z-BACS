@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/zbacs-core", "crates/zbacs-cli", "crates/zbacs-auth", "crates/zbacs-proto", "crates/zbacs-wincheck", "crates/zbacs-session", "apps/relay"]
+members = ["crates/zbacs-core", "crates/zbacs-cli", "crates/zbacs-auth", "crates/zbacs-proto", "crates/zbacs-wincheck", "crates/zbacs-session", "apps/relay", "crates/zbacs-relay-client"]
 exclude = ["spikes/*", "crates/zbacs-core/fuzz"]
 
 [workspace.package]
