@@ -1,0 +1,28 @@
+[package]
+name = "zbacs-relay"
+description = "Z-BACS relay: queues signed messages between agents that cannot reach each other (Z-1.R.2)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "zbacs_relay"
+path = "src/lib.rs"
+
+[[bin]]
+name = "zbacs-relay"
+path = "src/main.rs"
+
+[dependencies]
+zbacs-proto = { path = "../../crates/zbacs-proto" }
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "time"] }
+ciborium.workspace = true
+serde.workspace = true
+rand.workspace = true
+hex.workspace = true
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

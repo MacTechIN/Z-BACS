@@ -37,7 +37,9 @@ jobs:
       - name: test (debug)
         run: cargo test --workspace --locked
       - name: test (release, perf gate)
-        run: cargo test --workspace --release --locked -- perf_
+        # `--include-ignored`: the perf tests are #[ignore] so a debug run skips them, and
+        # without this flag the filter matched nothing and the gate silently passed.
+        run: cargo test --workspace --release --locked -- --include-ignored perf_
       - name: docs (public API must be documented)
         if: matrix.os == 'ubuntu-latest'
         run: cargo doc --workspace --no-deps --locked
