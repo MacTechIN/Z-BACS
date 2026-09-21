@@ -30,11 +30,13 @@
 #![warn(missing_docs)]
 
 pub mod error;
+pub mod grant;
 pub mod identity;
 pub mod messages;
 pub mod signed;
 
 pub use error::ProtoError;
+pub use grant::{device_key_hash, AccessGrantTerms};
 pub use identity::DeviceIdentity;
 pub use messages::{
     AccessRequest, Ack, DeviceAnnounce, Envelope, ErrorCode, GrantMsg, Kind, Revoke, Subscribe,

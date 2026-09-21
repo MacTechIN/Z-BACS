@@ -83,6 +83,10 @@ GrantMsg {
 }
 ```
 
+`grant`의 CBOR 형태(구현: `zbacs_proto::AccessGrantTerms`, 2026-09-21): EIP-712 `AccessGrant` 필드를 구조체 순서대로 snake_case 키로 담는다 — `file_id`, `header_hash`, `device_key_hash`, `permission`, `not_before`, `expiry`, `max_opens`, `request_nonce`, `grant_nonce`(순차 값이라 u64). `device_key_hash = keccak256(device_x25519_pub ‖ device_ed25519_pub)`.
+
+수신자 검사 순서(Z-1.G.9, approval_protocol §2 규칙 1~3): `request_nonce`가 자기 것이 아니면 무시(다른 요청의 답), 자기 것인데 `file_id`·`header_hash`·`device_key_hash`·`permission`이 요청과 다르면 **거부하고 사용자에게 알린다**(바꿔치기, T05/T19). `owner_sig` 검증은 소유자 승인 키를 체인에서 읽는 Z-1.H.8/H.10 이후.
+
 ### 4.4 Revoke
 ```
 Revoke { grant_id: bstr(32), fid: bstr(32), ts: uint }

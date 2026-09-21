@@ -126,6 +126,14 @@ impl SetupHost {
             .owner_keys()
     }
 
+    /// This device's relay identity keys, for asking an owner (Z-1.G.9).
+    pub fn device_keys(&self) -> Result<zbacs_auth::setup::DeviceKeyPair, zbacs_auth::AuthError> {
+        self.setup
+            .as_ref()
+            .ok_or_else(|| zbacs_auth::AuthError::Hardware("this build has no signer".into()))?
+            .device_keys()
+    }
+
     /// Finish setup with the chosen style. For tests and for the command path.
     pub fn complete(&self, style: ApprovalStyle, now: u64) -> Result<Prepared, zbacs_auth::AuthError> {
         self.setup

@@ -1069,3 +1069,24 @@ L1(Z-1.S.3 설치 파일 CI) 완료, 첫 Windows 빌드 성공. 커밋·푸시 �
 
 다음 결정: L2 Relay 호스팅 계정(무료 컨테이너/VPS). 그 전까지 코드는 베타 컷 순서(G.9 열람 요청 UI)로 진행합니다.
 ```
+
+### #40 [U] 2026-09-21
+```
+다음
+```
+
+### #40 [C] 2026-09-21
+```
+Z-1.G.9 열람 요청·승인 대기 UI 완료, 커밋·푸시했습니다.
+
+만든 것
+- apps/agent/src-tauri/src/request.rs: 잠긴 파일 카드 [주인에게 물어보기] → 기기 Relay 등록 → 서명한 AccessRequest 전송 → 2초마다 받은편지함 폴링 → 답 분류 → 세션 상태머신(Z-1.G.4) 구동. 결과: 허락받음(권한·만료 보관, DEK 봉투는 G.7/G.8용으로 보관)/거절/시간 초과(120s 안내, 300s 만료)/취소/Relay 불통. Relay 주소는 사용자 설정 없이 내장(호스팅 전 기본 127.0.0.1:8787, 개발자만 ZBACS_RELAY_URL).
+- 답 검사(approval_protocol §2 규칙 1~3): 내 nonce가 아니면 무시, 내 nonce인데 파일·버전·기기 키 해시·권한이 다르면 거부하고 사용자에게 알림(T05/T19 바꿔치기).
+- UI: S4 화면(진행 링 + "주인의 허락을 기다리는 중…" + 취소)과 답 화면(허락받았어요/주인이 허락하지 않았어요/아직 답하지 않았어요 + 다시 물어보기). 입력 0개, 금지 용어 0개(ux-lint 통과). 파일 열기는 "다음 단계에서 연결됩니다"로 정직하게 표시.
+- 기반: zbacs-proto에 AccessGrantTerms(GrantMsg.grant의 CBOR 형태)와 device_key_hash 추가, zbacs-auth Setup::device_keys() 추가.
+- 테스트: 단위 8종(T05·T19 포함) + 실제 zbacs-relay를 띄운 통합 6종(허락/거절/다른 기기용 답 거부/무응답 안내→만료/취소/Relay 없음). Agent 전체 20+6 통과, 워크스페이스 clippy·Windows 크로스체크 통과.
+
+정직하게 남긴 것: 소유자 서명(owner_sig) 검증은 소유자 승인 키를 체인에서 읽어야 해서 Z-1.H.8/H.10 이후 — pending "owner_signature_check"로 개발 패널에만 표시. 문서: dev_plan G.9 ✅·베타 컷 갱신·T05/T19 근거, relay_protocol §4.3에 grant CBOR 형태와 수신자 검사 순서 명시, Agent README, windows_checklist §3.7, CLAUDE.md.
+
+다음: Z-1.G.10 데스크톱 승인 UI(소유자 쪽). 통합 테스트의 owner_answers가 그 골격입니다.
+```

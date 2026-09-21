@@ -170,6 +170,14 @@ pub struct DeviceProfile {
     pub created_at: u64,
 }
 
+/// This device's two long-lived keys for talking through the relay.
+pub struct DeviceKeyPair {
+    /// X25519: receives DEK envelopes addressed to this device.
+    pub envelope: DeviceKeys,
+    /// Ed25519: signs this device's relay envelopes.
+    pub signing: SigningKeys,
+}
+
 /// Something setup could not finish. The UI turns each one into a sentence with an action;
 /// none of them stops the person from using the Agent on this machine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -323,6 +331,21 @@ impl Setup {
         Ok(OwnerKeys {
             sealing: self.x25519(entry::OWNER_SEALING)?,
             signing: self.ed25519(entry::OWNER_SIGNING)?,
+        })
+    }
+
+    /// This device's relay identity: the X25519 key that receives DEK envelopes and the
+    /// Ed25519 key that signs relay messages (Z-1.G.9).
+    ///
+    /// Loaded per use like [`Self::owner_keys`]. Fails before setup for the same reason: a
+    /// second device identity would strand every request already routed to the first.
+    pub fn device_keys(&self) -> Result<DeviceKeyPair> {
+        if !self.is_set_up() {
+            return Err(AuthError::Hardware("this device has not been set up yet".into()));
+        }
+        Ok(DeviceKeyPair {
+            envelope: self.x25519(entry::DEVICE_X25519)?,
+            signing: self.ed25519(entry::DEVICE_ED25519)?,
         })
     }
 

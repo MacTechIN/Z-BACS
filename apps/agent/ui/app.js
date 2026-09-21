@@ -4,8 +4,8 @@
 // check all of it at once: no forbidden vocabulary (U-5) and no text input (U-6). The backend
 // hands over machine values ("biometric", "volatile_key_store") and never sentences.
 //
-// Flows still ahead: sealing (Z-1.G.3) and requesting access (Z-1.G.9). The buttons for those
-// are disabled and say so rather than pretending.
+// Still ahead: opening the file after the owner allows it (Z-1.G.7/G.8). The answer screen says
+// so rather than pretending.
 const invoke = window.__TAURI__.core.invoke;
 const listen = window.__TAURI__.event.listen;
 
@@ -53,6 +53,31 @@ const FILE_PROBLEMS = {
   failed: "잠그지 못했어요. 잠시 뒤 다시 시도해 주세요.",
 };
 
+// Why asking the owner did not work. Each one names the next thing to do.
+const REQUEST_PROBLEMS = {
+  relay_unreachable: "지금은 주인에게 연결할 수 없어요. 인터넷 연결을 확인하고 다시 시도해 주세요.",
+  relay_refused: "이 컴퓨터를 아직 받아 주지 않았어요. 앱을 껐다 켠 뒤 다시 시도해 주세요.",
+  not_set_up: "먼저 준비를 마쳐야 해요.",
+  owner_denies: "주인이 이 파일을 아무도 열 수 없게 잠가 두었어요.",
+  already_asking: "이 파일은 이미 물어보는 중이에요.",
+  mismatch: "받은 답이 이 파일과 맞지 않아요. 주인에게 다시 물어봐 주세요.",
+  window: "허락은 받았지만 지금은 쓸 수 없는 시간이에요. 주인에게 다시 물어봐 주세요.",
+  missing: "그 파일을 찾을 수 없어요.",
+  unreadable: "그 파일을 읽을 수 없어요.",
+  failed: "물어보지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+};
+
+// What the answer screen says for each way a request can end.
+const ANSWERS = {
+  granted: {
+    title: "허락받았어요",
+    read_only: "읽기만 할 수 있어요. 파일 열기는 다음 단계에서 연결됩니다.",
+    edit: "편집도 할 수 있어요. 파일 열기는 다음 단계에서 연결됩니다.",
+  },
+  denied: { title: "주인이 허락하지 않았어요", line: "이 파일은 열 수 없어요. 필요하면 주인에게 직접 이야기해 보세요." },
+  expired: { title: "주인이 아직 답하지 않았어요", line: "주인이 자리에 없을 수 있어요. 나중에 다시 물어봐 주세요." },
+};
+
 const SETUP_PROBLEMS = {
   cancelled: "확인이 취소됐어요. 다시 눌러 주세요.",
   unsupported: "이 방법은 이 컴퓨터에서 쓸 수 없어요. 다른 방법을 골라 주세요.",
@@ -65,7 +90,7 @@ let status = null;
 
 // ---------------------------------------------------------------- screens
 
-const SCREENS = ["welcome", "choice", "working", "done", "blocked", "home", "seal", "sealed"];
+const SCREENS = ["welcome", "choice", "working", "done", "blocked", "home", "seal", "sealed", "request", "answer"];
 
 function show(name) {
   for (const screen of SCREENS) {
@@ -223,6 +248,76 @@ function openSealScreen() {
   show("seal");
 }
 
+// ---------------------------------------------------------------- asking the owner
+
+// The file being asked about. One at a time: the screen has room for one answer.
+const asking = { path: null, requested: null };
+
+function answer(kind, { line, warn = false, again = false, open = false } = {}) {
+  const vault = document.getElementById("answer-vault");
+  vault.hidden = warn;
+  vault.classList.toggle("vault--open", open);
+  document.getElementById("answer-warn").hidden = !warn;
+  document.getElementById("answer-title").textContent = kind.title ?? kind;
+  document.getElementById("answer-line").textContent = line ?? kind.line ?? "";
+  document.getElementById("answer-again").hidden = !again;
+  show("answer");
+}
+
+async function requestAccess(file) {
+  asking.path = file.path;
+  asking.requested = file.default_permission === "edit" ? "edit" : "read_only";
+  document.getElementById("request-line").textContent = "주인에게 물어봤어요. 보통 몇 초에서 몇 분 걸립니다.";
+  show("request");
+  try {
+    await invoke("request_access", { path: asking.path, requested: asking.requested });
+  } catch (problem) {
+    answer({ title: "물어볼 수 없었어요" }, {
+      line: REQUEST_PROBLEMS[problem] ?? REQUEST_PROBLEMS.failed,
+      warn: true,
+      again: problem !== "owner_denies" && problem !== "not_set_up",
+    });
+  }
+}
+
+function onRequestUpdate(update) {
+  if (update.path !== asking.path) return;
+  const file = seen.get(update.path);
+  if (file) {
+    file.request = update;
+    render();
+  }
+  switch (update.phase) {
+    case "sent":
+      break;
+    case "nudge":
+      document.getElementById("request-line").textContent = "아직 답이 없어요. 계속 기다리고 있어요.";
+      break;
+    case "granted":
+      answer(ANSWERS.granted, { line: ANSWERS.granted[update.decision] ?? "", open: true });
+      break;
+    case "denied":
+      answer(ANSWERS.denied);
+      break;
+    case "expired":
+      answer(ANSWERS.expired, { again: true });
+      break;
+    case "cancelled":
+      show("home");
+      break;
+    case "failed":
+      answer({ title: "답을 받지 못했어요" }, {
+        line: REQUEST_PROBLEMS[update.problem] ?? REQUEST_PROBLEMS.failed,
+        warn: true,
+        again: true,
+      });
+      break;
+    default:
+      break;
+  }
+  showDev();
+}
+
 // ---------------------------------------------------------------- files
 
 function render() {
@@ -244,9 +339,25 @@ function render() {
       headline.textContent = "잠긴 파일입니다. 주인에게 물어봐야 열 수 있어요.";
       note.textContent = PERMISSION_WORDS[file.default_permission] ?? "";
       size.textContent = humanSize(file.size);
-      action.textContent = "열람 요청";
-      action.disabled = true;
-      action.title = "승인 요청 기능은 다음 단계에서 연결됩니다.";
+      if (file.request?.phase === "granted") {
+        tag.textContent = "허락받음";
+        tag.classList.add("tag--open");
+        headline.textContent = "주인이 허락했어요.";
+      } else if (file.request?.phase === "denied") {
+        headline.textContent = "주인이 허락하지 않았어요.";
+      }
+      action.textContent = file.request?.phase === "granted" ? "열기" : "주인에게 물어보기";
+      if (file.default_permission === "deny") {
+        action.disabled = true;
+        note.textContent = REQUEST_PROBLEMS.owner_denies;
+      } else if (file.request?.phase === "granted") {
+        // Opening is Z-1.G.7/G.8; the button exists so the next step has somewhere to land.
+        action.disabled = true;
+        action.title = "파일 열기는 다음 단계에서 연결됩니다.";
+      } else {
+        action.disabled = false;
+        action.addEventListener("click", () => requestAccess(file));
+      }
     } else {
       tag.textContent = "열 수 없음";
       tag.classList.add("tag--error");
@@ -285,6 +396,7 @@ function accept(files) {
 function showDev() {
   const lines = [...seen.values()].map((f) => `${f.path}\n  ${f.detail ?? f.problem ?? ""}`);
   if (sealing.result) lines.unshift(`sealed ${JSON.stringify(sealing.result)}`);
+  for (const f of seen.values()) if (f.request) lines.push(`request ${JSON.stringify(f.request)}`);
   if (status) lines.unshift(`setup ${JSON.stringify(status)}`);
   document.getElementById("dev").textContent = lines.join("\n");
 }
@@ -301,6 +413,16 @@ async function main() {
   document.getElementById("seal-back").addEventListener("click", () => show("home"));
   document.getElementById("do-seal").addEventListener("click", doSeal);
   document.getElementById("sealed-done").addEventListener("click", () => show("home"));
+  document.getElementById("request-cancel").addEventListener("click", () => {
+    invoke("cancel_request", { path: asking.path }).catch(() => {});
+    show("home");
+  });
+  document.getElementById("answer-done").addEventListener("click", () => show("home"));
+  document.getElementById("answer-again").addEventListener("click", () => {
+    const file = seen.get(asking.path);
+    if (file) requestAccess(file);
+    else show("home");
+  });
 
   segment(document.getElementById("perm"), (v) => (sealing.permission = v));
   segment(document.getElementById("ttl"), (v) => (sealing.ttl = v));
@@ -357,6 +479,7 @@ async function main() {
   });
 
   await listen("zbacs://opened", (event) => accept(event.payload));
+  await listen("zbacs://request", (event) => onRequestUpdate(event.payload));
   status = await invoke("setup_status");
   route();
 

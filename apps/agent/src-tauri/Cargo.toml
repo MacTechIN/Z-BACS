@@ -40,7 +40,19 @@ hex = "0.4"
 zbacs-core = { path = "../../../crates/zbacs-core" }
 zbacs-session = { path = "../../../crates/zbacs-session" }
 zbacs-auth = { path = "../../../crates/zbacs-auth", default-features = false }
+# Asking the owner (Z-1.G.9): the wire types and the relay client that retries for us.
+zbacs-proto = { path = "../../../crates/zbacs-proto" }
+zbacs-relay-client = { path = "../../../crates/zbacs-relay-client" }
+tokio = { version = "1", features = ["time"] }
+rand = "0.8"
+ciborium = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 # Windows Hello and the TPM device key: the two real signer paths (ADR-0006).
 zbacs-auth = { path = "../../../crates/zbacs-auth", features = ["windows-hardware", "os-keystore"] }
+
+[dev-dependencies]
+# A real relay for the request test: the same server the beta will run.
+zbacs-relay = { path = "../../../apps/relay" }
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time"] }

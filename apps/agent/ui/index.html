@@ -153,6 +153,31 @@
         <button id="sealed-done" class="btn btn--ok">완료</button>
       </section>
 
+      <!-- S4 열기 요청 중 (Z-1.G.9) -->
+      <section id="screen-request" class="screen" hidden>
+        <div class="hero">
+          <div class="ring" aria-hidden="true"></div>
+          <h2 class="hero__title">주인의 허락을 기다리는 중…</h2>
+          <p id="request-line" class="hero__line">주인에게 물어봤어요. 보통 몇 초에서 몇 분 걸립니다.</p>
+        </div>
+        <button id="request-cancel" class="btn">취소</button>
+      </section>
+
+      <!-- 답이 온 뒤 -->
+      <section id="screen-answer" class="screen" hidden>
+        <div class="hero">
+          <div id="answer-vault" class="vault vault--lg" aria-hidden="true">
+            <div class="vault__body"></div>
+            <div class="vault__dial"></div>
+          </div>
+          <div id="answer-warn" class="warn" aria-hidden="true" hidden>!</div>
+          <h2 id="answer-title" class="hero__title"></h2>
+          <p id="answer-line" class="hero__line"></p>
+        </div>
+        <button id="answer-again" class="btn btn--ok" hidden>다시 물어보기</button>
+        <button id="answer-done" class="btn">확인</button>
+      </section>
+
       <details class="dev">
         <summary class="dev__summary">개발용 정보</summary>
         <pre id="dev" class="dev__body"></pre>
