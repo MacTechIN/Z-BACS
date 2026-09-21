@@ -80,7 +80,7 @@
 | Z-1.H.4 | UUPS 프록시 + Timelock 배포 스크립트(Anvil, Base Sepolia) | 주소 파일 생성 |
 | Z-1.H.5 | Slither + Echidna 불변식 CI | CI 게이트 |
 | Z-1.H.6 | HF 감사 파이프라인(`tools/audit`): Qwen3-Coder-Audit 로컬/원격 추론 → PR 코멘트 | 샘플 PR 리포트 |
-| Z-1.H.7 | `zbacs-chain`(alloy): ABI 바인딩, 이벤트 구독, 오프라인 캐시 | 통합 테스트(Anvil) |
+| Z-1.H.7 ✅ | `zbacs-chain`(alloy): ABI 바인딩, 이벤트 구독, 오프라인 캐시 | 통합 테스트(Anvil) (2026-09-21: Foundry 아티팩트에서 바인딩 생성(ABI 드리프트 시 컴파일 실패), 읽기·쓰기·`AuditLog`, `EventWatcher`(폴링 — 프록시 뒤에서도 동작, 실패한 범위를 건너뛰지 않음), `Cache`(마지막 답과 나이를 함께 보관, **죽은 grant는 되살아나지 않음**, strict 파일은 stale 답으로 열리지 않음). Anvil 통합 7종 + 단위 3종, `tools/chain-it.sh`·CI 연결) |
 | Z-1.H.8 | `packages/chain-ts`: viem 타입, EIP-712 서명 헬퍼, permissionless 계정 생성 | 승인 앱에서 사용 |
 | Z-1.H.9 | 페이마스터 설정(Pimlico 샌드박스) | 가스 0 UserOp |
 | Z-1.H.10 ✅ | `P256Validator`(ERC-7579): 계정당 키 집합 add/remove(= 기기 등록/해지 `DeviceEnroll/DeviceRevoke`), P256VERIFY + Daimo 폴백, low-s 강제; Kernel 설치·해지 스크립트 (ADR-0006) | 등록 기기 키로 UserOp 성공, 해지 후 AA24, T12/T22/T23 테스트 (2026-09-19: `contracts/src/P256Validator.sol` + 단위 16종, Base Sepolia 포크 통합 4종 — 실제 Kernel v3.1 팩토리로 계정 생성 후 기기 키 UserOp 성공 216,221 gas, 폰 등록→노트북 해지→해지 기기 AA24, 재전송 AA25) |
@@ -205,11 +205,11 @@
 | T13 온체인 식별 | Z-1.C.5 (fileId 솔트, 파일명 길이 패딩), Z-1.H.9 (페이마스터), Z-3.Z.1/2 (ZK) | contracts fileId = H(hash‖salt); core `name_padding_hides_length_and_roundtrips` |
 | T14 컨트랙트 검증 우회 | Z-1.H.2 (EIP-712·ERC-1271·low-s), Z-1.H.5 (Slither/Echidna), Z-1.H.6 (HF 감사), Z-1.H.8 (WebAuthn 서명 인코딩) | contracts `test_t14_*` 3종, aa-passkey `test_t14_tampered_signature_rejected` |
 | T15 만료 우회 | Z-1.H.2 (체인 시간), Z-1.G.4 (로컬 시계 병행) | contracts `test_t15_*` 2종 |
-| T16 Relay DoS | Z-1.R.1 (본문 상한·할당량 정의), Z-1.R.2 (서명·레이트리밋), Z-1.R.4 (셀프호스팅), Z-1.H.7 (체인 이벤트 폴백), Z-2.R.1 | proto `oversized_bodies_are_refused_on_both_sides`; relay `t16_quota_stops_a_flood`, `an_oversized_body_is_refused` |
+| T16 Relay DoS | Z-1.R.1 (본문 상한·할당량 정의), Z-1.R.2 (서명·레이트리밋), Z-1.R.4 (셀프호스팅), Z-1.H.7 (체인 이벤트 폴백 — 구현됨), Z-2.R.1 | proto `oversized_bodies_are_refused_on_both_sides`; relay `t16_quota_stops_a_flood`, `an_oversized_body_is_refused` |
 | T17 스텁 위장 | Z-1.S.1/S.2 (코드 서명·해시 고정), Z-1.C.2 (Agent는 컨테이너만 파싱), Z-1.G.13 (서명된 업데이트) | tauri-assoc: 파일 인자를 경로로만 취급, `inspect`만 수행 |
 | T18 파서 취약점 | Z-1.C.2 (길이 상한·악성 입력 20종), Z-1.C.3 (cargo-fuzz) | core `tests/malicious.rs` 31종; 퍼징 24h 420,679,318회 무크래시 |
 | T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책), Z-1.C.4 (`verify_version_chain`), Z-1.H.2 (온체인 버전 바인딩) | core `t19_*`; reseal `t19_*` 3종; contracts `test_t19_grant_must_name_the_current_version` |
-| T20 회수 무시 | Z-1.C.4 (재봉인 시 새 DEK로 이전 승인 무효화), Z-1.G.4 (TTL·주기 확인), Z-1.G.11 (revoke), Z-1.H.7 (이벤트 구독), Z-1.G.13 (코드 서명), Z-3.H.3 (어테스테이션) | contracts `test_t20_revoke_only_owner`; core `t20_each_version_gets_a_fresh_dek_and_nonce_prefix` |
+| T20 회수 무시 | Z-1.C.4 (재봉인 시 새 DEK), Z-1.G.4 (TTL·주기 확인), Z-1.G.11 (revoke), Z-1.H.7 (이벤트 구독), Z-1.G.13 (코드 서명), Z-3.H.3 (어테스테이션) | contracts `test_t20_revoke_only_owner`; core `t20_each_version_*`; session `t20_revoke_*`; chain `t20_the_watcher_sees_a_revoke_without_the_relay`, `t20_a_revoked_grant_is_never_resurrected_by_the_cache` |
 | T21 번들러·페이마스터 검열/지연 | Z-1.H.8 (다중 번들러 엔드포인트), Z-1.H.9 (페이마스터 폴백: 자체 예치), Z-1.G.4 (`strict_onchain` 아닌 경우 체인 확정 미대기), Z-1.R.5 (다중 Relay 장애 조치) | aa-passkey: EntryPoint 직접 `handleOps` + Pimlico 실제 제출; client `t21_a_dead_endpoint_falls_over_to_a_live_one` |
 | T22 동기화 패스키 복제 | Z-1.A.2 (BE/BS 플래그 기록·정책), Z-1.A.7 (기기 바운드 키 대안), Z-1.H.10 (등록·해지 온체인), Z-1.U.7 (선택 UI) | auth `t22_synced_passkey_flags_detected`; contracts `test_t22_keys_are_scoped_to_the_enrolling_account` |
 | T23 무프롬프트 기기 키 남용 | Z-1.A.7 (OS 확인 옵션·속도 제한), Z-1.G.10 (명시적 탭에만 키 사용), Z-1.H.10 (즉시 해지), Z-3.G.2 (VBS) | auth `t23_*` 2종; contracts `requireOsConfirm` 온체인 기록 |

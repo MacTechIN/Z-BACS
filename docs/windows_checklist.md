@@ -5,9 +5,9 @@
 | 대상 | Z-1.A.2(Windows Hello), Z-1.A.7(TPM 기기 키), Z-1.A.3(자격 증명 저장소), Z-0.G.1(파일 연결), Z-1.G.6(열람 앱 저장 감지) |
 | 도구 | `crates/zbacs-wincheck` — 한 번에 전부 검사하고 PASS/FAIL을 출력 |
 
-Linux CI에서는 이것들을 검증할 수 없다(TPM·Hello·레지스트리). Windows 전용 코드는 `cargo check --target x86_64-pc-windows-gnu --workspace --exclude zbacs-relay-client`로 컴파일까지 확인했고, **실제 동작 확인만 Windows에서 필요**하다.
+Linux CI에서는 이것들을 검증할 수 없다(TPM·Hello·레지스트리). Windows 전용 코드는 `cargo check --target x86_64-pc-windows-gnu --workspace --exclude zbacs-relay-client --exclude zbacs-chain`로 컴파일까지 확인했고, **실제 동작 확인만 Windows에서 필요**하다.
 
-`zbacs-relay-client`를 제외하는 이유: rustls의 암호 백엔드가 Windows용 C 크로스 툴체인을 요구하는데, 이 크레이트에는 Windows 전용 코드가 한 줄도 없어 크로스체크로 얻을 것이 없다. 실제 Windows 빌드는 CI의 `windows-latest` 러너가 확인한다(기본 백엔드 대신 `ring`을 쓰는 것도 Windows에서 cmake·NASM 없이 빌드되게 하려는 선택이다).
+`zbacs-relay-client`와 `zbacs-chain`을 제외하는 이유: rustls의 암호 백엔드가 Windows용 C 크로스 툴체인을 요구하는데, 이 크레이트에는 Windows 전용 코드가 한 줄도 없어 크로스체크로 얻을 것이 없다. 실제 Windows 빌드는 CI의 `windows-latest` 러너가 확인한다(기본 백엔드 대신 `ring`을 쓰는 것도 Windows에서 cmake·NASM 없이 빌드되게 하려는 선택이다).
 
 ## 0. 준비 (한 번만)
 

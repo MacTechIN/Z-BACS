@@ -1,0 +1,15 @@
+[package]
+name = "zbacs-chain"
+description = "Z-BACS chain client: contract bindings, event watching, offline cache (Z-1.H.7)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+alloy = { version = "2", features = ["full", "node-bindings"] }
+thiserror.workspace = true
+tokio = { version = "1", features = ["time", "macros"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }

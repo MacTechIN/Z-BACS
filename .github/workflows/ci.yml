@@ -76,6 +76,9 @@ jobs:
           forge build --sizes
           forge test -vvv
           forge coverage --ir-minimum --no-match-coverage script --report summary
+      - name: chain integration (zbacs-chain against Anvil)
+        if: steps.contracts.outputs.yes == 'true'
+        run: cargo test -p zbacs-chain
       - name: skipped
         if: steps.present.outputs.yes != 'true'
         run: echo "contracts/ not present yet (Z-1.H.1)"
