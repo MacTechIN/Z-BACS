@@ -5,6 +5,7 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {AccessGrantLib} from "./AccessGrantLib.sol";
 import {FileRegistry} from "./FileRegistry.sol";
+import {Upgradeable} from "./Upgradeable.sol";
 
 /// @title AccessPolicy
 /// @notice Verifies owner-signed EIP-712 `AccessGrant` tickets, records them on-chain for audit and
@@ -13,7 +14,11 @@ import {FileRegistry} from "./FileRegistry.sol";
 ///      SignatureChecker (EOA ECDSA or ERC-1271 smart account), T15 time checks with on-chain
 ///      time, T19 version binding (the grant must name the registry's current header hash, so a
 ///      superseded version cannot be granted after a reseal), T20 revoke + retire.
-contract AccessPolicy is EIP712 {
+/// @dev Deployed behind a UUPS proxy with a `TimelockController` as upgrade admin (Z-1.H.4).
+///      The EIP-712 domain's `verifyingContract` is therefore the **proxy** address: OpenZeppelin's
+///      cached domain separator is built for the implementation, does not match at runtime, and
+///      is rebuilt with `address(this)` — which is what an off-chain signer must use too.
+contract AccessPolicy is EIP712, Upgradeable {
     using AccessGrantLib for AccessGrantLib.AccessGrant;
 
     struct GrantRecord {
@@ -31,7 +36,27 @@ contract AccessPolicy is EIP712 {
         bytes32 headerHash;
     }
 
+    /// @dev Immutable, so it lives in the implementation's code rather than in a storage slot
+    ///      an upgrade could quietly rewrite. The cost is that a new implementation has to be
+    ///      built against the same registry proxy — which {_authorizeUpgrade} enforces.
     FileRegistry public immutable registry;
+
+    /// @notice A replacement implementation points somewhere else.
+    error RegistryMismatch(address expected, address found);
+
+    /// @notice Set the upgrade admin. Called once, on the proxy, at deployment.
+    function initialize(address admin) external initializer {
+        __Upgradeable_init(admin);
+    }
+
+    /// @dev An upgrade that repoints the registry would let whoever deployed it decide who owns
+    ///      which file. Fail closed: if the replacement does not answer `registry()` with the
+    ///      same address, the upgrade does not happen.
+    function _authorizeUpgrade(address newImplementation) internal override {
+        super._authorizeUpgrade(newImplementation);
+        address found = address(AccessPolicy(newImplementation).registry());
+        if (found != address(registry)) revert RegistryMismatch(address(registry), found);
+    }
 
     /// @notice Per-owner sequential nonce consumed by each grant.
     mapping(address owner => uint256) public nonces;

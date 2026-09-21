@@ -9,11 +9,16 @@ import {AuditLog} from "../src/AuditLog.sol";
 
 /// @notice End-to-end walkthrough of what Z-BACS puts on chain, runnable against a local
 ///         Anvil node (see tools/chain-demo.sh and docs/chain_guide.md):
-///         deploy -> register file -> owner signs EIP-712 grant -> submit -> recipient opens
+///         register file -> owner signs EIP-712 grant -> submit -> recipient opens
 ///         -> replay is rejected -> owner revokes -> grant no longer valid.
 ///
 ///   anvil &
-///   forge script script/Demo.s.sol --rpc-url http://127.0.0.1:8545 --broadcast -vv
+///   forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --broadcast
+///   forge script script/Demo.s.sol   --rpc-url http://127.0.0.1:8545 --broadcast -vv
+///
+/// @dev This reads `deployments/<chainId>.json` rather than deploying its own contracts, so the
+///      walkthrough runs against the same proxies a real deployment produces — including the
+///      EIP-712 domain, which is built for the proxy address and not the implementation.
 ///
 /// Keys are Anvil's well-known dev accounts (never used outside a local node).
 contract Demo is Script {
@@ -27,16 +32,18 @@ contract Demo is Script {
         console2.log("Alice (owner)    :", alice);
         console2.log("Bob   (recipient):", bob);
 
-        // ---------------------------------------------------------------- [1] deploy
-        console2.log("\n[1] Deploy FileRegistry + AccessPolicy (2 transactions)");
-        vm.startBroadcast(ALICE_PK);
-        FileRegistry registry = new FileRegistry();
-        AccessPolicy policy = new AccessPolicy(registry);
-        AuditLog audit = new AuditLog();
-        vm.stopBroadcast();
-        console2.log("    FileRegistry :", address(registry));
-        console2.log("    AccessPolicy :", address(policy));
+        // ---------------------------------------------------------------- [1] addresses
+        console2.log("\n[1] Read the deployment (script/Deploy.s.sol wrote it)");
+        string memory file = vm.readFile(
+            string.concat(vm.projectRoot(), "/deployments/", vm.toString(block.chainid), ".json")
+        );
+        FileRegistry registry = FileRegistry(vm.parseJsonAddress(file, ".registry"));
+        AccessPolicy policy = AccessPolicy(vm.parseJsonAddress(file, ".policy"));
+        AuditLog audit = AuditLog(vm.parseJsonAddress(file, ".audit"));
+        console2.log("    FileRegistry :", address(registry), "(proxy)");
+        console2.log("    AccessPolicy :", address(policy), "(proxy)");
         console2.log("    AuditLog     :", address(audit));
+        console2.log("    upgrades go through the timelock at", vm.parseJsonAddress(file, ".timelock"));
 
         // ---------------------------------------------------------------- [2] seal + register
         // fileId is a salted hash: the chain never sees the file name or content (T13).

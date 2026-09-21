@@ -14,6 +14,8 @@ dist/
 contracts/out/
 contracts/cache/
 contracts/broadcast/
+# Local-chain addresses change on every anvil restart; real networks' files are committed.
+contracts/deployments/31337.json
 # Tauri
 apps/*/src-tauri/target/
 apps/*/src-tauri/gen/

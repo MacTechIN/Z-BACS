@@ -77,7 +77,7 @@
 | Z-1.H.1 ✅ | `FileRegistry.sol` (register/bumpVersion/retire) + 테스트 | 100% 브랜치 (2026-09-19: `retire`·`currentVersion`·동일 헤더 해시 거부 추가, `forge coverage` 라인·구문·브랜치·함수 **100%**) |
 | Z-1.H.2 ✅ | `AccessPolicy.sol` (grant/revoke/isValid, EIP-712, ERC-1271 지원) | 재전송·만료·회수 테스트 (2026-09-19: T19 버전 바인딩(옛 헤더 해시 거부)·retire 차단·`consumeOpen`을 기기 공개키에 바인딩·grant 레코드에 deviceKeyHash/headerHash 저장, 22 tests, 브랜치 100%) |
 | Z-1.H.3 ✅ | `AuditLog.sol` 이벤트 계약 | 가스 ≤ 30k/log (2026-09-19: 이벤트 전용 `Logged(fileId, kind, reporter, actorCommit, detail)`, 실제 Anvil 트랜잭션 **25,515 gas** — `tools/chain-demo.sh`가 매번 실측·검사. 초안의 레지스트리 조회(~4.7k)는 31,030으로 예산 초과라 제거) |
-| Z-1.H.4 | UUPS 프록시 + Timelock 배포 스크립트(Anvil, Base Sepolia) | 주소 파일 생성 |
+| Z-1.H.4 ✅ | UUPS 프록시 + Timelock 배포 스크립트(Anvil, Base Sepolia) | 주소 파일 생성 (2026-09-21: `src/Upgradeable.sol`(Initializable+AccessControl+UUPS, 업그레이드 권한은 Timelock만) + `script/Deploy.s.sol` → `contracts/deployments/<chainId>.json`. **Anvil 실배포로 확인**: 프록시로 register가 되고 구현 슬롯·admin이 맞는다. `AuditLog`·`P256Validator`는 **일부러 업그레이드 불가** — 후자는 남의 계정에 설치되는 모듈이라 우리가 바꿀 수 있으면 그 계정들 대신 서명할 수 있다는 뜻이다. 업그레이드 권한 **포기 거부**(한 트랜잭션으로 영영 못 고치는 사고 방지), `AccessPolicy` 업그레이드가 **다른 레지스트리를 가리키면 온체인 거부**. 테스트 11종. Rust는 `Deployment::from_file`로 그 파일을 읽고(단위 5종), `zbacs-chain` 통합 테스트도 **프록시를 거쳐** 배포하도록 바꿔 EIP-712 도메인이 프록시 주소로 만들어지는 것까지 확인) |
 | Z-1.H.5 | Slither + Echidna 불변식 CI | CI 게이트 |
 | Z-1.H.6 | HF 감사 파이프라인(`tools/audit`): Qwen3-Coder-Audit 로컬/원격 추론 → PR 코멘트 | 샘플 PR 리포트 |
 | Z-1.H.7 ✅ | `zbacs-chain`(alloy): ABI 바인딩, 이벤트 구독, 오프라인 캐시 | 통합 테스트(Anvil) (2026-09-21: Foundry 아티팩트에서 바인딩 생성(ABI 드리프트 시 컴파일 실패), 읽기·쓰기·`AuditLog`, `EventWatcher`(폴링 — 프록시 뒤에서도 동작, 실패한 범위를 건너뛰지 않음), `Cache`(마지막 답과 나이를 함께 보관, **죽은 grant는 되살아나지 않음**, strict 파일은 stale 답으로 열리지 않음). Anvil 통합 7종 + 단위 3종, `tools/chain-it.sh`·CI 연결) |
@@ -155,7 +155,7 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 
 | 순서 | 태스크 | 왜 필요한가 |
 |---|---|---|
-| 1 | `Z-1.H.4` 배포 스크립트 | 체인이 어딘가에 실제로 떠 있어야 파일 등록·승인 기록이 생긴다(MVP DoD 3) |
+| ~~1~~ ✅ | ~~`Z-1.H.4` 배포 스크립트~~ | 2026-09-21 완료 |
 | 2 | `Z-1.G.9` 열람 요청 UI | 시나리오 B의 수신자 쪽 |
 | 3 | `Z-1.G.10` 데스크톱 승인 UI | 시나리오 B의 소유자 쪽. **모바일 승인 앱(Z-1.P.2)을 대체**하므로 베타에는 모바일이 필요 없다 |
 | 4 | `Z-1.G.11` 회수 + 활성 세션 | 시나리오 E |
@@ -186,7 +186,7 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | `Z-1.U.6` 사용성 테스트 | 베타 그 자체가 이 테스트다 |
 | `Z-1.D.1/D.2` 문서 | 베타 직전에 |
 
-**속도 근거**: Phase 1의 24개 완료 태스크가 2026-09-19~21 사이 세션에서 나왔다(커밋 47). 남은 베타 코드 10태스크는 같은 밀도로 **2~3 세션 분량**이다. 다만 위 Windows 확인이 끝나기 전에는 "베타 가능"은 검사된 사실이 아니라 주장이다.
+**속도 근거**: Phase 1의 완료 태스크가 2026-09-19~21 사이 세션에서 나왔다(커밋 47). 남은 베타 코드 10태스크는 같은 밀도로 **2~3 세션 분량**이다. 다만 위 Windows 확인이 끝나기 전에는 "베타 가능"은 검사된 사실이 아니라 주장이다.
 
 ---
 

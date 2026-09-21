@@ -31,3 +31,13 @@ sol!(
     P256Validator,
     "../../contracts/out/P256Validator.sol/P256Validator.json"
 );
+
+// The proxy the stateful contracts live behind (Z-1.H.4). Tests deploy through it so the
+// client is exercised against the same shape production runs: a proxy address, an EIP-712
+// domain built for that address, and an implementation that is never called directly.
+sol!(
+    #[sol(rpc)]
+    #[allow(missing_docs)]
+    ERC1967Proxy,
+    "../../contracts/out/ERC1967Proxy.sol/ERC1967Proxy.json"
+);

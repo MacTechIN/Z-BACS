@@ -13,7 +13,7 @@ use alloy::primitives::{keccak256, Address, FixedBytes};
 use alloy::providers::{Provider, ProviderBuilder};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::SignerSync;
-use zbacs_chain::contracts::{AccessGrantLib, AccessPolicy, AuditLog, FileRegistry};
+use zbacs_chain::contracts::{AccessGrantLib, AccessPolicy, AuditLog, ERC1967Proxy, FileRegistry};
 use zbacs_chain::{ChainClient, ChainEvent, Deployment, EventWatcher, Freshness};
 
 fn artifacts_present() -> bool {
@@ -68,8 +68,29 @@ async fn deploy() -> Fixture {
         .await
         .expect("provider");
 
-    let registry = FileRegistry::deploy(&provider).await.expect("deploy registry");
-    let policy = AccessPolicy::deploy(&provider, *registry.address()).await.expect("deploy policy");
+    // Deploy the way Z-1.H.4 deploys: implementations behind ERC-1967 proxies, with this
+    // account standing in for the timelock. Talking to an implementation directly would pass
+    // these tests and then break at the first upgrade.
+    let registry_impl = FileRegistry::deploy(&provider).await.expect("deploy registry impl");
+    let registry_proxy = ERC1967Proxy::deploy(
+        &provider,
+        *registry_impl.address(),
+        registry_impl.initialize(owner).calldata().clone(),
+    )
+    .await
+    .expect("registry proxy");
+    let registry = FileRegistry::new(*registry_proxy.address(), &provider);
+
+    let policy_impl = AccessPolicy::deploy(&provider, *registry.address()).await.expect("deploy policy impl");
+    let policy_proxy = ERC1967Proxy::deploy(
+        &provider,
+        *policy_impl.address(),
+        policy_impl.initialize(owner).calldata().clone(),
+    )
+    .await
+    .expect("policy proxy");
+    let policy = AccessPolicy::new(*policy_proxy.address(), &provider);
+
     let audit = AuditLog::deploy(&provider).await.expect("deploy audit");
     let deployment =
         Deployment { registry: *registry.address(), policy: *policy.address(), audit: *audit.address() };

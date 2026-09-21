@@ -9,7 +9,11 @@ evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200
 via_ir = false
-fs_permissions = [{ access = "read-write", path = "./out" }]
+fs_permissions = [
+    { access = "read-write", path = "./out" },
+    # Z-1.H.4 writes deployments/<chainId>.json — the one place addresses are recorded.
+    { access = "read-write", path = "./deployments" },
+]
 
 [fmt]
 line_length = 110

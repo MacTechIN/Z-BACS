@@ -20,6 +20,47 @@ pub struct Deployment {
     pub audit: Address,
 }
 
+impl Deployment {
+    /// Read `contracts/deployments/<chainId>.json`, written by `script/Deploy.s.sol` (Z-1.H.4).
+    ///
+    /// The Agent must not carry addresses compiled into it: a redeployment would leave every
+    /// installed copy talking to contracts that no longer hold anyone's files. One file, written
+    /// by the deployment and read by everything else.
+    pub fn from_file(path: impl AsRef<std::path::Path>) -> Result<Self> {
+        let path = path.as_ref();
+        let text = std::fs::read_to_string(path)
+            .map_err(|e| ChainError::Config(format!("{}: {e}", path.display())))?;
+        Self::from_json(&text).map_err(|e| match e {
+            ChainError::Config(why) => ChainError::Config(format!("{}: {why}", path.display())),
+            other => other,
+        })
+    }
+
+    /// Same, from the file's contents.
+    pub fn from_json(json: &str) -> Result<Self> {
+        #[derive(serde::Deserialize)]
+        struct File {
+            registry: Address,
+            policy: Address,
+            audit: Address,
+        }
+        let f: File = serde_json::from_str(json).map_err(|e| ChainError::Config(e.to_string()))?;
+        let me = Self { registry: f.registry, policy: f.policy, audit: f.audit };
+
+        // A zero or repeated address means the deployment did not finish. Finding that out now
+        // is cheaper than finding it out when someone cannot open their file.
+        for (what, address) in [("registry", me.registry), ("policy", me.policy), ("audit", me.audit)] {
+            if address.is_zero() {
+                return Err(ChainError::Config(format!("{what} address is zero")));
+            }
+        }
+        if me.registry == me.policy || me.registry == me.audit || me.policy == me.audit {
+            return Err(ChainError::Config("two contracts share an address".into()));
+        }
+        Ok(me)
+    }
+}
+
 /// Talks to one chain.
 pub struct ChainClient {
     provider: DynProvider,
@@ -191,5 +232,76 @@ impl ChainClient {
             .await
             .map_err(unreachable)?;
         Ok(receipt.transaction_hash.0)
+    }
+}
+
+#[cfg(test)]
+mod deployment_tests {
+    use super::*;
+
+    /// The shape `script/Deploy.s.sol` actually writes (Z-1.H.4), extra fields and all.
+    const REAL: &str = r#"{
+      "audit": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      "chainId": 31337,
+      "minDelay": 0,
+      "p256Validator": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+      "policy": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+      "policyImplementation": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+      "proposer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "registry": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+      "registryImplementation": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+      "timelock": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    }"#;
+
+    #[test]
+    fn the_file_the_deploy_script_writes_is_understood() {
+        let d = Deployment::from_json(REAL).unwrap();
+        assert_eq!(d.registry.to_string().to_lowercase(), "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0");
+        assert_ne!(d.policy, d.registry);
+        assert_ne!(d.audit, d.policy);
+    }
+
+    /// The addresses are read from the proxies, not the implementations: talking to an
+    /// implementation would work until the first upgrade and then silently stop.
+    #[test]
+    fn the_proxy_address_is_taken_not_the_implementation() {
+        let d = Deployment::from_json(REAL).unwrap();
+        assert_ne!(
+            d.registry.to_string().to_lowercase(),
+            "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+            "registryImplementation must not be mistaken for the registry"
+        );
+    }
+
+    #[test]
+    fn a_half_finished_deployment_is_refused() {
+        let zero = REAL.replace("0x5FC8d32690cc91D4c39d9d3abcBD16989F875707", &Address::ZERO.to_string());
+        assert!(Deployment::from_json(&zero).unwrap_err().to_string().contains("audit address is zero"));
+
+        let same = REAL.replace(
+            "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+            "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+        );
+        assert!(Deployment::from_json(&same).unwrap_err().to_string().contains("share an address"));
+
+        assert!(Deployment::from_json("{}").is_err(), "missing fields");
+        assert!(Deployment::from_json("not json").is_err());
+    }
+
+    #[test]
+    fn a_missing_file_says_which_file() {
+        let err = Deployment::from_file("/nonexistent/deployments/31337.json").unwrap_err();
+        assert!(err.to_string().contains("31337.json"), "{err}");
+        assert!(matches!(err, ChainError::Config(_)));
+    }
+
+    #[test]
+    fn a_real_file_round_trips() {
+        let dir = std::env::temp_dir().join(format!("zbacs-deployment-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("31337.json");
+        std::fs::write(&path, REAL).unwrap();
+        assert_eq!(Deployment::from_file(&path).unwrap(), Deployment::from_json(REAL).unwrap());
+        std::fs::remove_dir_all(dir).ok();
     }
 }

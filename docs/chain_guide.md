@@ -102,7 +102,7 @@ tools/chain-demo.sh --keep     # Anvil을 켜 둔 채 cast로 직접 조회
   https://sepolia.basescan.org/tx/0x8e64a7f1652167388e8b5da52422596086a29a043aaef9aca4a1e313f4ca340c
   탐색기에서 볼 것: `Status: Success`, `From`(번들러), `To`(EntryPoint `0x0000000071727De22E5E9d8BAf0edAc6f37da032`), `Logs` 탭의 `UserOperationEvent`, 가스.
 
-우리 컨트랙트를 Base Sepolia에 올리는 것은 `Z-1.H.4`(배포 스크립트 + 주소 파일). 그 전까지 데모는 Anvil로 한다.
+우리 컨트랙트를 올리는 것은 `Z-1.H.4`(완료). 아래 §5.5를 보라.
 
 ### 4.4 E2E (Phase 1, `Z-1.Q.1`)
 Windows VM 2대 + Anvil + Relay: 봉인 → 요청 → 승인 → 열람 → 재봉인 → 회수를 자동화.
@@ -116,7 +116,42 @@ cast call <AccessPolicy> 'isValid(bytes32)(bool)' <grantId> --rpc-url http://127
 cast logs --address <AccessPolicy> --from-block 0 --rpc-url http://127.0.0.1:8545   # 이벤트 전부
 cast tx <txHash> --rpc-url http://127.0.0.1:8545                       # 트랜잭션 원문
 ```
-주소·grantId는 `contracts/out/demo.json`에 있다. Base Sepolia에 대해서는 `--rpc-url https://sepolia.base.org`로 같은 명령이 그대로 된다(읽기는 무료).
+배포 주소는 `contracts/deployments/<chainId>.json`, 데모가 만든 grantId는 `contracts/out/demo.json`에 있다. Base Sepolia에 대해서는 `--rpc-url https://sepolia.base.org`로 같은 명령이 그대로 된다(읽기는 무료).
+
+## 5.5 배포와 업그레이드 (Z-1.H.4)
+
+배포는 한 명령이고, **결과는 파일로 남는다.**
+
+```
+cd contracts
+forge script script/Deploy.s.sol --rpc-url anvil --broadcast --private-key $ANVIL_PK
+
+# Base Sepolia (2일 대기, 업그레이드를 올릴 수 있는 주소를 지정)
+TIMELOCK_DELAY=172800 TIMELOCK_PROPOSER=0xYourAddress \
+  forge script script/Deploy.s.sol --rpc-url base_sepolia --broadcast --verify
+```
+
+`contracts/deployments/<chainId>.json`이 만들어진다. Agent는 이 파일을 읽는다(`zbacs-chain::Deployment::from_file`) — 주소를 앱에 박아 두면 재배포 때 설치된 모든 사본이 아무도 쓰지 않는 컨트랙트에 말을 걸게 된다.
+
+### 무엇이 바뀔 수 있고 무엇이 못 바뀌나
+
+| 컨트랙트 | 업그레이드 | 이유 |
+|---|---|---|
+| `FileRegistry` · `AccessPolicy` | UUPS 프록시, **Timelock만** | 사람이 다시 만들 수 없는 기록(파일 소유권, 승인)을 들고 있어서 고칠 수 있어야 한다. 대신 공개 대기 시간을 거친다 |
+| `AuditLog` | **불가** | 저장소가 없고 이벤트만 낸다. 바꿀 일이 있으면 새 주소를 쓴다 |
+| `P256Validator` | **불가** | **다른 사람의 계정에 설치되는 모듈**이다. 우리가 업그레이드할 수 있다면 설치한 모든 계정 대신 서명할 수 있다는 뜻이다. 그런 권한은 존재하지 않아야 한다 |
+
+Timelock 규칙:
+
+- 업그레이드는 **예약 → 대기 → 실행** 3단계. 예약 순간 체인에 공개되므로 누구나 보고 이탈할 시간이 있다.
+- 예약·취소는 지정한 주소만, **실행은 누구나**. 보호 장치는 "누가 누르나"가 아니라 "얼마나 기다렸나"다.
+- Timelock 자신 말고는 관리자가 없다. 대기를 건너뛰는 열쇠는 만들지 않았다.
+- 업그레이드 권한을 **포기(renounce)하는 것은 거부**된다. 한 번의 트랜잭션으로 영영 못 고치는 상태가 되는 사고를 막기 위해서다.
+- `AccessPolicy` 업그레이드가 **다른 `FileRegistry`를 가리키면 온체인에서 거부**된다. 그걸 허용하면 새 구현을 올린 사람이 누가 어느 파일의 주인인지 정할 수 있다.
+
+### 서명할 때 주의
+
+`AccessPolicy`의 EIP-712 `verifyingContract`는 **프록시 주소**다(구현 주소가 아니다). 오프체인 서명자도 프록시 주소로 서명해야 한다. `digestOf()`를 프록시에 물어보면 자동으로 맞는다.
 
 ## 6. 운영에서 우리가 관리하는 것 / 하지 않는 것
 

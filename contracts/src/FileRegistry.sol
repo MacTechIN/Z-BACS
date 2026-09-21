@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.28;
 
+import {Upgradeable} from "./Upgradeable.sol";
+
 /// @title FileRegistry
 /// @notice Maps a file commitment (fileId = SHA-256(plaintextHash || salt)) to its owner account and
 ///         latest container header hash. No file names, no content, no identities on-chain (T13).
 /// @dev The header hash is what binds a grant to one specific sealed version: `AccessPolicy`
 ///      refuses a grant whose `headerHash` is not the current one, so an old version cannot be
-///      re-granted after a reseal (T19). UUPS proxy + timelock deployment is Z-1.H.4.
-contract FileRegistry {
+///      re-granted after a reseal (T19).
+/// @dev Deployed behind a UUPS proxy whose upgrade role is a `TimelockController` (Z-1.H.4);
+///      see {Upgradeable} for why this contract may be upgraded and two of its neighbours
+///      may not. File records are what a person cannot recreate, so they must be fixable.
+contract FileRegistry is Upgradeable {
     struct FileRecord {
         address owner;
         bytes32 headerHash; // latest sealed version's header hash
@@ -17,6 +22,11 @@ contract FileRegistry {
     }
 
     mapping(bytes32 fileId => FileRecord) private _files;
+
+    /// @notice Set the upgrade admin. Called once, on the proxy, at deployment.
+    function initialize(address admin) external initializer {
+        __Upgradeable_init(admin);
+    }
 
     event Registered(bytes32 indexed fileId, address indexed owner, bytes32 headerHash);
     event VersionBumped(bytes32 indexed fileId, uint32 version, bytes32 headerHash);

@@ -80,6 +80,9 @@ jobs:
         # the step id is `present`; `steps.contracts` was empty, so this never ran
         if: steps.present.outputs.yes == 'true'
         run: cargo test -p zbacs-chain
+      - name: deploy + walkthrough on a local chain (Z-1.H.4, and the AuditLog gas budget)
+        if: steps.present.outputs.yes == 'true'
+        run: tools/chain-demo.sh
       - name: skipped
         if: steps.present.outputs.yes != 'true'
         run: echo "contracts/ not present yet (Z-1.H.1)"

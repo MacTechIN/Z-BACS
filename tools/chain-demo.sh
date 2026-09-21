@@ -30,6 +30,11 @@ trap cleanup EXIT
 echo "== chain id: $(cast chain-id --rpc-url "$RPC")   block before: $(cast block-number --rpc-url "$RPC")"
 
 cd "$ROOT/contracts"
+echo "== deploying (proxies + timelock, Z-1.H.4) — writes deployments/31337.json"
+forge script script/Deploy.s.sol --rpc-url "$RPC" --broadcast --private-key \
+  0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 2>&1 \
+  | awk '/== Logs ==/{f=1; next} /## Setting up/{f=0} f' | sed 's/^/  /'
+
 forge script script/Demo.s.sol --rpc-url "$RPC" --broadcast -vv 2>&1 \
   | awk '/== Logs ==/{f=1; next} /## Setting up/{f=0} /ONCHAIN EXECUTION COMPLETE/{print "  (all transactions mined)"} f'
 
@@ -40,7 +45,7 @@ GRANT_ID=$(jq -r .grantId out/demo.json)
 
 echo
 echo "== on-chain evidence (read with cast, no keys needed)"
-echo "   blocks mined: $(cast block-number --rpc-url "$RPC")  (one per transaction: 3 deploys + register + grant + open + 2 audit + revoke)"
+echo "   blocks mined: $(cast block-number --rpc-url "$RPC")  (one per transaction: the deployment, then register + grant + open + 2 audit + revoke)"
 echo "   AccessPolicy.isValid(grantId) -> $(cast call "$POLICY" 'isValid(bytes32)(bool)' "$GRANT_ID" --rpc-url "$RPC")"
 echo "   events emitted by AccessPolicy (topic0 = keccak256 of the event signature, decoded from the ABI):"
 declare -A EVENT_NAME

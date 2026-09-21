@@ -6293,6 +6293,8 @@ name = "zbacs-chain"
 version = "0.0.1"
 dependencies = [
  "alloy",
+ "serde",
+ "serde_json",
  "thiserror 2.0.20",
  "tokio",
 ]
