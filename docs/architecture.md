@@ -62,6 +62,7 @@ Z-BACS/
 │   └── (apps/relay)     # axum Relay 서버: 큐·기기 등록·서명 검증·할당량
 │       (apps/agent)     # Tauri 데스크톱 Agent: 트레이·단일 인스턴스·파일 연결
 │   ├── zbacs-auth/      # AuthProvider 트레이트 + Passkey(Win/mac/Linux) + DeviceKey(TPM/Keystore/SE) + BSA + OTAK
+│   │                    #   + setup: 첫 실행(기기·소유자 키 생성, 승인 방식 선택, 기기 프로필) — Z-1.G.2
 │   ├── zbacs-chain/     # alloy 기반 컨트랙트 바인딩, EIP-712 타입, 이벤트 스트림
 │   ├── zbacs-session/   # 열람 세션 상태머신, 보호 작업공간, 감시자, 재봉인
 │   ├── zbacs-relay-client/ # Relay 프로토콜 클라이언트

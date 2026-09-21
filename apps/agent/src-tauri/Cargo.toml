@@ -13,6 +13,16 @@ license = "Apache-2.0"
 name = "zbacs_agent_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# The keychain is on everywhere: without it the device would have to set itself up again on
+# every launch. `OsKeyStore::available()` still decides at runtime whether one is reachable.
+default = ["os-keystore"]
+# Software stand-in signers so the Agent runs on a developer box with no TPM and no Windows
+# Hello. Never enabled in a release build: the approval key would be ordinary process memory.
+demo-signer = ["zbacs-auth/software-signer"]
+# The OS keychain (Credential Manager / Keychain / Secret Service).
+os-keystore = ["zbacs-auth/os-keystore"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -26,3 +36,8 @@ serde_json = "1"
 hex = "0.4"
 zbacs-core = { path = "../../../crates/zbacs-core" }
 zbacs-session = { path = "../../../crates/zbacs-session" }
+zbacs-auth = { path = "../../../crates/zbacs-auth", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
+# Windows Hello and the TPM device key: the two real signer paths (ADR-0006).
+zbacs-auth = { path = "../../../crates/zbacs-auth", features = ["windows-hardware", "os-keystore"] }

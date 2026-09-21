@@ -28,6 +28,9 @@ pub mod entry {
     pub const OWNER_SEALING: &str = "owner-sealing";
     /// Owner's Ed25519 container header signing secret.
     pub const OWNER_SIGNING: &str = "owner-signing";
+    /// P-256 scalar of the *software* approval signer (feature `software-signer`). A real
+    /// passkey or TPM key has nothing to store here, so a release build never writes it.
+    pub const APPROVAL_SOFTWARE: &str = "approval-software";
 }
 
 /// A place to keep secrets between runs.
@@ -46,11 +49,17 @@ pub trait KeyStore: Send + Sync {
     ///
     /// This is how onboarding stays silent: first run generates and saves, every later run
     /// loads, and the person is never shown a key (ux_principles).
+    ///
+    /// `Self: Sized` keeps the trait dyn compatible: the generic closure cannot go in a vtable,
+    /// and [`crate::setup::Setup`] holds a `dyn KeyStore`.
     fn get_or_create(
         &self,
         name: &str,
         make: impl FnOnce() -> Zeroizing<Vec<u8>>,
-    ) -> Result<Zeroizing<Vec<u8>>> {
+    ) -> Result<Zeroizing<Vec<u8>>>
+    where
+        Self: Sized,
+    {
         if let Some(found) = self.get(name)? {
             return Ok(found);
         }

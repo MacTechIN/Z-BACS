@@ -10,6 +10,7 @@
 ## 항상 참조할 문서 (작업 시작 전 필독)
 - `docs/ux_principles.md` — 최상위 원칙과 UX DoD(U-1~U-6)
 - `docs/design/ui_guideline.md` — UI/UX 기본 골격: 토큰, 상태↔시각 매핑, 컴포넌트, 화면 S1~S10
+- `docs/design/ui_strings.md` — UI 문자열 사전·금지 용어(린트가 읽는 원본)
 - `docs/README.md` — 문서 인덱스 (여기서 시작)
 - `docs/project_definition.md` — 범위·요구사항·MVP DoD
 - `docs/architecture.md` — 패키지 구조, 키 계층, 스택
@@ -39,7 +40,11 @@
 Rust(stable) + Tauri 2 / RustCrypto + hpke-rs / Foundry + OpenZeppelin v5 / viem + permissionless.js / axum Relay / Base L2(Anvil 로컬)
 
 ## 현재 단계
-Phase 0 (셋업·스파이크). 완료: Z-0.D.1 스캐폴드, Z-0.D.2 툴체인(`tools/setup.sh --check`), Z-0.D.3 CI(`.github/workflows/ci.yml`), Z-0.C.1/C.2 컨테이너·HPKE 봉투 PoC(`crates/zbacs-core`, CLI `zbacs`; 100MB 왕복 0.35s), Z-0.H.1 EIP-712 승인 티켓 PoC(`contracts/`: FileRegistry, AccessPolicy, 18 tests), Z-0.G.1 Tauri 파일 연결 스파이크(`spikes/tauri-assoc/`, 독립 워크스페이스), Z-0.H.2 패스키 스마트계정 스파이크(`spikes/aa-passkey/`: RIP-7212 활성 실측 3,885 gas, Kernel v3.1+WebAuthn UserOp가 Base Sepolia 포크의 실제 EntryPoint 통과, 10 tests, Pimlico 번들러 실제 제출 2건 성공). Z-0.Q.1 위협 매핑 리뷰(`docs/dev_plan.md` 부록 A: T01~T22 ↔ 태스크 ↔ 테스트 근거, threat_model v1.1). ADR-0006(2026-09-19): 소유자 승인 서명은 플랫폼 패스키(Windows Hello) **또는** 등록 기기 바운드 키(DeviceKey, `P256Validator`) 중 소유자 선택 — Z-0.A.1은 Phase 0 게이트에서 제외되어 **Phase 0 종료**. **Phase 1 진행 중**: Z-1.A.1 ✅ `crates/zbacs-auth`(AuthProvider 트레이트, 두 서명 경로 타입, T23 정책, 검증기, 소프트웨어 서명기, 13 tests). Z-1.C.1 ✅ core 정식화(고정 길이 타입, `Sealer/Opener/GrantedDek`, missing_docs, 커버리지 게이트 90% CI). Z-1.C.2 ✅ 파서 견고화(spec §2.2 필드 제한, `tests/malicious.rs` 31종). Z-1.C.3 ✅ cargo-fuzz 4종 — 24h 420,679,318회 무크래시(2026-09-20). Z-1.H.10 ✅ `P256Validator`(ERC-7579 기기 키 검증기, 단위 16 + 포크 통합 4, 기기 키 UserOp 216k gas). Z-1.C.4 ✅ 재봉인(`reseal_to_path`, `verify_version_chain`, CLI `zbacs reseal`, spec §5 확장). Z-1.C.5 ✅ 파일명 패딩·정책 해시·고정 벡터(`crates/zbacs-core/tests/vectors/`). Z-1.C.6 ✅ 키 위생 감사(`Dek`→`secrecy::SecretBox`, 마스킹 Debug, 평문 버퍼 wipe, `docs/research/key_hygiene_audit.md`) — **C 트랙 완료**(C.3 24h 퍼징 실행만 대기). Z-1.H.1/H.2 ✅ 컨트랙트 정식화(retire, T19 버전 바인딩, 기기 바인딩 consumeOpen, 50 tests, 커버리지 100%). Z-1.H.3 ✅ AuditLog(이벤트 전용, 실측 25,515 gas/건). Z-1.R.1 ✅ Relay 프로토콜(`docs/specs/relay_protocol.md` + `crates/zbacs-proto`). Z-1.A.2/A.3/A.7 ◐ Windows 하드웨어 경로 구현(`zbacs-auth::windows`, `store`; 크로스 컴파일 통과, **실기 확인은 `cargo run -p zbacs-wincheck` + `docs/windows_checklist.md`**), Z-1.A.5 ✅ BsaProvider mock, Z-1.A.6 ✅ OtakProvider(자체 생성 일회용 키), Z-1.A.4 ✅ 복구 코드 기반 키 백업/복원(CLI `zbacs backup`/`restore`), Z-0.A.3 **보류**(개인 프로젝트 — 외부 인증 없이 자체 키로 진행, `docs/credentials.md` §7). Z-1.G.4 ✅ 세션 상태머신 + Z-1.G.5◐/G.7✅/G.8◐ 보호 작업공간·안전 삭제(`crates/zbacs-session`). **A 트랙은 Windows 실기 확인(A.2/A.3/A.7)만 남음.** Z-1.G.6 ◐ 열람 앱 실행·PID 추적·저장 감지(`zbacs-session::viewer`, 12 tests; 실제 3종 앱은 Windows). Z-1.R.2 ✅ axum Relay 서버(`apps/relay`, 16 tests, 실측 12,816 req/s). Z-1.R.5 ✅ Relay 클라이언트(장애 조치·멱등 재시도, 10 tests). Z-1.H.7 ✅ `zbacs-chain`(alloy 바인딩·이벤트 감시·오프라인 캐시, Anvil 통합 7종). Z-1.G.1 ◐ Tauri Agent 골격(`apps/agent`: 트레이·단일 인스턴스·파일 연결, Linux 실측; Windows 더블클릭 확인 대기). 다음: Z-1.G.2 온보딩 UI, Z-1.H.4 UUPS+Timelock 배포, Z-1.R.3 푸시, `Z-0.A.3` BSA Client Key 신청(외부), Z-0.A.1은 Windows 실기 확보 시.
+Phase 1 (구현). Phase 0 완료: 컨테이너·HPKE PoC, EIP-712 승인 티켓, Tauri 파일 연결, 패스키 스마트계정(RIP-7212 3,885 gas 실측, Pimlico 실제 제출 2건), 위협 매핑 리뷰. Windows Hello 실기(Z-0.A.1)만 `docs/windows_checklist.md`로 이관.
+
+Phase 1 완료: **C 트랙 전부**(컨테이너 v1.2, 재봉인 버전 체인, 24h 퍼징 420,679,318 runs·무크래시, 복구 코드 백업), **A 트랙 대부분**(`zbacs-auth`: AuthProvider·이중 경로·확인 정책 T23·OS 키저장소·OTAK, Windows Hello/TPM 코드는 크로스컴파일까지), **H 트랙**(FileRegistry/AccessPolicy/AuditLog/P256Validator, 커버리지 100%, `zbacs-chain` 이벤트 감시·오프라인 캐시), **R 트랙**(axum Relay, 장애 조치·멱등 재시도 클라이언트), **G 트랙**(세션 상태머신, 보호 작업공간, 열람 앱 실행·저장 감지, Agent 골격, **첫 실행 온보딩**), **U 트랙**(디자인 토큰, 온보딩 흐름, 용어 린트, 승인 방식 선택).
+
+다음: `Z-1.G.3` 봉인 UI(+`Z-1.U.3`), `Z-1.H.4` UUPS+Timelock 배포, `Z-1.R.3` 푸시. Windows 실기 확인(`docs/windows_checklist.md` §2~§4, 특히 **§3.5 첫 실행 2탭**)은 사용자 차례.
 
 ## 디렉터리
 `crates/zbacs-core`(컨테이너·암호) `crates/zbacs-auth`(승인 서명자) `crates/zbacs-proto`(Relay 프로토콜) `crates/zbacs-session`(세션·작업공간) `apps/relay`(Relay 서버) `apps/agent`(Tauri Agent, 루트 워크스페이스 제외) `crates/zbacs-relay-client`(Relay 클라이언트) `crates/zbacs-chain`(체인 클라이언트) `crates/zbacs-wincheck`(Windows 자가진단) `crates/zbacs-cli`(PoC CLI) `contracts/`(Foundry: FileRegistry, AccessPolicy, P256Validator) `packages/design-tokens/` `spikes/tauri-assoc/`(Tauri 스파이크) `spikes/aa-passkey/`(패스키 AA 스파이크, Node+Foundry; 스파이크는 루트 워크스페이스·CI 제외) `tools/`(셋업) `docs/` — 예정: `apps/`
@@ -50,6 +55,8 @@ cargo fmt --all --check && cargo clippy --workspace --all-targets   # RUSTFLAGS=
 cargo test --workspace                     # 디버그 (perf 테스트는 ignore)
 cargo test --workspace --release -- --include-ignored perf_  # 성능 게이트(100MB 왕복, Relay 처리량)
 cd contracts && forge fmt --check && forge test  # 컨트랙트 (PATH에 ~/.foundry/bin)
+tools/ux-lint.sh                                 # UI 용어·입력·토큰·마크업 일치 (CI `ux` 잡)
+cd apps/agent/src-tauri && cargo test --features demo-signer   # Agent (루트 워크스페이스 밖, CI `agent` 잡)
 tools/chain-it.sh                          # 컨트랙트 빌드 + Anvil 통합 테스트
 RUSTDOCFLAGS=-D warnings cargo doc --workspace --no-deps          # 공개 API 문서 게이트
 cargo llvm-cov -p zbacs-core -p zbacs-auth --fail-under-lines 90  # 커버리지 게이트

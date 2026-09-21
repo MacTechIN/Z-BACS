@@ -28,12 +28,15 @@ pub mod error;
 pub mod otak;
 pub mod policy;
 pub mod provider;
+pub mod setup;
 #[cfg(feature = "software-signer")]
 pub mod software;
 pub mod store;
 pub mod types;
 pub mod webauthn;
-#[cfg(windows)]
+// Also gated on the feature: without it the `windows` crate is not a dependency, so a
+// standalone `cargo build -p zbacs-auth` on Windows would not compile this module.
+#[cfg(all(windows, feature = "windows-hardware"))]
 pub mod windows;
 
 pub use bsa::{BsaClient, BsaProvider, MockBsaClient};
@@ -41,6 +44,9 @@ pub use error::AuthError;
 pub use otak::{OtakProvider, OtakSeed, OtakVerifier};
 pub use policy::ConfirmationPolicy;
 pub use provider::AuthProvider;
+pub use setup::{
+    ApprovalStyle, CreatedSigner, DeviceCapabilities, DeviceProfile, Pending, Prepared, Setup, SignerFactory,
+};
 pub use store::{KeyStore, MemoryKeyStore};
 pub use types::{
     ApprovalAssertion, ApprovalChallenge, ApprovalContext, Confirmation, DeviceEnroll, DeviceRevoke, KeyId,

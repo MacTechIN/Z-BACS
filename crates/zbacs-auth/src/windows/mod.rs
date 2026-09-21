@@ -111,3 +111,131 @@ mod tests {
         assert_eq!(back, folded, "already-low s is untouched");
     }
 }
+
+/// The CNG key name this device's approval key is created under. Stable: changing it would
+/// orphan the TPM key and silently enrol a second one.
+pub const DEVICE_KEY_NAME: &str = "Z-BACS approval key";
+
+/// Windows' half of [`crate::setup::SignerFactory`]: Hello for the biometric style, a TPM key
+/// for the "this device" style (ADR-0006).
+///
+/// Which one exists is a fact about the machine, not a preference, so `capabilities` asks
+/// Windows rather than assuming: a desktop with no camera, no reader and no PIN has no OS
+/// authenticator, and the choice screen must not offer one.
+pub struct WindowsSignerFactory {
+    rp_id: String,
+    rp_name: String,
+    user_name: String,
+    // HWND is a raw pointer, so it is kept as an integer to stay Send + Sync; it is only ever
+    // handed back to Windows as the parent window for its own prompt.
+    hwnd: isize,
+    allow_software_fallback: bool,
+}
+
+impl WindowsSignerFactory {
+    /// `hwnd` is the Agent's own window, so Windows parents its prompt to it rather than to
+    /// whatever happened to be in front.
+    pub fn new(rp_id: &str, rp_name: &str, user_name: &str, hwnd: isize) -> Self {
+        Self {
+            rp_id: rp_id.to_string(),
+            rp_name: rp_name.to_string(),
+            user_name: user_name.to_string(),
+            hwnd,
+            allow_software_fallback: true,
+        }
+    }
+
+    /// Refuse to fall back to the software key storage provider when there is no usable TPM.
+    pub fn require_hardware(mut self) -> Self {
+        self.allow_software_fallback = false;
+        self
+    }
+
+    fn window(&self) -> windows::Win32::Foundation::HWND {
+        windows::Win32::Foundation::HWND(self.hwnd as *mut core::ffi::c_void)
+    }
+}
+
+impl crate::setup::SignerFactory for WindowsSignerFactory {
+    fn capabilities(&self) -> crate::setup::DeviceCapabilities {
+        crate::setup::DeviceCapabilities {
+            // WebAuthn API present (Windows 10 1903+). Whether the person has enrolled a face,
+            // a fingerprint or a PIN is only known once Hello is asked, and Hello asks them to
+            // set one up, so the API's presence is the right gate for showing the option.
+            os_authenticator: api_version() > 0,
+            hardware_key: true,
+            persistent_store: keychain_available(),
+        }
+    }
+
+    fn create(
+        &self,
+        style: crate::setup::ApprovalStyle,
+        require_os_confirm: bool,
+    ) -> Result<crate::setup::CreatedSigner> {
+        match style {
+            crate::setup::ApprovalStyle::Biometric => {
+                let key = WindowsPasskey::create(&self.rp_id, &self.rp_name, &self.user_name, self.window())?;
+                let credential = key.credential_id().to_vec();
+                Ok(crate::setup::CreatedSigner {
+                    provider: std::sync::Arc::new(key),
+                    credential: Some(credential),
+                    hardware_backed: true,
+                })
+            }
+            crate::setup::ApprovalStyle::ThisDevice => {
+                let key = WindowsDeviceKey::open_or_create(
+                    DEVICE_KEY_NAME,
+                    require_os_confirm,
+                    self.allow_software_fallback,
+                )?;
+                let hardware_backed = key.tpm_backed();
+                Ok(crate::setup::CreatedSigner {
+                    provider: std::sync::Arc::new(key),
+                    credential: Some(DEVICE_KEY_NAME.as_bytes().to_vec()),
+                    hardware_backed,
+                })
+            }
+        }
+    }
+
+    fn reopen(
+        &self,
+        profile: &crate::setup::DeviceProfile,
+    ) -> Result<std::sync::Arc<dyn crate::provider::AuthProvider>> {
+        match profile.style {
+            crate::setup::ApprovalStyle::Biometric => {
+                let public =
+                    profile.public_key.ok_or(AuthError::Malformed("profile has no approval public key"))?;
+                Ok(std::sync::Arc::new(WindowsPasskey::from_stored(
+                    &self.rp_id,
+                    profile.credential.clone(),
+                    public,
+                    self.window(),
+                )))
+            }
+            crate::setup::ApprovalStyle::ThisDevice => {
+                let name = std::str::from_utf8(&profile.credential)
+                    .map_err(|_| AuthError::Malformed("profile key name is not text"))?;
+                let name = if name.is_empty() { DEVICE_KEY_NAME } else { name };
+                Ok(std::sync::Arc::new(WindowsDeviceKey::open_or_create(
+                    name,
+                    profile.require_os_confirm,
+                    self.allow_software_fallback,
+                )?))
+            }
+        }
+    }
+}
+
+#[cfg(feature = "os-keystore")]
+fn keychain_available() -> bool {
+    crate::store::OsKeyStore::new().available()
+}
+
+/// Without the keychain feature there is nowhere durable to put the device secrets, so setup
+/// records [`crate::setup::Pending::VolatileKeyStore`] instead of claiming otherwise.
+#[cfg(not(feature = "os-keystore"))]
+fn keychain_available() -> bool {
+    false
+}

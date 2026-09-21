@@ -11,8 +11,9 @@
 //!   container, which version it is and what the owner's default permission was — enough to
 //!   show "this is locked, shall I ask the owner?" before any approval exists.
 //!
-//! What it deliberately does not do yet: onboarding (Z-1.G.2), sealing (Z-1.G.3), requesting
-//! and opening (Z-1.G.9). The UI says so rather than pretending.
+//! Z-1.G.2 added the first run: two taps and the Agent has this machine's keys and the owner's
+//! chosen approval style (see [`setup`]). Sealing (Z-1.G.3) and requesting access (Z-1.G.9) are
+//! still ahead, and the UI says so rather than pretending.
 
 use std::fs::File;
 use std::io::BufReader;
@@ -23,6 +24,8 @@ use serde::Serialize;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
+
+pub mod setup;
 
 /// Event the webview listens for when a file is handed to the Agent.
 pub const OPENED_EVENT: &str = "zbacs://opened";
@@ -102,7 +105,8 @@ pub fn inspect_file(path: &Path) -> OpenedFile {
             out.problem = Some("이 파일은 Z-BACS로 잠근 파일이 아닙니다.".into());
         }
         Err(zbacs_core::Error::UnsupportedVersion(major, _)) => {
-            out.problem = Some(format!("더 새로운 방식(v{major})으로 잠긴 파일입니다. 앱을 업데이트해 주세요."));
+            out.problem =
+                Some(format!("더 새로운 방식(v{major})으로 잠긴 파일입니다. 앱을 업데이트해 주세요."));
         }
         Err(e) => {
             log::warn!("cannot read container: {e}");
@@ -154,13 +158,28 @@ fn inspect_path(path: String) -> OpenedFile {
     inspect_file(Path::new(&path))
 }
 
+/// The screen the person is now looking at.
+///
+/// Worth a log line for one reason: when a first run goes wrong on someone's machine, this is
+/// the only trace of how far they got. It carries a screen name, never their content.
+#[tauri::command]
+fn ui_screen(name: String) {
+    log::info!("screen: {name}");
+}
+
+/// Something went wrong before the UI could show anything.
+#[tauri::command]
+fn ui_problem(detail: String) {
+    log::warn!("the first screen could not start: {detail}");
+}
+
 /// What the Agent can do so far, so the UI can be honest about the rest.
 #[tauri::command]
 fn capabilities() -> serde_json::Value {
     serde_json::json!({
         "version": env!("CARGO_PKG_VERSION"),
         "readSealedFiles": true,
-        "onboarding": false,   // Z-1.G.2
+        "onboarding": true,    // Z-1.G.2
         "sealing": false,      // Z-1.G.3
         "requestAccess": false // Z-1.G.9
     })
@@ -185,9 +204,24 @@ pub fn run() {
             deliver(app, &files_from_args(argv));
         }))
         .manage(Pending::default())
-        .invoke_handler(tauri::generate_handler![take_pending, inspect_path, capabilities])
+        .manage(setup::Identity::default())
+        .invoke_handler(tauri::generate_handler![
+            take_pending,
+            inspect_path,
+            capabilities,
+            ui_screen,
+            ui_problem,
+            setup::setup_status,
+            setup::complete_setup
+        ])
         .setup(move |app| {
             let handle = app.handle().clone();
+            let config_dir = handle.path().app_config_dir().unwrap_or_else(|e| {
+                log::warn!("no app config directory ({e}); falling back to the working directory");
+                std::path::PathBuf::from(".")
+            });
+            handle.manage(setup::SetupHost::new(config_dir));
+            setup::restore(&handle);
             build_tray(&handle)?;
             if launch_files.is_empty() {
                 // Started by the person rather than by a file: show the window so they see

@@ -15,16 +15,73 @@
         <p class="app__subtitle">파일을 잠그고, 열 때마다 주인에게 물어봅니다.</p>
       </header>
 
-      <section id="empty" class="card card--quiet">
-        <div class="vault" aria-hidden="true">
-          <div class="vault__body"></div>
-          <div class="vault__dial"></div>
+      <!-- S1 첫 실행 -->
+      <section id="screen-welcome" class="screen" hidden>
+        <div class="hero">
+          <div class="vault vault--lg" aria-hidden="true">
+            <div class="vault__body"></div>
+            <div class="vault__dial"></div>
+          </div>
+          <h2 class="hero__title">내 파일을 잠글 준비가 됐어요</h2>
+          <p class="hero__line">준비는 이 컴퓨터에서 한 번만 하면 됩니다. 적어 둘 것도, 외울 것도 없어요.</p>
         </div>
-        <p class="card__line">잠긴 파일을 두 번 누르면 여기에 나타납니다.</p>
-        <p class="card__note">창을 닫아도 계속 실행됩니다. 오른쪽 아래 아이콘에서 다시 열 수 있어요.</p>
+        <button id="start" class="btn btn--ok">시작하기</button>
       </section>
 
-      <section id="files" class="files" hidden></section>
+      <!-- S1b 승인 방식 선택 (Z-1.U.7) -->
+      <section id="screen-choice" class="screen" hidden>
+        <div class="hero hero--tight">
+          <h2 class="hero__title">누군가 파일을 열려고 하면</h2>
+          <p class="hero__line">허락할 때 어떻게 확인할지 골라 주세요. 나중에 바꿀 수 있어요.</p>
+        </div>
+        <div id="choices" class="choices"></div>
+      </section>
+
+      <!-- 준비 중: 지연은 진행 표시 하나로 통합한다 (ux_principles 7) -->
+      <section id="screen-working" class="screen" hidden>
+        <div class="hero">
+          <div class="ring" aria-hidden="true"></div>
+          <h2 class="hero__title">준비하고 있어요</h2>
+          <p id="working-line" class="hero__line">잠시만 기다려 주세요.</p>
+        </div>
+      </section>
+
+      <!-- 준비 완료 -->
+      <section id="screen-done" class="screen" hidden>
+        <div class="hero">
+          <div class="vault vault--lg vault--open" aria-hidden="true">
+            <div class="vault__body"></div>
+            <div class="vault__dial"></div>
+          </div>
+          <h2 class="hero__title">준비 끝</h2>
+          <p id="done-line" class="hero__line"></p>
+        </div>
+        <div id="done-notes" class="notes"></div>
+        <button id="done" class="btn btn--ok">내 파일 보기</button>
+      </section>
+
+      <!-- 준비할 수 없는 컴퓨터 -->
+      <section id="screen-blocked" class="screen" hidden>
+        <div class="hero">
+          <div class="warn" aria-hidden="true">!</div>
+          <h2 class="hero__title">이 컴퓨터에서는 아직 준비할 수 없어요</h2>
+          <p id="blocked-line" class="hero__line"></p>
+        </div>
+        <button id="retry" class="btn">다시 시도</button>
+      </section>
+
+      <!-- S2 홈 -->
+      <section id="screen-home" class="screen" hidden>
+        <div id="empty" class="card card--quiet">
+          <div class="vault" aria-hidden="true">
+            <div class="vault__body"></div>
+            <div class="vault__dial"></div>
+          </div>
+          <p class="card__line">잠긴 파일을 두 번 누르면 여기에 나타납니다.</p>
+          <p class="card__note">창을 닫아도 계속 실행됩니다. 오른쪽 아래 아이콘에서 다시 열 수 있어요.</p>
+        </div>
+        <div id="files" class="files" hidden></div>
+      </section>
 
       <details class="dev">
         <summary class="dev__summary">개발용 정보</summary>
@@ -42,6 +99,17 @@
         <p class="card__note" data-role="note"></p>
         <button class="btn" data-role="action" disabled></button>
       </article>
+    </template>
+
+    <template id="choice-card">
+      <button class="choice" data-role="choice">
+        <span class="choice__head">
+          <span class="choice__icon" data-role="icon" aria-hidden="true"></span>
+          <span class="tag tag--open" data-role="badge" hidden>추천</span>
+        </span>
+        <span class="choice__title" data-role="title"></span>
+        <span class="choice__note" data-role="note"></span>
+      </button>
     </template>
 
     <script src="app.js"></script>

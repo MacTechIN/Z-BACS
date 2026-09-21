@@ -19,6 +19,7 @@
 | [specs/relay_protocol.md](specs/relay_protocol.md) | Relay 와이어 프로토콜 v1: 엔드포인트, `Signed<T>` 봉투, 메시지·오류·할당량 | 프로토콜 변경 시 |
 | [specs/permission_model.md](specs/permission_model.md) | Deny / ReadOnly / Edit 및 조건 | 권한 추가 시 |
 | [design/ui_guideline.md](design/ui_guideline.md) | UI/UX 기본 골격: 디자인 소스, 토큰, 상태↔시각 매핑, 컴포넌트, 화면 S1~S10 | 화면 추가 시 |
+| [design/ui_strings.md](design/ui_strings.md) | UI 문자열 사전과 금지 용어. `tools/ux-lint.sh`가 이 문서를 읽어 CI에서 검사한다 | UI 문구 추가 시 |
 | [reference/figma.md](reference/figma.md) | Figma 디자인 가이드 링크·파일 키·사용 규칙 (UI의 단일 원본) | 파일 변경 시 |
 | [adr/](adr/README.md) | 아키텍처 결정 기록 | 결정 시 |
 | [dev_guidelines.md](dev_guidelines.md) | 보안 코딩·스타일·테스트·릴리스 규칙 | 필요 시 |

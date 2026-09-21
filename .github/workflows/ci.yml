@@ -77,11 +77,59 @@ jobs:
           forge test -vvv
           forge coverage --ir-minimum --no-match-coverage script --report summary
       - name: chain integration (zbacs-chain against Anvil)
-        if: steps.contracts.outputs.yes == 'true'
+        # the step id is `present`; `steps.contracts` was empty, so this never ran
+        if: steps.present.outputs.yes == 'true'
         run: cargo test -p zbacs-chain
       - name: skipped
         if: steps.present.outputs.yes != 'true'
         run: echo "contracts/ not present yet (Z-1.H.1)"
+
+  agent:
+    name: agent (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: apps/agent/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/agent/src-tauri
+      - name: system libraries (webview)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev xvfb
+      # The software signers stand in for Hello and the TPM on Linux; Windows uses the real ones.
+      - name: features
+        id: feat
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            echo "flags=--features demo-signer" >> "$GITHUB_OUTPUT"
+          else
+            echo "flags=" >> "$GITHUB_OUTPUT"
+          fi
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets --locked ${{ steps.feat.outputs.flags }}
+      - run: cargo test --locked ${{ steps.feat.outputs.flags }}
+
+  ux:
+    name: ux lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # U-5 (no forbidden vocabulary), U-6 (no text input), rule 8 (tokens only), and the
+      # UI's ids match its markup. See docs/design/ui_strings.md.
+      - run: tools/ux-lint.sh
 
   node:
     name: node

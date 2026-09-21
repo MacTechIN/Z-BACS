@@ -147,3 +147,164 @@ body {
   word-break: break-all;
   font: var(--zb-text-sm);
 }
+
+/* ---------------------------------------------------------------- first run (Z-1.G.2) */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zb-space-4);
+}
+
+.screen[hidden] {
+  display: none;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--zb-space-3);
+  padding: var(--zb-space-6) var(--zb-space-4);
+}
+
+.hero--tight {
+  padding: var(--zb-space-4) var(--zb-space-2);
+}
+
+.hero__title {
+  font: var(--zb-h5);
+  margin: 0;
+}
+
+.hero__line {
+  font: var(--zb-text-sm);
+  color: var(--zb-sub);
+  margin: 0;
+}
+
+/* The choice screen: two buttons, one tap, no text to type (ux_principles 3.2). */
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zb-space-3);
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zb-space-2);
+  text-align: left;
+  width: 100%;
+  min-height: var(--zb-touch-min);
+  padding: var(--zb-space-4);
+  border: none;
+  border-radius: var(--zb-radius-card);
+  background: var(--zb-grad-purple);
+  color: var(--zb-secondary);
+  cursor: pointer;
+  font: var(--zb-text-sm);
+}
+
+.choice--recommended {
+  background: var(--zb-grad-green);
+}
+
+.choice:disabled {
+  background: var(--zb-key-bg);
+  color: var(--zb-fg-muted);
+  cursor: default;
+}
+
+.choice__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.choice__icon {
+  font: var(--zb-h5);
+  line-height: 1;
+}
+
+.choice__title {
+  font: var(--zb-text-md-medium);
+}
+
+.choice__note {
+  font: var(--zb-text-sm);
+  color: var(--zb-black-2);
+}
+
+.choice:disabled .choice__note {
+  color: var(--zb-fg-muted);
+}
+
+/* The one progress indicator every wait is folded into (ux_principles 3.7). */
+.ring {
+  width: var(--zb-icon-lg);
+  height: var(--zb-icon-lg);
+  border-radius: var(--zb-radius-chip);
+  background: var(--zb-grad-process);
+  mask: radial-gradient(circle, transparent 55%, var(--zb-black-1) 56%);
+  -webkit-mask: radial-gradient(circle, transparent 55%, var(--zb-black-1) 56%);
+  animation: spin var(--zb-motion-vault) linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring {
+    animation: none;
+  }
+}
+
+.warn {
+  width: var(--zb-icon-lg);
+  height: var(--zb-icon-lg);
+  border-radius: var(--zb-radius-chip);
+  background: var(--zb-grad-error);
+  color: var(--zb-white);
+  font: var(--zb-h5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zb-space-2);
+}
+
+.notes__line {
+  margin: 0;
+  padding: var(--zb-space-3);
+  border-radius: var(--zb-radius-button);
+  background: var(--zb-tag-open-bg);
+  color: var(--zb-tag-open-fg);
+  font: var(--zb-text-sm);
+}
+
+.vault--lg {
+  width: var(--zb-keypad-key);
+  height: var(--zb-keypad-key);
+}
+
+.vault--open .vault__body {
+  background: var(--zb-grad-ok);
+}
+
+.vault--open .vault__dial {
+  inset: 30% 12% 30% 58%;
+  border-radius: var(--zb-radius-button);
+}
+
+.btn--ok {
+  background: var(--zb-grad-ok);
+}
