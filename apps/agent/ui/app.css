@@ -308,3 +308,94 @@ body {
 .btn--ok {
   background: var(--zb-grad-ok);
 }
+
+/* ---------------------------------------------------------------- locking a file (Z-1.G.3) */
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--zb-space-3);
+  padding: var(--zb-space-6) var(--zb-space-4);
+  border: var(--zb-space-1) dashed var(--zb-border);
+  border-radius: var(--zb-radius-card);
+  text-align: center;
+}
+
+.drop--over {
+  border-color: var(--zb-primary);
+  background: var(--zb-key-accent-bg);
+}
+
+.drop__line {
+  font: var(--zb-text-md-medium);
+  margin: 0;
+  word-break: break-all;
+}
+
+.label {
+  font: var(--zb-text-sm);
+  color: var(--zb-sub);
+  margin: var(--zb-space-4) 0 var(--zb-space-2);
+}
+
+/* Two or three choices side by side. Presets, so nothing is typed (U-6). */
+.segment {
+  display: flex;
+  gap: var(--zb-space-2);
+}
+
+.segment__btn {
+  flex: 1;
+  min-height: var(--zb-touch-min);
+  padding: var(--zb-space-2) var(--zb-space-3);
+  border: none;
+  border-radius: var(--zb-radius-button);
+  background: var(--zb-key-bg);
+  color: var(--zb-fg);
+  font: var(--zb-text-sm);
+  cursor: pointer;
+}
+
+.segment__btn[aria-pressed="true"] {
+  background: var(--zb-grad-ok);
+  color: var(--zb-white);
+  font: var(--zb-text-sm-semibold);
+}
+
+.advanced {
+  margin-top: var(--zb-space-4);
+  color: var(--zb-sub);
+  font: var(--zb-text-sm);
+}
+
+.advanced__summary {
+  cursor: pointer;
+  min-height: var(--zb-touch-min);
+  display: flex;
+  align-items: center;
+}
+
+#do-seal {
+  margin-top: var(--zb-space-5);
+  width: 100%;
+}
+
+.btn--danger {
+  background: var(--zb-grad-error);
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zb-space-2);
+  padding: var(--zb-space-4);
+  border-radius: var(--zb-radius-card);
+  background: var(--zb-tag-error-bg);
+  color: var(--zb-tag-error-fg);
+}
+
+.confirm__line {
+  margin: 0;
+  font: var(--zb-text-sm);
+}

@@ -81,6 +81,76 @@
           <p class="card__note">창을 닫아도 계속 실행됩니다. 오른쪽 아래 아이콘에서 다시 열 수 있어요.</p>
         </div>
         <div id="files" class="files" hidden></div>
+        <button id="to-seal" class="btn btn--ok">파일 잠그기</button>
+      </section>
+
+      <!-- S3 잠그기 (Z-1.G.3 / Z-1.U.3) -->
+      <section id="screen-seal" class="screen" hidden>
+        <div class="hero hero--tight">
+          <h2 class="hero__title">어떤 파일을 잠글까요?</h2>
+          <p class="hero__line">파일을 이 창에 끌어다 놓거나, 아래에서 고르세요.</p>
+        </div>
+
+        <div id="drop" class="drop">
+          <div class="vault" aria-hidden="true">
+            <div class="vault__body"></div>
+            <div class="vault__dial"></div>
+          </div>
+          <p id="drop-line" class="drop__line">여기에 끌어다 놓기</p>
+          <button id="pick" class="btn">파일 고르기</button>
+        </div>
+
+        <div id="seal-options" hidden>
+          <p class="label">이 파일을 받은 사람은</p>
+          <div class="segment" id="perm" role="group" aria-label="허용 범위">
+            <button class="segment__btn" data-value="read_only" aria-pressed="true">읽기만</button>
+            <button class="segment__btn" data-value="edit" aria-pressed="false">편집도 가능</button>
+          </div>
+
+          <details class="advanced">
+            <summary class="advanced__summary">고급</summary>
+            <p class="label">한 번 허락하면 이만큼 쓸 수 있어요</p>
+            <div class="segment" id="ttl" role="group" aria-label="유효 시간">
+              <button class="segment__btn" data-value="hour" aria-pressed="true">1시간</button>
+              <button class="segment__btn" data-value="day" aria-pressed="false">하루</button>
+              <button class="segment__btn" data-value="week" aria-pressed="false">1주</button>
+            </div>
+            <p class="label">열 수 있는 횟수</p>
+            <div class="segment" id="opens" role="group" aria-label="열람 횟수">
+              <button class="segment__btn" data-value="once" aria-pressed="true">한 번</button>
+              <button class="segment__btn" data-value="thrice" aria-pressed="false">세 번</button>
+              <button class="segment__btn" data-value="unlimited" aria-pressed="false">제한 없음</button>
+            </div>
+          </details>
+
+          <button id="do-seal" class="btn btn--ok">잠그기</button>
+        </div>
+        <button id="seal-back" class="btn">그만두기</button>
+      </section>
+
+      <!-- 잠금 완료 -->
+      <section id="screen-sealed" class="screen" hidden>
+        <div class="hero">
+          <div class="vault vault--lg" aria-hidden="true">
+            <div class="vault__body"></div>
+            <div class="vault__dial"></div>
+          </div>
+          <h2 class="hero__title">잠갔어요</h2>
+          <p id="sealed-name" class="hero__line"></p>
+          <p class="hero__line">이제 평소처럼 메일이나 메신저로 보내면 됩니다. 받은 사람이 열려고 하면 나에게 물어봐요.</p>
+        </div>
+        <div class="notes">
+          <p class="notes__line">원본 파일은 그대로 남아 있어요. 그 파일은 누구나 열 수 있습니다.</p>
+        </div>
+        <div id="shred-area">
+          <button id="shred" class="btn btn--danger">원본 지우기</button>
+        </div>
+        <div id="shred-confirm" class="confirm" hidden>
+          <p class="confirm__line">원본을 지우면 되돌릴 수 없어요. 잠근 파일은 그대로 있습니다.</p>
+          <button id="shred-yes" class="btn btn--danger">지우기</button>
+          <button id="shred-no" class="btn">그대로 두기</button>
+        </div>
+        <button id="sealed-done" class="btn btn--ok">완료</button>
       </section>
 
       <details class="dev">

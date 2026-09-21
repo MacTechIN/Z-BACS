@@ -42,9 +42,11 @@ Rust(stable) + Tauri 2 / RustCrypto + hpke-rs / Foundry + OpenZeppelin v5 / viem
 ## 현재 단계
 Phase 1 (구현). Phase 0 완료: 컨테이너·HPKE PoC, EIP-712 승인 티켓, Tauri 파일 연결, 패스키 스마트계정(RIP-7212 3,885 gas 실측, Pimlico 실제 제출 2건), 위협 매핑 리뷰. Windows Hello 실기(Z-0.A.1)만 `docs/windows_checklist.md`로 이관.
 
-Phase 1 완료: **C 트랙 전부**(컨테이너 v1.2, 재봉인 버전 체인, 24h 퍼징 420,679,318 runs·무크래시, 복구 코드 백업), **A 트랙 대부분**(`zbacs-auth`: AuthProvider·이중 경로·확인 정책 T23·OS 키저장소·OTAK, Windows Hello/TPM 코드는 크로스컴파일까지), **H 트랙**(FileRegistry/AccessPolicy/AuditLog/P256Validator, 커버리지 100%, `zbacs-chain` 이벤트 감시·오프라인 캐시), **R 트랙**(axum Relay, 장애 조치·멱등 재시도 클라이언트), **G 트랙**(세션 상태머신, 보호 작업공간, 열람 앱 실행·저장 감지, Agent 골격, **첫 실행 온보딩**), **U 트랙**(디자인 토큰, 온보딩 흐름, 용어 린트, 승인 방식 선택).
+Phase 1 완료: **C 트랙 전부**(컨테이너 v1.2, 재봉인 버전 체인, 24h 퍼징 420,679,318 runs·무크래시, 복구 코드 백업), **A 트랙 대부분**(`zbacs-auth`: AuthProvider·이중 경로·확인 정책 T23·OS 키저장소·OTAK, Windows Hello/TPM 코드는 크로스컴파일까지), **H 트랙**(FileRegistry/AccessPolicy/AuditLog/P256Validator, 커버리지 100%, `zbacs-chain` 이벤트 감시·오프라인 캐시), **R 트랙**(axum Relay, 장애 조치·멱등 재시도 클라이언트), **G 트랙**(세션 상태머신, 보호 작업공간, 열람 앱 실행·저장 감지, Agent 골격, **첫 실행 온보딩**, **잠그기 UI**), **U 트랙**(디자인 토큰, 온보딩 흐름, 용어 린트, 승인 방식 선택, 봉인 다이얼로그).
 
-다음: `Z-1.G.3` 봉인 UI(+`Z-1.U.3`), `Z-1.H.4` UUPS+Timelock 배포, `Z-1.R.3` 푸시. Windows 실기 확인(`docs/windows_checklist.md` §2~§4, 특히 **§3.5 첫 실행 2탭**)은 사용자 차례.
+**베타까지 남은 것은 `docs/dev_plan.md` §1.9 "베타 컷"에 정리돼 있다** — 코드 10태스크(H.4 → G.9 → G.10 → G.11 → G.12 → U.4 → U.5 → R.4 → Q.2 → Q.1)와, 사용자만 할 수 있는 Windows 실기 확인. 후자가 ◐ 8개를 한꺼번에 막고 있는 가장 큰 일정 리스크다.
+
+다음: `Z-1.H.4` 배포 스크립트, `Z-1.G.9` 열람 요청 UI, `Z-1.G.10` 데스크톱 승인 UI. Windows 실기 확인(`docs/windows_checklist.md` §1~§4, 특히 **§3.5 첫 실행 2탭**, **§3.6 잠그기**)은 사용자 차례.
 
 ## 디렉터리
 `crates/zbacs-core`(컨테이너·암호) `crates/zbacs-auth`(승인 서명자) `crates/zbacs-proto`(Relay 프로토콜) `crates/zbacs-session`(세션·작업공간) `apps/relay`(Relay 서버) `apps/agent`(Tauri Agent, 루트 워크스페이스 제외) `crates/zbacs-relay-client`(Relay 클라이언트) `crates/zbacs-chain`(체인 클라이언트) `crates/zbacs-wincheck`(Windows 자가진단) `crates/zbacs-cli`(PoC CLI) `contracts/`(Foundry: FileRegistry, AccessPolicy, P256Validator) `packages/design-tokens/` `spikes/tauri-assoc/`(Tauri 스파이크) `spikes/aa-passkey/`(패스키 AA 스파이크, Node+Foundry; 스파이크는 루트 워크스페이스·CI 제외) `tools/`(셋업) `docs/` — 예정: `apps/`

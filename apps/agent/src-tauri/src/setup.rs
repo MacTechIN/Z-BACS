@@ -118,6 +118,22 @@ impl SetupHost {
         }
     }
 
+    /// The owner's sealing and signing keys, for locking a file (Z-1.G.3).
+    pub fn owner_keys(&self) -> Result<zbacs_core::OwnerKeys, zbacs_auth::AuthError> {
+        self.setup
+            .as_ref()
+            .ok_or_else(|| zbacs_auth::AuthError::Hardware("this build has no signer".into()))?
+            .owner_keys()
+    }
+
+    /// Finish setup with the chosen style. For tests and for the command path.
+    pub fn complete(&self, style: ApprovalStyle, now: u64) -> Result<Prepared, zbacs_auth::AuthError> {
+        self.setup
+            .as_ref()
+            .ok_or_else(|| zbacs_auth::AuthError::Hardware("this build has no signer".into()))?
+            .complete(style, now)
+    }
+
     /// Resume an earlier setup, if this machine has one.
     pub fn resume(&self) -> Option<Prepared> {
         let setup = self.setup.as_ref()?;

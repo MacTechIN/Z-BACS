@@ -39,6 +39,20 @@ const NOTES = {
   software_signer: "이 컴퓨터에는 전용 보안 칩이 없어요. 쓰는 데는 문제가 없지만 보호는 조금 약합니다.",
 };
 
+// Why a dropped file cannot be locked. Every one of these says what the person can do next
+// (ux_principles rule 6), because "안 됩니다" alone leaves them stuck.
+const FILE_PROBLEMS = {
+  is_folder: "폴더는 아직 잠글 수 없어요. 파일 하나를 골라 주세요.",
+  already_locked: "이 파일은 이미 잠겨 있어요.",
+  empty: "빈 파일이에요. 내용이 있는 파일을 골라 주세요.",
+  output_exists: "같은 이름으로 잠근 파일이 이미 있어요. 그 파일을 옮기거나 지운 뒤 다시 해 주세요.",
+  missing: "그 파일을 찾을 수 없어요.",
+  unreadable: "그 파일을 읽을 수 없어요.",
+  not_set_up: "먼저 준비를 마쳐야 해요.",
+  no_locked_copy: "잠근 파일이 옆에 없어서 원본을 지우지 않았어요.",
+  failed: "잠그지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+};
+
 const SETUP_PROBLEMS = {
   cancelled: "확인이 취소됐어요. 다시 눌러 주세요.",
   unsupported: "이 방법은 이 컴퓨터에서 쓸 수 없어요. 다른 방법을 골라 주세요.",
@@ -51,7 +65,7 @@ let status = null;
 
 // ---------------------------------------------------------------- screens
 
-const SCREENS = ["welcome", "choice", "working", "done", "blocked", "home"];
+const SCREENS = ["welcome", "choice", "working", "done", "blocked", "home", "seal", "sealed"];
 
 function show(name) {
   for (const screen of SCREENS) {
@@ -134,6 +148,81 @@ async function completeSetup(style) {
   show("done");
 }
 
+// ---------------------------------------------------------------- locking a file
+
+// What the lock screen currently holds. `candidate` is null until a file is accepted, which is
+// also what keeps the [잠그기] button from existing before there is anything to lock.
+const sealing = { candidate: null, permission: "read_only", ttl: "hour", opens: "once", result: null };
+
+// A row of preset buttons where exactly one is pressed. Takes the element, not its id, so the
+// markup check in tools/ux-lint.sh can see which ids this file actually depends on.
+function segment(group, onPick) {
+  for (const button of group.querySelectorAll(".segment__btn")) {
+    button.addEventListener("click", () => {
+      for (const other of group.querySelectorAll(".segment__btn")) {
+        other.setAttribute("aria-pressed", String(other === button));
+      }
+      onPick(button.dataset.value);
+    });
+  }
+}
+
+function sealProblem(id) {
+  document.getElementById("drop-line").textContent = FILE_PROBLEMS[id] ?? FILE_PROBLEMS.failed;
+  document.getElementById("seal-options").hidden = true;
+  sealing.candidate = null;
+}
+
+async function offerFile(path) {
+  let candidate;
+  try {
+    candidate = await invoke("examine_path", { path });
+  } catch {
+    sealProblem("unreadable");
+    return;
+  }
+  if (!candidate.ok) {
+    sealProblem(candidate.problem);
+    return;
+  }
+  sealing.candidate = candidate;
+  document.getElementById("drop-line").textContent = `${candidate.name} · ${humanSize(candidate.size)}`;
+  document.getElementById("seal-options").hidden = false;
+}
+
+async function doSeal() {
+  if (!sealing.candidate) return;
+  show("working");
+  document.getElementById("working-line").textContent = "파일을 잠그고 있어요.";
+  try {
+    sealing.result = await invoke("seal_file", {
+      request: {
+        path: sealing.candidate.path,
+        permission: sealing.permission,
+        ttl: sealing.ttl,
+        opens: sealing.opens,
+      },
+    });
+  } catch (problem) {
+    sealProblem(problem);
+    show("seal");
+    return;
+  }
+  document.getElementById("sealed-name").textContent = sealing.result.output_name;
+  document.getElementById("shred-area").hidden = false;
+  document.getElementById("shred-confirm").hidden = true;
+  showDev();
+  show("sealed");
+}
+
+function openSealScreen() {
+  sealing.candidate = null;
+  sealing.result = null;
+  document.getElementById("drop-line").textContent = "여기에 끌어다 놓기";
+  document.getElementById("seal-options").hidden = true;
+  show("seal");
+}
+
 // ---------------------------------------------------------------- files
 
 function render() {
@@ -195,6 +284,7 @@ function accept(files) {
 
 function showDev() {
   const lines = [...seen.values()].map((f) => `${f.path}\n  ${f.detail ?? f.problem ?? ""}`);
+  if (sealing.result) lines.unshift(`sealed ${JSON.stringify(sealing.result)}`);
   if (status) lines.unshift(`setup ${JSON.stringify(status)}`);
   document.getElementById("dev").textContent = lines.join("\n");
 }
@@ -207,6 +297,60 @@ async function main() {
     show("choice");
   });
   document.getElementById("done").addEventListener("click", () => show("home"));
+  document.getElementById("to-seal").addEventListener("click", openSealScreen);
+  document.getElementById("seal-back").addEventListener("click", () => show("home"));
+  document.getElementById("do-seal").addEventListener("click", doSeal);
+  document.getElementById("sealed-done").addEventListener("click", () => show("home"));
+
+  segment(document.getElementById("perm"), (v) => (sealing.permission = v));
+  segment(document.getElementById("ttl"), (v) => (sealing.ttl = v));
+  segment(document.getElementById("opens"), (v) => (sealing.opens = v));
+
+  document.getElementById("pick").addEventListener("click", async () => {
+    const picked = await window.__TAURI__.dialog.open({ multiple: false, directory: false });
+    if (picked) await offerFile(picked);
+  });
+
+  // Erasing the original is not undoable, so it takes a second, deliberate tap.
+  document.getElementById("shred").addEventListener("click", () => {
+    document.getElementById("shred-area").hidden = true;
+    document.getElementById("shred-confirm").hidden = false;
+  });
+  document.getElementById("shred-no").addEventListener("click", () => {
+    document.getElementById("shred-area").hidden = false;
+    document.getElementById("shred-confirm").hidden = true;
+  });
+  document.getElementById("shred-yes").addEventListener("click", async () => {
+    try {
+      await invoke("shred_original", { path: sealing.result.original });
+      document.getElementById("shred-confirm").hidden = true;
+      const done = document.createElement("p");
+      done.className = "notes__line";
+      done.textContent = "원본을 지웠어요.";
+      document.getElementById("shred-confirm").after(done);
+    } catch (problem) {
+      const line = document.createElement("p");
+      line.className = "notes__line";
+      line.textContent = FILE_PROBLEMS[problem] ?? FILE_PROBLEMS.failed;
+      document.getElementById("shred-confirm").after(line);
+      document.getElementById("shred-confirm").hidden = true;
+    }
+  });
+
+  // Show the drop area reacting, so it is obvious the window will take the file.
+  const drop = document.getElementById("drop");
+  await listen("tauri://drag-enter", () => drop.classList.add("drop--over"));
+  await listen("tauri://drag-leave", () => drop.classList.remove("drop--over"));
+
+  // A file dropped anywhere on the window goes to the lock screen. Dropping is the way most
+  // people will reach for, so it must not depend on first finding the right button.
+  await listen("tauri://drag-drop", async (event) => {
+    drop.classList.remove("drop--over");
+    const paths = event.payload?.paths ?? [];
+    if (paths.length === 0 || !status?.onboarded) return;
+    openSealScreen();
+    await offerFile(paths[0]);
+  });
   document.getElementById("retry").addEventListener("click", async () => {
     status = await invoke("setup_status");
     route();

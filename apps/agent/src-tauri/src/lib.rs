@@ -25,6 +25,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 
+pub mod seal;
 pub mod setup;
 
 /// Event the webview listens for when a file is handed to the Agent.
@@ -180,7 +181,7 @@ fn capabilities() -> serde_json::Value {
         "version": env!("CARGO_PKG_VERSION"),
         "readSealedFiles": true,
         "onboarding": true,    // Z-1.G.2
-        "sealing": false,      // Z-1.G.3
+        "sealing": true,       // Z-1.G.3
         "requestAccess": false // Z-1.G.9
     })
 }
@@ -198,6 +199,7 @@ pub fn run() {
                 .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout))
                 .build(),
         )
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             // Another double-click while we are running: take its file, keep one Agent.
             log::info!("second instance handed over {} argument(s)", argv.len());
@@ -212,7 +214,10 @@ pub fn run() {
             ui_screen,
             ui_problem,
             setup::setup_status,
-            setup::complete_setup
+            setup::complete_setup,
+            seal::examine_path,
+            seal::seal_file,
+            seal::shred_original
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

@@ -30,6 +30,9 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-log = "2"
+# The one webview capability beyond events: choosing a file to lock. Dropping a file works
+# without it, but a person who cannot drag needs a way in too.
+tauri-plugin-dialog = "2"
 log = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

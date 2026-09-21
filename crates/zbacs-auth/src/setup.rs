@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use zbacs_core::{DeviceKeys, SigningKeys};
+use zbacs_core::{DeviceKeys, OwnerKeys, SigningKeys};
 use zeroize::Zeroizing;
 
 use crate::error::{AuthError, Result};
@@ -308,6 +308,22 @@ impl Setup {
 
         let pending = self.pending_for(&profile);
         Ok(Prepared { profile, signer: created.provider, pending })
+    }
+
+    /// The owner's sealing and header-signing keys, for sealing a file on this device.
+    ///
+    /// Loads from the key store rather than keeping them in memory: they are needed for a few
+    /// milliseconds per seal, and a long-lived copy is a longer-lived target. Fails if setup
+    /// has not run, because there is nothing to load and inventing a second owner identity
+    /// would quietly orphan every file sealed so far.
+    pub fn owner_keys(&self) -> Result<OwnerKeys> {
+        if !self.is_set_up() {
+            return Err(AuthError::Hardware("this device has not been set up yet".into()));
+        }
+        Ok(OwnerKeys {
+            sealing: self.x25519(entry::OWNER_SEALING)?,
+            signing: self.ed25519(entry::OWNER_SIGNING)?,
+        })
     }
 
     /// Forget this device's setup: the profile and every stored secret.
@@ -601,6 +617,22 @@ mod tests {
         );
         let err = stranger.resume().unwrap_err();
         assert!(matches!(err, AuthError::Hardware(_)), "{err}");
+    }
+
+    /// The owner keys a seal uses must be the ones the profile was written for, every run.
+    #[test]
+    fn the_owner_keys_match_the_profile_and_survive_a_restart() {
+        let f = Fixture::new("owner");
+        assert!(f.setup().owner_keys().is_err(), "nothing to load before setup");
+
+        let prepared = f.setup().complete(ApprovalStyle::ThisDevice, NOW).unwrap();
+        let keys = f.setup().owner_keys().unwrap();
+        assert_eq!(keys.sealing.public_key(), prepared.profile.owner_sealing_pub);
+        assert_eq!(keys.signing.verifying_key().to_bytes(), prepared.profile.owner_signing_pub);
+
+        // a later run loads the same ones
+        let again = f.setup().owner_keys().unwrap();
+        assert_eq!(again.sealing.public_key(), keys.sealing.public_key());
     }
 
     #[test]

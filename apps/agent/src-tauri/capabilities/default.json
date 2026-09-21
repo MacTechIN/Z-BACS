@@ -1,7 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Least privilege for the Agent window: it listens for the Agent's own events and calls the Agent's own commands. Nothing else — no filesystem, shell, dialog or http from the webview.",
-  "windows": ["main"],
-  "permissions": ["core:event:default"]
+  "description": "Least privilege for the Agent window: it listens for the Agent's own events, calls the Agent's own commands, and opens a file picker to choose a file to lock. Nothing else — no filesystem, shell or http from the webview.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:event:default",
+    "dialog:allow-open"
+  ]
 }
