@@ -43,3 +43,4 @@ spikes/*/src-tauri/gen/
 spikes/*/icon-src.png
 spikes/*/src-tauri/icons/android/
 spikes/*/src-tauri/icons/ios/
+apps/agent/ui/tokens.css

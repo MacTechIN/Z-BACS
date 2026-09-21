@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Z-BACS</title>
+    <!-- tokens.css is copied from packages/design-tokens by build.rs; never edit it here. -->
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="app__header">
+        <h1 class="app__title">Z-BACS</h1>
+        <p class="app__subtitle">파일을 잠그고, 열 때마다 주인에게 물어봅니다.</p>
+      </header>
+
+      <section id="empty" class="card card--quiet">
+        <div class="vault" aria-hidden="true">
+          <div class="vault__body"></div>
+          <div class="vault__dial"></div>
+        </div>
+        <p class="card__line">잠긴 파일을 두 번 누르면 여기에 나타납니다.</p>
+        <p class="card__note">창을 닫아도 계속 실행됩니다. 오른쪽 아래 아이콘에서 다시 열 수 있어요.</p>
+      </section>
+
+      <section id="files" class="files" hidden></section>
+
+      <details class="dev">
+        <summary class="dev__summary">개발용 정보</summary>
+        <pre id="dev" class="dev__body"></pre>
+      </details>
+    </main>
+
+    <template id="file-card">
+      <article class="card">
+        <div class="card__row">
+          <span class="tag" data-role="tag"></span>
+          <span class="card__size" data-role="size"></span>
+        </div>
+        <p class="card__line" data-role="headline"></p>
+        <p class="card__note" data-role="note"></p>
+        <button class="btn" data-role="action" disabled></button>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>

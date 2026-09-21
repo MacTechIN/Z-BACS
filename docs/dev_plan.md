@@ -97,7 +97,7 @@
 ### 1.5 Agent (G)
 | ID | 태스크 | DoD |
 |---|---|---|
-| Z-1.G.1 | Tauri 앱 골격, 트레이, 단일 인스턴스, 파일 연결 | 설치 후 더블클릭 동작 |
+| Z-1.G.1 ◐ | Tauri 앱 골격, 트레이, 단일 인스턴스, 파일 연결 | 설치 후 더블클릭 동작 (2026-09-21: `apps/agent` — 트레이(창 열기·종료, 창을 닫아도 상주), 단일 인스턴스(두 번째 더블클릭이 기존 창으로 전달), `.zbacs` 연결, 키 없이 헤더만 읽어 상태 표시. UI는 토큰만 사용(빌드 시 `tokens.css` 복사). **Linux 실측**: deb에 `Exec %U`·MIME 등록, 헤드리스 실행에서 첫 인자 수신과 두 번째 인스턴스 전달을 로그로 확인. 단위 4종. Windows 더블클릭 확인은 `docs/windows_checklist.md` §3) |
 | Z-1.G.2 | 온보딩 UI: 소유자 계정 생성, 승인 방식 선택(Z-1.U.7), 기기 등록 | 신규 사용자 3분 내 완료 |
 | Z-1.G.3 | Seal UI: 파일 선택/드래그, 정책 설정(기본 권한, TTL, 횟수) | `.zbacs` 생성 |
 | Z-1.G.4 ✅ | 세션 상태머신(`zbacs-session`) 구현 | 상태 전이 테스트 (2026-09-19: `State`(Requested/Granted/Open/Resealing/Closed/Denied/Revoked/Failed) × `Event` → `Effect` 목록. 승인 창(T15)·회수(T20)·열람 횟수(T03)·ReadOnly 변경 폐기(T07)를 상태머신이 강제, 재시작 복구용 `Session::resume`, 테스트 18종) |

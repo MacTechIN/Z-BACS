@@ -37,6 +37,13 @@
   --zb-text-md-medium: 500 18px/1.5 var(--zb-font);
   --zb-text-sm-semibold: 600 16px/1.5 var(--zb-font);
   --zb-text-sm: 400 16px/1.5 var(--zb-font);
+  /* spacing — 4px scale; the UI uses these steps and no other gaps (ui_guideline rule 1) */
+  --zb-space-1: 4px;
+  --zb-space-2: 8px;
+  --zb-space-3: 12px;
+  --zb-space-4: 16px;
+  --zb-space-5: 24px;
+  --zb-space-6: 32px;
   /* shape & size */
   --zb-radius-button: 12px;
   --zb-radius-card: 16px;

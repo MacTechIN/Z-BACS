@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-zbacs">
+    <comment>Z-BACS sealed file</comment>
+    <comment xml:lang="ko">Z-BACS 잠긴 파일</comment>
+    <glob pattern="*.zbacs"/>
+    <magic priority="80"><match type="string" offset="0" value="ZBACS"/></magic>
+    <icon name="zbacs-agent"/>
+  </mime-type>
+</mime-info>

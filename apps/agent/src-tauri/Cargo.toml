@@ -1,0 +1,28 @@
+[package]
+name = "zbacs-agent"
+version = "0.0.1"
+edition = "2021"
+description = "Z-BACS Agent: seals files, asks the owner for approval, opens what was approved"
+license = "Apache-2.0"
+
+# Standalone workspace: the webview toolchain is heavy and pulls system libraries, so it stays
+# out of the root workspace and its CI job (the spike does the same).
+[workspace]
+
+[lib]
+name = "zbacs_agent_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-log = "2"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex = "0.4"
+zbacs-core = { path = "../../../crates/zbacs-core" }
+zbacs-session = { path = "../../../crates/zbacs-session" }

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Z-BACS",
+  "version": "0.0.1",
+  "identifier": "dev.zbacs.agent",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Z-BACS",
+        "width": 420,
+        "height": 640,
+        "resizable": true,
+        "visible": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "nsis", "dmg"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["zbacs"],
+        "name": "Z-BACS Sealed File",
+        "description": "Z-BACS로 잠근 파일. 열면 소유자에게 승인을 요청합니다",
+        "mimeType": "application/x-zbacs",
+        "role": "Editor"
+      }
+    ],
+    "windows": { "nsis": { "installMode": "currentUser" } },
+    "category": "Utility",
+    "linux": {
+      "deb": {
+        "desktopTemplate": "linux/zbacs.desktop",
+        "files": { "/usr/share/mime/packages/zbacs.xml": "linux/zbacs.xml" }
+      }
+    }
+  }
+}

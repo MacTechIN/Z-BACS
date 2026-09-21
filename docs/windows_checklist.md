@@ -53,22 +53,22 @@ cargo run -p zbacs-wincheck
 - 2회차에는 `keychain round-trip`이 PASS이고 TPM 키의 **keyId가 1회차와 같아야** 한다. 달라지면 키가 새로 생성된 것이므로 알려 달라.
 - Windows Hello 자격 증명은 이 도구가 매번 새로 만들므로 keyId가 달라도 정상이다(Agent는 credentialId를 저장해 재사용한다).
 
-## 3. 파일 연결 더블클릭 (Z-0.G.1 Windows 확인)
+## 3. 파일 연결 더블클릭 (Z-0.G.1 / Z-1.G.1 Windows 확인)
 
-Linux에서는 deb 패키지로만 확인했다. Windows 확인:
+이제 스파이크가 아니라 **실제 Agent**로 확인한다. Linux에서는 deb로 확인했다(Exec %U·MIME 등록, 인자 수신, 단일 인스턴스 전달). Windows 확인:
 
 ```
-cd spikes\tauri-assoc
-npm install
-npx tauri build
+cd apps\agent\src-tauri
+cargo tauri build --bundles nsis
 ```
 
-`src-tauri\target\release\bundle\nsis\` 의 설치 파일을 실행한 뒤:
+`target\release\bundle\nsis\` 의 설치 파일을 실행한 뒤:
 
 1. 아무 파일이나 `test.zbacs`로 이름을 바꾼다.
 2. 더블클릭한다.
 3. 앱이 뜨고 화면에 **그 파일 경로**가 보이면 성공.
 4. 앱이 떠 있는 상태에서 다른 `.zbacs`를 더블클릭하면 **새 창이 아니라 기존 창**이 경로를 받아야 한다(단일 인스턴스).
+5. 창을 닫아도 트레이 아이콘이 남아야 하고, 트레이 메뉴의 "창 열기"로 다시 열려야 한다. "종료"로만 완전히 끝난다.
 
 결과를 알려 주면 `docs/dev_plan.md`의 Z-0.G.1 항목에 Windows 확인을 기록한다.
 
