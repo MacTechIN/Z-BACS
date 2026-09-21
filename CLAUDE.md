@@ -46,7 +46,9 @@ Phase 1 완료: **C 트랙 전부**(컨테이너 v1.2, 재봉인 버전 체인, 
 
 **베타까지 남은 것은 `docs/dev_plan.md` §1.9 "베타 컷"에 정리돼 있다** — 코드 9태스크(G.9 → G.10 → G.11 → G.12 → U.4 → U.5 → R.4 → Q.2 → Q.1)와, 사용자만 할 수 있는 Windows 실기 확인. 후자가 ◐ 8개를 한꺼번에 막고 있는 가장 큰 일정 리스크다.
 
-다음: `Z-1.G.9` 열람 요청 UI, `Z-1.G.10` 데스크톱 승인 UI, `Z-1.G.11` 회수. Windows 실기 확인(`docs/windows_checklist.md` §1~§4, 특히 **§3.5 첫 실행 2탭**, **§3.6 잠그기**)은 사용자 차례.
+일반인 베타 자동화는 `docs/beta_test_automation.md`(5층). L1 `Z-1.S.3` 설치 파일 CI 완료(`release.yml`, Actions 아티팩트 `zbacs-windows-<sha>`에 설치 파일 + `zbacs-wincheck.exe`). L2(Relay 호스팅)는 사용자 계정 결정 대기.
+
+다음: `Z-1.G.9` 열람 요청 UI, `Z-1.G.10` 데스크톱 승인 UI, `Z-1.G.11` 회수. Windows 실기 확인(`docs/windows_checklist.md` §0-A 설치 파일 경로, §1~§4, 특히 **§3.5 첫 실행 2탭**, **§3.6 잠그기**)은 사용자 차례.
 
 ## 디렉터리
 `crates/zbacs-core`(컨테이너·암호) `crates/zbacs-auth`(승인 서명자) `crates/zbacs-proto`(Relay 프로토콜) `crates/zbacs-session`(세션·작업공간) `apps/relay`(Relay 서버) `apps/agent`(Tauri Agent, 루트 워크스페이스 제외) `crates/zbacs-relay-client`(Relay 클라이언트) `crates/zbacs-chain`(체인 클라이언트) `crates/zbacs-wincheck`(Windows 자가진단) `crates/zbacs-cli`(PoC CLI) `contracts/`(Foundry: FileRegistry, AccessPolicy, P256Validator) `packages/design-tokens/` `spikes/tauri-assoc/`(Tauri 스파이크) `spikes/aa-passkey/`(패스키 AA 스파이크, Node+Foundry; 스파이크는 루트 워크스페이스·CI 제외) `tools/`(셋업) `docs/` — 예정: `apps/`
@@ -60,6 +62,7 @@ cd contracts && forge fmt --check && forge test  # 컨트랙트 (PATH에 ~/.foun
 cd contracts && forge script script/Deploy.s.sol --rpc-url anvil --broadcast --private-key $PK  # 배포 → deployments/<chainId>.json
 tools/ux-lint.sh                                 # UI 용어·입력·토큰·마크업 일치 (CI `ux` 잡)
 cd apps/agent/src-tauri && cargo test --features demo-signer   # Agent (루트 워크스페이스 밖, CI `agent` 잡)
+gh workflow run release.yml   # Windows 설치 파일 + zbacs-wincheck.exe 아티팩트 (Z-1.S.3, `v*` 태그면 Release)
 tools/chain-it.sh                          # 컨트랙트 빌드 + Anvil 통합 테스트
 RUSTDOCFLAGS=-D warnings cargo doc --workspace --no-deps          # 공개 API 문서 게이트
 cargo llvm-cov -p zbacs-core -p zbacs-auth --fail-under-lines 90  # 커버리지 게이트

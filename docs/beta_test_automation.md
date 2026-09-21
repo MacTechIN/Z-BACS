@@ -47,7 +47,7 @@
 
 | 순서 | 작업 | 태스크 ID(제안) | 의존 |
 |---|---|---|---|
-| 1 | CI `release` 잡: `cargo tauri build --bundles nsis`를 windows-latest에서 실행, GitHub Release에 설치 파일 첨부. `zbacs-wincheck.exe`도 함께 | **Z-1.S.3** (신설) | 없음 — 지금 |
+| 1 | CI `release` 잡: `cargo tauri build --bundles nsis`를 windows-latest에서 실행, GitHub Release에 설치 파일 첨부. `zbacs-wincheck.exe`도 함께 | **Z-1.S.3** — `.github/workflows/release.yml` (2026-09-21) | 없음 — 지금 |
 | 2 | Relay Docker + 호스팅, Base Sepolia에 컨트랙트 배포(Z-1.H.4 스크립트 사용), Agent에 기본 주소 내장 | Z-1.R.4 + **Z-1.H.11**(신설: 기본 엔드포인트 내장) | 호스팅 계정(사용자) |
 | 3 | 베타 컷 코드 G.9 → G.10 → G.11 → G.12 → U.4 → U.5 | 기존 | — |
 | 4 | 체험 모드 + 결과 보내기 | **Z-1.G.14**(신설), **Z-1.Q.5**(신설) | 3 |

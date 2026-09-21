@@ -130,6 +130,7 @@
 | Z-1.U.7 ◐ | 승인 방식 선택 UI: 온보딩 1화면 "얼굴/지문으로 확인하고 승인" / "이 기기에서 바로 승인", "내 기기"에서 변경·해지. 텍스트 입력 0, 기술 용어 0. **Figma에 화면 먼저 추가** (ADR-0006) | U-1, 용어 린트 통과 (2026-09-21: 온보딩 화면 S1b 구현, 용어 린트 통과. 기기가 못 하는 방식은 **버튼 자체가 비활성 + 이유 한 줄**이고, 백엔드도 그 방식을 거부한다(`Unsupported`). 기본 선택은 ADR-0006대로 OS 인증기가 있으면 생체. 남은 것: "내 기기"에서 변경·해지(Z-1.G.11 + Z-1.H.10), Figma 연결 시 화면 등록(Z-1.U.0)) |
 | Z-1.S.1 | **(Phase 2에서 이동)** `zbacs-stub` Windows 자체실행 래퍼: Agent 감지·무인 설치·핸드오프 | U-2 통과 |
 | Z-1.S.2 | **(Phase 2에서 이동)** EV 코드 서명, SmartScreen 평판 | 경고 없음 |
+| Z-1.S.3 ✅ | **(신설 2026-09-21, beta_test_automation L1)** 설치 파일 CI: `release.yml`이 windows-latest에서 NSIS 설치 파일 + `zbacs-wincheck.exe`를 빌드해 아티팩트로 올리고 `v*` 태그면 GitHub Release 생성. 테스터는 다운로드·더블클릭만 | 설치 파일 1개로 `windows_checklist.md` §1~§3 수행 가능 (2026-09-21 첫 실행 성공 10분: `Z-BACS_0.0.1_x64-setup.exe` 2.4MB, `zbacs-wincheck.exe` 363KB, SHA256SUMS) |
 
 ### 1.7 Security/QA (Q)
 | ID | 태스크 | DoD |
@@ -171,6 +172,8 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | | 막고 있는 태스크 |
 |---|---|
 | Windows 실기 확인 (`docs/windows_checklist.md` §1~§4) | `Z-1.A.2` `Z-1.A.3` `Z-1.A.7` `Z-0.G.1` `Z-1.G.1` `Z-1.G.2` `Z-1.G.5` `Z-1.G.6` — 전부 코드는 끝났고 **실기 확인만** 남은 ◐ |
+
+실기 확인에 `cargo`가 필요 없도록 `Z-1.S.3`이 설치 파일과 `zbacs-wincheck.exe`를 CI에서 만든다(Actions → release → Artifacts). 자동화 층별 계획은 [beta_test_automation.md](beta_test_automation.md).
 
 이것이 **일정상 가장 큰 단일 리스크**다. Windows 우선 제품인데 개발 환경이 Linux여서, TPM·Hello·레지스트리·실제 열람 앱은 CI로도 크로스컴파일로도 대신할 수 없다.
 

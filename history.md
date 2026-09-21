@@ -1052,3 +1052,20 @@ L5 무인 E2E(팀용) — 소프트웨어 서명기로만 가능. Windows Hello 
 1. 호스팅 — Relay 한 대를 둘 무료 컨테이너/VPS 계정(사용자만 만들 수 있음). 결정 전에는 Agent에 내장 Relay를 띄우는 로컬 모드로 체험 모드까지는 가능(2대 테스트는 불가).
 2. 순서 — L1(설치 파일 CI)을 G.9보다 먼저 할지. 제안은 L1 먼저(0.5세션): 그래야 사용자 차례인 Windows 실기 확인도 cargo 없이 설치 파일로 할 수 있어 빨라집니다.
 ```
+
+### #39 [U] 2026-09-21
+```
+진행
+```
+
+### #39 [C] 2026-09-21
+```
+L1(Z-1.S.3 설치 파일 CI) 완료, 첫 Windows 빌드 성공. 커밋·푸시 완료.
+
+- .github/workflows/release.yml: windows-latest에서 cargo tauri build --bundles nsis + cargo build --release -p zbacs-wincheck → 아티팩트 업로드, v* 태그면 GitHub Release(apps/agent/release-notes.md가 본문: 설치 3단계·SmartScreen 안내·이 버전에서 되는 것).
+- 첫 실행(workflow_dispatch) 결과: success, 10분. 산출물 Z-BACS_0.0.1_x64-setup.exe 2.4MB, zbacs-wincheck.exe 363KB, SHA256SUMS.txt. 아티팩트 이름 zbacs-windows-<sha>.
+- 받는 법: GitHub → Actions → release → 최신 실행 → Artifacts. docs/windows_checklist.md §0에 "A. 설치 파일로(cargo 불필요)" 경로 추가 — 사용자 차례인 Windows 실기 확인을 이 파일로 할 수 있음.
+- dev_plan Z-1.S.3 ✅, CLAUDE.md 현재 단계 갱신.
+
+다음 결정: L2 Relay 호스팅 계정(무료 컨테이너/VPS). 그 전까지 코드는 베타 컷 순서(G.9 열람 요청 UI)로 진행합니다.
+```

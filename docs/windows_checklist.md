@@ -11,6 +11,12 @@ Linux CI에서는 이것들을 검증할 수 없다(TPM·Hello·레지스트리)
 
 ## 0. 준비 (한 번만)
 
+**두 가지 길이 있다.** 개발 환경 없이 하려면 A, 코드를 고치며 확인하려면 B.
+
+- **A. 설치 파일로** (권장, `cargo` 불필요): GitHub → Actions → `release` 워크플로 → 최신 실행 → Artifacts `zbacs-windows-…` 다운로드. 안에 `Z-BACS_…_x64-setup.exe`(Agent 설치)와 `zbacs-wincheck.exe`(§1 자동 검사)가 있다. 아래 §1의 `cargo run -p zbacs-wincheck` 대신 `zbacs-wincheck.exe`를 두 번 누르면 된다. SmartScreen 창은 "추가 정보 → 실행".
+- **B. 소스에서**: 아래 표대로 툴체인을 설치한다.
+
+
 | 항목 | 확인 방법 |
 |---|---|
 | Windows 10 1903 이상 또는 11 | `winver` |
