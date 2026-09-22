@@ -95,6 +95,7 @@ GrantMsg {
 ```
 Revoke { grant_id: bstr(32), fid: bstr(32), ts: uint }
 ```
+라우팅(2026-09-22): Relay는 `AccessRequest.fid`별로 요청한 기기를 기억해 두었다가(큐 TTL 동안) `Revoke.fid`를 요청했던 **모든 기기**의 받은편지함에 넣는다. 소유자 자신에게는 되돌리지 않는다. 수신자는 `grant_id`가 자기가 든 허락과 같을 때만 세션을 닫는다 — 위조된 revoke는 세션을 일찍 끝낼 뿐 아무것도 열지 못하고, 체인의 `Revoked` 이벤트가 최종 근거다(T20).
 수신자 Agent는 이를 받으면 즉시 세션을 종료한다. 받지 못해도 TTL과 주기적 `isValid()` 확인으로 닫힌다(T20).
 
 ### 4.5 Subscribe / Ack / Envelope

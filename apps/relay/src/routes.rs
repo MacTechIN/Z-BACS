@@ -140,6 +140,7 @@ async fn requests(State(relay): State<Relay>, body: Bytes) -> Response {
         return refuse(ErrorCode::Malformed);
     }
     relay.remember_request(request.nonce, signed.kid, Instant::now());
+    relay.remember_interest(request.fid, signed.kid, Instant::now());
     let id = relay.enqueue(Inbox::Owner(request.owner.clone()), Kind::Req, body.to_vec(), now_unix());
     accept(id)
 }
@@ -160,14 +161,17 @@ async fn grants(State(relay): State<Relay>, body: Bytes) -> Response {
 
 /// The owner pulls access back. Broadcast to the device that holds the grant.
 async fn revocations(State(relay): State<Relay>, body: Bytes) -> Response {
-    let (_signed, _revoke) = match authenticate::<Revoke>(&relay, &body) {
+    let (_signed, revoke) = match authenticate::<Revoke>(&relay, &body) {
         Ok(v) => v,
         Err(code) => return refuse(code),
     };
     // A revoke names a grant, not a request, so it is delivered to every device that asked
     // about this file. Agents ignore revokes for grants they do not hold, and the chain event
     // is the authoritative copy anyway (T20).
-    let id = relay.enqueue(Inbox::Device(_signed.kid), Kind::Revoke, body.to_vec(), now_unix());
+    let mut id = [0u8; 16];
+    for kid in relay.interested(&revoke.fid) {
+        id = relay.enqueue(Inbox::Device(kid), Kind::Revoke, body.to_vec(), now_unix());
+    }
     accept(id)
 }
 

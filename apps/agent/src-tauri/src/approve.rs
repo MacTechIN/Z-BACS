@@ -26,11 +26,12 @@ use tauri::{AppHandle, Emitter, Manager};
 use zbacs_auth::{ApprovalChallenge, ApprovalContext, AuthProvider, Confirmation, ConfirmationPolicy};
 use zbacs_core::{Envelope as DekEnvelope, OwnerKeys, Permission};
 use zbacs_proto::{
-    device_key_hash, AccessGrantTerms, AccessRequest, DeviceIdentity, Envelope, GrantMsg, Kind, Signed,
+    device_key_hash, AccessGrantTerms, AccessRequest, DeviceIdentity, Envelope, GrantMsg, Kind, Revoke,
+    Signed,
 };
 use zbacs_relay_client::RelayClient;
 
-use crate::ledger::{Entry, Ledger};
+use crate::ledger::{Entry, Grant, Ledger};
 use crate::request::relay_endpoints;
 use crate::seal::owner_account;
 use crate::setup::{Identity, SetupHost};
@@ -346,6 +347,19 @@ pub async fn answer(
         confirmation == Confirmation::OsUserVerification,
         terms.expiry.saturating_sub(now)
     );
+    // Remembered so it can be listed and pulled back (Z-1.G.11). Sent first, recorded second:
+    // an approval the other side never received is not one the owner needs to revoke.
+    if let Err(e) = with.ledger.record_grant(&Grant {
+        grant_id: hex::encode(grant_id),
+        fid: entry.fid.clone(),
+        file_name: entry.name.clone(),
+        permission: decision.word().to_string(),
+        expiry: terms.expiry,
+        granted_at: now,
+        revoked_at: None,
+    }) {
+        log::warn!("allowed, but could not record the approval for the list: {e}");
+    }
     Ok(Answered {
         id,
         decision: decision.word(),
@@ -354,6 +368,63 @@ pub async fn answer(
         confirmed_by_os: confirmation == Confirmation::OsUserVerification,
         pending: vec!["chain_grant"],
     })
+}
+
+/// What the "허락한 파일" screen shows for one approval.
+#[derive(Debug, Clone, Serialize)]
+pub struct Given {
+    /// Grant id, hex — the handle a revoke names.
+    pub grant_id: String,
+    /// The file's name.
+    pub file_name: String,
+    /// `read_only` | `edit`.
+    pub permission: String,
+    /// Unix seconds it expires.
+    pub expiry: u64,
+    /// Unix seconds it was given.
+    pub granted_at: u64,
+    /// Whether it is still usable.
+    pub active: bool,
+    /// Whether the owner pulled it back.
+    pub revoked: bool,
+}
+
+impl From<Grant> for Given {
+    fn from(g: Grant) -> Self {
+        let now = now();
+        Self {
+            active: g.is_active(now),
+            revoked: g.revoked_at.is_some(),
+            grant_id: g.grant_id,
+            file_name: g.file_name,
+            permission: g.permission,
+            expiry: g.expiry,
+            granted_at: g.granted_at,
+        }
+    }
+}
+
+/// Pull an approval back: tell the relay (which fans it out to every device that asked about
+/// the file, T20) and mark it here. The chain revoke is Z-1.H.8. Separate from the command so
+/// the two-machine test can drive it.
+pub async fn revoke_now(
+    client: &RelayClient,
+    ledger: &Ledger,
+    grant_id: &str,
+) -> Result<Given, &'static str> {
+    let grant = ledger.grant(grant_id).ok_or("unknown_grant")?;
+    let mut id = [0u8; 32];
+    hex::decode_to_slice(&grant.grant_id, &mut id).map_err(|_| "unknown_grant")?;
+    let mut fid = [0u8; 32];
+    hex::decode_to_slice(&grant.fid, &mut fid).map_err(|_| "unknown_grant")?;
+    let now = now();
+    client.send_revoke(&Revoke { grant_id: id, fid, ts: now }).await.map_err(|e| {
+        log::warn!("cannot send the revoke: {e}");
+        "relay_unreachable"
+    })?;
+    let marked = ledger.mark_revoked(grant_id, now).map_err(|_| "unknown_grant")?;
+    log::info!("revoked an approval given {}s ago", now.saturating_sub(marked.granted_at));
+    Ok(marked.into())
 }
 
 /// Read the owner inbox once and keep what is for this owner.
@@ -468,6 +539,22 @@ pub fn pending_approvals(app: AppHandle) -> Vec<Incoming> {
     let mut list: Vec<Incoming> = pending.values().map(PendingRequest::incoming).collect();
     list.sort_by_key(|i| i.asked_at);
     list
+}
+
+/// Approvals this machine gave, newest first. Active ones first in the list the screen
+/// shows; the rest stay visible for a while so "회수했어요" has something to point at.
+#[tauri::command]
+pub fn given_grants(app: AppHandle) -> Vec<Given> {
+    let ledger = app.state::<Ledger>();
+    ledger.grants(false, now()).into_iter().map(Given::from).collect()
+}
+
+/// The owner pulls an approval back.
+#[tauri::command]
+pub async fn revoke_grant(app: AppHandle, grant_id: String) -> Result<Given, String> {
+    let (client, _owner) = client_for(&app).map_err(str::to_string)?;
+    let ledger = app.state::<Ledger>();
+    revoke_now(&client, &ledger, &grant_id).await.map_err(str::to_string)
 }
 
 /// The person answered. Off the UI thread: a real signer shows an OS prompt.

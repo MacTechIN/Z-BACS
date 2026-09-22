@@ -91,6 +91,13 @@ const APPROVE_PROBLEMS = {
   failed: "답을 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.",
 };
 
+const REVOKE_PROBLEMS = {
+  unknown_grant: "이 허락은 이미 지난 것이에요.",
+  relay_unreachable: "지금은 허락을 거둘 수 없어요. 인터넷 연결을 확인하고 다시 시도해 주세요.",
+  not_set_up: "먼저 준비를 마쳐야 해요.",
+  failed: "허락을 거두지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+};
+
 const WANTS = {
   read_only: "읽기만 하고 싶어 해요.",
   edit: "편집도 하고 싶어 해요.",
@@ -108,7 +115,7 @@ let status = null;
 
 // ---------------------------------------------------------------- screens
 
-const SCREENS = ["welcome", "choice", "working", "done", "blocked", "home", "seal", "sealed", "request", "answer", "approve"];
+const SCREENS = ["welcome", "choice", "working", "done", "blocked", "home", "seal", "sealed", "request", "answer", "approve", "given"];
 
 function show(name) {
   for (const screen of SCREENS) {
@@ -324,6 +331,12 @@ function onRequestUpdate(update) {
     case "cancelled":
       show("home");
       break;
+    case "revoked":
+      answer({ title: "주인이 허락을 거뒀어요" }, { line: "이 파일은 이제 열 수 없어요. 필요하면 다시 물어봐 주세요.", again: true });
+      break;
+    case "expired_grant":
+      answer({ title: "허락한 시간이 끝났어요" }, { line: "다시 열려면 주인에게 다시 물어봐야 해요.", again: true });
+      break;
     case "failed":
       answer({ title: "답을 받지 못했어요" }, {
         line: REQUEST_PROBLEMS[update.problem] ?? REQUEST_PROBLEMS.failed,
@@ -422,6 +435,7 @@ async function decideCurrent(decision) {
   if (answered.decision === "deny") {
     answer({ title: "거절했어요" }, { line: "받은 사람에게 열 수 없다고 알려 줬어요." });
   } else {
+    refreshGiven();
     answer({ title: "허락했어요" }, {
       line: answered.decision === "edit" ? "편집까지 할 수 있어요. 정한 시간이 지나면 다시 잠겨요." : "읽기만 할 수 있어요. 정한 시간이 지나면 다시 잠겨요.",
       open: true,
@@ -429,6 +443,83 @@ async function decideCurrent(decision) {
   }
   renderApproval();
   showDev();
+}
+
+// ---------------------------------------------------------------- what I allowed
+
+let given = [];
+
+function leftWords(expiry) {
+  const left = Math.floor(expiry - Date.now() / 1000);
+  if (left <= 0) return "끝남";
+  if (left < 3600) return `${Math.max(1, Math.floor(left / 60))}분 남음`;
+  if (left < 86400) return `${Math.floor(left / 3600)}시간 남음`;
+  return `${Math.floor(left / 86400)}일 남음`;
+}
+
+function renderGiven() {
+  const active = given.filter((g) => g.active);
+  const button = document.getElementById("to-given");
+  button.hidden = active.length === 0;
+  button.textContent = active.length === 1 ? "내가 허락한 파일" : `내가 허락한 파일 ${active.length}개`;
+
+  const list = document.getElementById("given");
+  const template = document.getElementById("given-card");
+  list.replaceChildren();
+  // Active first, then the recently ended ones so "거뒀어요" has something to point at.
+  const shown = [...active, ...given.filter((g) => !g.active)].slice(0, 20);
+  for (const g of shown) {
+    const card = template.content.cloneNode(true);
+    const tag = card.querySelector('[data-role="tag"]');
+    const left = card.querySelector('[data-role="left"]');
+    const button = card.querySelector('[data-role="revoke"]');
+    card.querySelector('[data-role="headline"]').textContent = `"${g.file_name}"`;
+    card.querySelector('[data-role="note"]').textContent =
+      g.permission === "edit" ? "편집까지 허락했어요." : "읽기만 허락했어요.";
+    if (g.revoked) {
+      tag.textContent = "거둠";
+      tag.classList.add("tag--error");
+      left.textContent = "";
+      button.hidden = true;
+    } else if (!g.active) {
+      tag.textContent = "끝남";
+      left.textContent = "";
+      button.hidden = true;
+    } else {
+      tag.textContent = "열 수 있음";
+      tag.classList.add("tag--open");
+      left.textContent = leftWords(g.expiry);
+      button.addEventListener("click", () => revoke(g));
+    }
+    list.append(card);
+  }
+  document.getElementById("given-empty").hidden = shown.length > 0;
+}
+
+async function refreshGiven() {
+  try {
+    given = await invoke("given_grants");
+  } catch {
+    given = [];
+  }
+  renderGiven();
+}
+
+async function revoke(g) {
+  show("working");
+  document.getElementById("working-line").textContent = "허락을 거두고 있어요.";
+  try {
+    await invoke("revoke_grant", { grantId: g.grant_id });
+  } catch (problem) {
+    answer({ title: "허락을 거두지 못했어요" }, {
+      line: REVOKE_PROBLEMS[problem] ?? REVOKE_PROBLEMS.failed,
+      warn: true,
+    });
+    await refreshGiven();
+    return;
+  }
+  await refreshGiven();
+  answer({ title: "허락을 거뒀어요" }, { line: `"${g.file_name}" 파일은 이제 상대가 열 수 없어요.` });
 }
 
 // ---------------------------------------------------------------- files
@@ -458,6 +549,12 @@ function render() {
         headline.textContent = "주인이 허락했어요.";
       } else if (file.request?.phase === "denied") {
         headline.textContent = "주인이 허락하지 않았어요.";
+      } else if (file.request?.phase === "revoked") {
+        tag.textContent = "거둬짐";
+        tag.classList.add("tag--error");
+        headline.textContent = "주인이 허락을 거뒀어요. 다시 물어볼 수 있어요.";
+      } else if (file.request?.phase === "expired_grant") {
+        headline.textContent = "허락한 시간이 끝났어요. 다시 물어볼 수 있어요.";
       }
       action.textContent = file.request?.phase === "granted" ? "열기" : "주인에게 물어보기";
       if (file.default_permission === "deny") {
@@ -541,6 +638,11 @@ async function main() {
   document.getElementById("approve-read").addEventListener("click", () => decideCurrent("read_only"));
   document.getElementById("approve-edit").addEventListener("click", () => decideCurrent("edit"));
   document.getElementById("approve-deny").addEventListener("click", () => decideCurrent("deny"));
+  document.getElementById("to-given").addEventListener("click", async () => {
+    await refreshGiven();
+    show("given");
+  });
+  document.getElementById("given-back").addEventListener("click", () => show("home"));
   document.getElementById("answer-again").addEventListener("click", () => {
     const file = seen.get(asking.path);
     if (file) requestAccess(file);
@@ -609,6 +711,7 @@ async function main() {
   if (status?.onboarded) {
     invoke("ensure_watching").catch(() => {});
     await refreshApprovals();
+    await refreshGiven();
   }
 
   accept(await invoke("take_pending"));

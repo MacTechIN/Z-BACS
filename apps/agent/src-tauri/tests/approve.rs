@@ -13,9 +13,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tokio::net::TcpListener;
-use zbacs_agent_lib::approve::{answer, next_requests, Answering, DecisionArg, Deployment};
+use zbacs_agent_lib::approve::{answer, next_requests, revoke_now, Answering, DecisionArg, Deployment};
 use zbacs_agent_lib::ledger::{Entry, Ledger};
-use zbacs_agent_lib::request::{ask, target_of, Asking, Limits, Outcome};
+use zbacs_agent_lib::request::{ask, target_of, watch_grant, Asking, GrantEnd, Guarding, Limits, Outcome};
 use zbacs_agent_lib::seal::{owner_account, seal_now, OpensArg, PermissionArg, SealRequest, TtlArg};
 use zbacs_agent_lib::setup::SetupHost;
 use zbacs_auth::setup::{ApprovalStyle, Prepared};
@@ -324,5 +324,108 @@ async fn t06_a_file_this_machine_did_not_lock_cannot_be_allowed() {
     .await;
     alice_side.await.unwrap();
     assert_eq!(outcome, Outcome::Denied);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+/// Scenario E / T20: Alice pulls the approval back; Bob's session ends at once.
+#[tokio::test(flavor = "multi_thread")]
+async fn scenario_e_alice_revokes_and_bobs_session_ends() {
+    let dir = temp("revoke");
+    let relay = start_relay().await;
+    let alice = machine(&dir.join("alice"), &relay);
+    let bob = machine(&dir.join("bob"), &relay);
+    let sealed = alice_locks(&alice, &dir.join("alice"), PermissionArg::ReadOnly);
+    let received = bob_receives(&sealed, &dir.join("bob"));
+    let target = target_of(&received).unwrap();
+    let path = received.display().to_string();
+
+    let alice_side = tokio::spawn(async move {
+        let a = alice;
+        let answered = alice_answers(&a, DecisionArg::ReadOnly).await.expect("allowed");
+        (a, answered)
+    });
+    let (outcome, mut held) = ask(
+        &bob.client,
+        Asking {
+            path: &path,
+            target: &target,
+            requested: Permission::ReadOnly,
+            our_key_hash: bob.key_hash,
+            cancel: Arc::new(AtomicBool::new(false)),
+            limits: quick(),
+        },
+        |_| {},
+    )
+    .await;
+    let (alice, answered) = alice_side.await.unwrap();
+    let Outcome::Granted { expiry, .. } = outcome else { panic!("{outcome:?}") };
+    let grant_id_hex = answered.grant_id.clone().unwrap();
+
+    // Alice's list shows it, then she pulls it back
+    let listed = alice.ledger.grants(true, now());
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].grant_id, grant_id_hex);
+    assert_eq!(listed[0].file_name, "brief.docx");
+    let bob_watch = {
+        let grant_id = held.terms.as_ref().unwrap().struct_hash();
+        let phases = Arc::new(Mutex::new(Vec::new()));
+        let sink = phases.clone();
+        let client = &bob.client;
+        let session = &mut held.session;
+        let path = path.clone();
+        async move {
+            let end = watch_grant(
+                client,
+                Guarding {
+                    path: &path,
+                    session,
+                    grant_id,
+                    expiry,
+                    cancel: Arc::new(AtomicBool::new(false)),
+                    poll: Duration::from_millis(40),
+                },
+                move |u| sink.lock().unwrap().push(u.phase),
+            )
+            .await;
+            (end, phases)
+        }
+    };
+    let revoke = async {
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        revoke_now(&alice.client, &alice.ledger, &grant_id_hex).await.expect("revoked")
+    };
+    let ((end, phases), given) = tokio::join!(bob_watch, revoke);
+
+    assert_eq!(end, GrantEnd::Revoked);
+    assert_eq!(held.session.state(), State::Revoked, "no open step can use this grant now");
+    assert_eq!(*phases.lock().unwrap(), vec!["revoked"]);
+    assert!(given.revoked && !given.active);
+    assert!(alice.ledger.grants(true, now()).is_empty(), "gone from Alice's active list");
+    assert_eq!(revoke_now(&alice.client, &alice.ledger, "00").await.err(), Some("unknown_grant"));
+    std::fs::remove_dir_all(dir).ok();
+}
+
+/// T15: a grant whose window closed ends the session even if nobody says anything.
+#[tokio::test(flavor = "multi_thread")]
+async fn t15_an_expired_grant_closes_the_session_on_its_own() {
+    let dir = temp("expire");
+    let relay = start_relay().await;
+    let bob = machine(&dir.join("bob"), &relay);
+    let mut session = zbacs_session::Session::resume(Permission::ReadOnly, now() - 10, now() + 1, 1, 0);
+    let end = watch_grant(
+        &bob.client,
+        Guarding {
+            path: "x",
+            session: &mut session,
+            grant_id: [9; 32],
+            expiry: now() + 1,
+            cancel: Arc::new(AtomicBool::new(false)),
+            poll: Duration::from_millis(40),
+        },
+        |_| {},
+    )
+    .await;
+    assert_eq!(end, GrantEnd::Expired);
+    assert_eq!(session.state(), State::Closed);
     std::fs::remove_dir_all(dir).ok();
 }

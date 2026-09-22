@@ -64,6 +64,33 @@ impl Entry {
     }
 }
 
+/// One approval this machine gave (Z-1.G.11). What the "허락한 파일" screen lists and what a
+/// revoke names.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Grant {
+    /// EIP-712 struct hash of the terms, hex — the on-chain `grantId`.
+    pub grant_id: String,
+    /// Container file id, hex.
+    pub fid: String,
+    /// The file's name, from its [`Entry`].
+    pub file_name: String,
+    /// `read_only` | `edit`.
+    pub permission: String,
+    /// Unix seconds the approval expires.
+    pub expiry: u64,
+    /// Unix seconds it was given.
+    pub granted_at: u64,
+    /// Unix seconds it was pulled back, if it was.
+    pub revoked_at: Option<u64>,
+}
+
+impl Grant {
+    /// Still usable by the other side: not revoked and not expired.
+    pub fn is_active(&self, now: u64) -> bool {
+        self.revoked_at.is_none() && now < self.expiry
+    }
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct File {
     /// Owner's sequential approval nonce (EIP-712 `grantNonce`). Local until Z-1.H.8 reads it
@@ -71,6 +98,9 @@ struct File {
     grant_nonce: u64,
     /// By file id.
     files: BTreeMap<String, Entry>,
+    /// Approvals given, by grant id.
+    #[serde(default)]
+    grants: BTreeMap<String, Grant>,
 }
 
 /// The ledger, with the lock that serialises its read-modify-write.
@@ -130,6 +160,44 @@ impl Ledger {
         all
     }
 
+    /// Remember an approval this machine gave.
+    pub fn record_grant(&self, grant: &Grant) -> Result<(), String> {
+        let _held = self.lock.lock().expect("ledger mutex");
+        let mut file = self.load()?;
+        file.grants.insert(grant.grant_id.clone(), grant.clone());
+        self.store(&file)
+    }
+
+    /// Approvals given, newest first. `active_only` drops the revoked and the expired.
+    pub fn grants(&self, active_only: bool, now: u64) -> Vec<Grant> {
+        let _held = self.lock.lock().expect("ledger mutex");
+        let mut all: Vec<Grant> = self.load().map(|f| f.grants.into_values().collect()).unwrap_or_default();
+        if active_only {
+            all.retain(|g| g.is_active(now));
+        }
+        all.sort_by_key(|g| std::cmp::Reverse(g.granted_at));
+        all
+    }
+
+    /// The approval with this id, if this machine gave it.
+    pub fn grant(&self, grant_id: &str) -> Option<Grant> {
+        let _held = self.lock.lock().expect("ledger mutex");
+        self.load().ok()?.grants.get(grant_id).cloned()
+    }
+
+    /// Mark an approval as pulled back. Idempotent.
+    pub fn mark_revoked(&self, grant_id: &str, now: u64) -> Result<Grant, String> {
+        let _held = self.lock.lock().expect("ledger mutex");
+        let mut file = self.load()?;
+        let grant = file.grants.get_mut(grant_id).ok_or_else(|| "unknown grant".to_string())?;
+        if grant.revoked_at.is_none() {
+            grant.revoked_at = Some(now);
+        }
+        let out = grant.clone();
+        self.store(&file)?;
+        Ok(out)
+    }
+
     /// Take the next approval nonce. Persisted before it is returned, so a crash after signing
     /// cannot hand the same nonce out twice.
     pub fn next_grant_nonce(&self) -> Result<u64, String> {
@@ -184,6 +252,45 @@ mod tests {
 
         // a second Ledger on the same path sees the same file: it is the disk that remembers
         assert_eq!(Ledger::new(&dir).entries().len(), 2);
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    /// T20: an approval is listed while it lives, and drops out when revoked or expired.
+    #[test]
+    fn t20_grants_are_listed_while_active_and_revocation_sticks() {
+        let dir = std::env::temp_dir().join(format!("zbacs-ledger-grants-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let ledger = Ledger::new(&dir);
+        let g = |id: u8, expiry: u64| Grant {
+            grant_id: hex::encode([id; 32]),
+            fid: hex::encode([1; 32]),
+            file_name: "file-1.docx".into(),
+            permission: "read_only".into(),
+            expiry,
+            granted_at: 100 + id as u64,
+            revoked_at: None,
+        };
+        ledger.record_grant(&g(1, 1000)).unwrap();
+        ledger.record_grant(&g(2, 1000)).unwrap();
+        ledger.record_grant(&g(3, 150)).unwrap(); // already expired at now=200
+        let active = ledger.grants(true, 200);
+        assert_eq!(
+            active.iter().map(|g| &g.grant_id[..2]).collect::<Vec<_>>(),
+            ["02", "01"],
+            "newest first, expired dropped"
+        );
+        assert_eq!(ledger.grants(false, 200).len(), 3);
+
+        let revoked = ledger.mark_revoked(&hex::encode([2; 32]), 300).unwrap();
+        assert_eq!(revoked.revoked_at, Some(300));
+        assert_eq!(
+            ledger.mark_revoked(&hex::encode([2; 32]), 999).unwrap().revoked_at,
+            Some(300),
+            "first revoke time stays"
+        );
+        assert_eq!(ledger.grants(true, 400).len(), 1);
+        assert!(ledger.mark_revoked("nope", 1).is_err());
+        assert_eq!(Ledger::new(&dir).grant(&hex::encode([2; 32])).unwrap().revoked_at, Some(300), "on disk");
         std::fs::remove_dir_all(dir).ok();
     }
 

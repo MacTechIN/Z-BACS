@@ -189,6 +189,7 @@ fn capabilities() -> serde_json::Value {
         "sealing": true,       // Z-1.G.3
         "requestAccess": true, // Z-1.G.9
         "approve": true,       // Z-1.G.10
+        "revoke": true,        // Z-1.G.11
         "openFile": false      // Z-1.G.7/G.8
     })
 }
@@ -231,7 +232,9 @@ pub fn run() {
             request::cancel_request,
             approve::ensure_watching,
             approve::pending_approvals,
-            approve::decide
+            approve::decide,
+            approve::given_grants,
+            approve::revoke_grant
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

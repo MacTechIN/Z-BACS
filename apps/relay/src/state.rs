@@ -61,6 +61,9 @@ struct Inner {
     /// `AccessRequest.nonce` → the device that asked, so a `GrantMsg` can be routed back
     /// without the owner having to say who it is for.
     request_routes: HashMap<[u8; 16], ([u8; 16], Instant)>,
+    /// `AccessRequest.fid` → devices that asked about it, so a `Revoke` (which names a grant
+    /// and a file, not a request) reaches whoever may hold a grant for that file (T20).
+    interests: HashMap<[u8; 32], Vec<([u8; 16], Instant)>>,
     /// Per-device call timestamps for the quota.
     calls: HashMap<[u8; 16], VecDeque<Instant>>,
 }
@@ -93,6 +96,7 @@ impl Relay {
                 queues: HashMap::new(),
                 nonces: HashMap::new(),
                 request_routes: HashMap::new(),
+                interests: HashMap::new(),
                 calls: HashMap::new(),
             })),
         }
@@ -146,6 +150,25 @@ impl Relay {
     /// Remember which device asked, so the answer can be routed back.
     pub fn remember_request(&self, request_nonce: [u8; 16], from: [u8; 16], now: Instant) {
         self.lock().request_routes.insert(request_nonce, (from, now));
+    }
+
+    /// Remember that `from` asked about `fid`, for routing a later revoke.
+    pub fn remember_interest(&self, fid: [u8; 32], from: [u8; 16], now: Instant) {
+        let mut inner = self.lock();
+        let list = inner.interests.entry(fid).or_default();
+        list.retain(|(kid, _)| *kid != from);
+        list.push((from, now));
+    }
+
+    /// Devices that asked about `fid` within the queue TTL.
+    pub fn interested(&self, fid: &[u8; 32]) -> Vec<[u8; 16]> {
+        let mut inner = self.lock();
+        let now = Instant::now();
+        inner.interests.retain(|_, list| {
+            list.retain(|(_, at)| now.duration_since(*at) < QUEUE_TTL);
+            !list.is_empty()
+        });
+        inner.interests.get(fid).map(|l| l.iter().map(|(kid, _)| *kid).collect()).unwrap_or_default()
     }
 
     /// Who asked for this request nonce?

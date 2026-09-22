@@ -27,7 +27,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use zbacs_core::Permission;
 use zbacs_proto::{
-    device_key_hash, AccessGrantTerms, AccessRequest, DeviceIdentity, Envelope, GrantMsg, Kind, Signed,
+    device_key_hash, AccessGrantTerms, AccessRequest, DeviceIdentity, Envelope, GrantMsg, Kind, Revoke,
+    Signed,
 };
 use zbacs_relay_client::{ClientError, RelayClient};
 use zbacs_session::{Event, Session, State};
@@ -436,6 +437,81 @@ pub async fn ask(
     }
 }
 
+/// Does this inbox message pull back the grant we hold? Any device may *send* a revoke through
+/// the relay; accepting a forged one only ends a session early, never opens anything, and the
+/// chain's `Revoked` event is the authoritative copy (T20) — so the check is the grant id.
+pub fn is_revoke_for(envelope: &Envelope, grant_id: &[u8; 32]) -> bool {
+    if envelope.kind != Kind::Revoke {
+        return false;
+    }
+    let Ok(signed) = Signed::from_bytes(&envelope.body) else {
+        return false;
+    };
+    if signed.kind != Kind::Revoke {
+        return false;
+    }
+    let Ok(revoke) = ciborium::from_reader::<Revoke, _>(signed.payload.as_slice()) else {
+        return false;
+    };
+    revoke.grant_id == *grant_id
+}
+
+/// How a held grant stopped being usable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GrantEnd {
+    /// The owner pulled it back.
+    Revoked,
+    /// Its window closed.
+    Expired,
+    /// The Agent stopped watching (the person closed the file, or quit).
+    Cancelled,
+}
+
+/// What [`watch_grant`] needs to know about the grant it guards.
+pub struct Guarding<'a> {
+    /// The file, for progress reports.
+    pub path: &'a str,
+    /// The session in `Granted`, driven to `Revoked`/`Closed` here.
+    pub session: &'a mut Session,
+    /// EIP-712 struct hash of the terms — what a revoke names.
+    pub grant_id: [u8; 32],
+    /// Unix seconds the grant expires.
+    pub expiry: u64,
+    /// Stops the watch.
+    pub cancel: Arc<AtomicBool>,
+    /// Delay between inbox reads.
+    pub poll: Duration,
+}
+
+/// Keep watching a granted session: a revoke from the owner or the expiry ends it (T20, T15).
+/// Drives the session so the state the open step reads is the truth.
+pub async fn watch_grant(
+    client: &RelayClient,
+    guarding: Guarding<'_>,
+    mut on_update: impl FnMut(Update),
+) -> GrantEnd {
+    let Guarding { path, session, grant_id, expiry, cancel, poll } = guarding;
+    loop {
+        if cancel.load(Ordering::Relaxed) {
+            return GrantEnd::Cancelled;
+        }
+        if now() >= expiry {
+            let _ = session.apply(Event::Expired, now());
+            on_update(Update::new(path, "expired_grant"));
+            return GrantEnd::Expired;
+        }
+        if let Ok(envelopes) = client.inbox_for_device().await {
+            if envelopes.iter().any(|e| is_revoke_for(e, &grant_id)) {
+                let _ = session.apply(Event::Revoked, now());
+                log::info!("the owner pulled the approval back");
+                on_update(Update::new(path, "revoked"));
+                return GrantEnd::Revoked;
+            }
+        }
+        tokio::time::sleep(poll).await;
+    }
+}
+
 /// Machine value for a relay failure (ux_principles rule 6: every one maps to an action).
 fn relay_problem(e: &ClientError) -> &'static str {
     match e {
@@ -502,13 +578,15 @@ pub async fn request_access(app: AppHandle, path: String, requested: RequestedAr
 
     let handle = app.clone();
     let key = path.clone();
+    let cancel_for_watch = cancel.clone();
     tauri::async_runtime::spawn(async move {
-        let emit = |u: Update| {
-            if let Err(e) = handle.emit(REQUEST_EVENT, &u) {
+        let reporter = handle.clone();
+        let emit = move |u: Update| {
+            if let Err(e) = reporter.emit(REQUEST_EVENT, &u) {
                 log::warn!("cannot report request progress: {e}");
             }
         };
-        let (outcome, held) = ask(
+        let (outcome, mut held) = ask(
             &client,
             Asking {
                 path: &key,
@@ -518,14 +596,37 @@ pub async fn request_access(app: AppHandle, path: String, requested: RequestedAr
                 cancel,
                 limits: Limits::default(),
             },
-            emit,
+            emit.clone(),
         )
         .await;
         log::info!("request ended: {outcome:?}");
-        let state = handle.state::<Requests>();
-        let mut requests = state.0.lock().expect("requests mutex");
-        if let Some(active) = requests.get_mut(&key) {
-            active.held = Some(held);
+        {
+            let state = handle.state::<Requests>();
+            let mut requests = state.0.lock().expect("requests mutex");
+            if let Some(active) = requests.get_mut(&key) {
+                active.held = Some(held.clone());
+            }
+        }
+        // A grant is only as good as the owner's last word: keep listening until it is
+        // revoked, expires, or the person is done with the file (T20).
+        if let (Outcome::Granted { expiry, .. }, Some(grant_id)) =
+            (&outcome, held.terms.as_ref().map(|t| t.struct_hash()))
+        {
+            let guarding = Guarding {
+                path: &key,
+                session: &mut held.session,
+                grant_id,
+                expiry: *expiry,
+                cancel: cancel_for_watch,
+                poll: Limits::default().poll,
+            };
+            let end = watch_grant(&client, guarding, emit).await;
+            log::info!("grant ended: {end:?}");
+            let state = handle.state::<Requests>();
+            let mut requests = state.0.lock().expect("requests mutex");
+            if let Some(active) = requests.get_mut(&key) {
+                active.held = Some(held);
+            }
         }
     });
     Ok(())
@@ -699,6 +800,22 @@ mod tests {
         let terms = terms_for(&target, [3; 32], nonce, 1);
         let contradicts = grant_envelope(&owner, &grant_msg(nonce, 2, Some(&terms)));
         assert_eq!(classify(&contradicts, &nonce, &target, &[3; 32]), Answer::Mismatch("permission"));
+    }
+
+    /// T20: only a revoke naming our grant ends the session.
+    #[test]
+    fn t20_only_a_revoke_for_our_grant_counts() {
+        let owner = DeviceIdentity::generate().unwrap();
+        let revoke = |id: [u8; 32]| {
+            let msg = Revoke { grant_id: id, fid: [1; 32], ts: 1_700_000_000 };
+            let signed = Signed::sign(&owner, &msg, 1_700_000_000, [8; 16]).unwrap();
+            Envelope { id: [2; 16], kind: Kind::Revoke, body: signed.to_bytes().unwrap(), queued_at: 0 }
+        };
+        assert!(is_revoke_for(&revoke([9; 32]), &[9; 32]));
+        assert!(!is_revoke_for(&revoke([8; 32]), &[9; 32]));
+        let mut mislabelled = revoke([9; 32]);
+        mislabelled.kind = Kind::Grant;
+        assert!(!is_revoke_for(&mislabelled, &[9; 32]));
     }
 
     #[test]

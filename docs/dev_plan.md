@@ -107,7 +107,7 @@
 | Z-1.G.8 ◐ | Edit 모드: 종료/TTL/revoke 시 재봉인, 안전 삭제 | 포렌식 스크립트 통과(T09) (2026-09-19: 상태머신의 Saved→Reseal→Resealed 흐름과 회수/만료 시 미봉인 변경 폐기, `Workspace::wipe`/`secure_delete`(0 덮어쓰기 후 삭제, 하드링크로 덮어쓰기 확인). 남은 것: Z-1.Q.2 디스크 포렌식 스크립트) |
 | Z-1.G.9 ✅ | 승인 대기 UI, 거부/만료 처리 | UX 리뷰 (2026-09-21: `apps/agent` `request.rs` + S4 화면. 기기 등록→서명 요청→받은편지함 폴링→답 분류(파일·버전·기기·nonce 일치 검사, T05/T19)→세션 상태머신 구동. 120s 안내·300s 만료·취소·Relay 불통 처리. 실제 `zbacs-relay`를 띄운 통합 테스트 6종 + 단위 8종. 소유자 서명 검증은 `owner_signature_check` pending으로 표시 — Z-1.H.8/H.10) |
 | Z-1.G.10 ✅ | 데스크톱 승인 UI(소유자가 PC에서 승인) — 패스키 프롬프트 + EIP-712 내용 표시 | T06 체크 (2026-09-22: `apps/agent` `approve.rs` + `ledger.rs` + S5 화면. 소유자 받은편지함 감시(3s) → 요청자 서명을 요청이 담은 키로 직접 검증(T05) → **로컬 잠금 기록**으로 파일명·정책 표시, 기록 없음/다른 버전이면 허락 불가(T06/T19) → [읽기만 허락][편집도 허락][거절] → EIP-712 digest(Solidity 벡터 일치)를 기기 서명기로 서명(T23 확인 정책) → DEK를 요청 기기 키로 재봉인(aad=grantId) → GrantMsg. 시나리오 B 왕복 통합 테스트 3종(두 SetupHost + 실제 Relay: 허락→Bob이 DEK 열고 복호화·서명 검증, 거절, 모르는 파일 허락 불가) + 단위 9종. 체인 기록은 Z-1.H.8) |
-| Z-1.G.11 | 회수(Revoke) 기능 + 활성 세션 목록 | E2E |
+| Z-1.G.11 ✅ | 회수(Revoke) 기능 + 활성 세션 목록 | E2E (2026-09-22: 소유자 — 허락할 때 `sealed.json`에 기록, "내가 허락한 파일" 화면(남은 시간·[허락 거두기]) → Relay `Revoke` + 기록. Relay — revoke를 그 파일을 요청했던 모든 기기로 라우팅(이전엔 소유자 자신에게만 가던 버그 수정, T20 테스트). 수신자 — 허락 뒤에도 받은편지함을 계속 읽어 revoke면 `Revoked`, 만료면 `Closed`로 세션을 닫고 화면에 알림. 두 기기 통합 테스트: 회수 → 상대 세션 즉시 종료, 만료 자체 종료(T15). 체인 revoke는 Z-1.H.8) |
 | Z-1.G.12 | 감사 로그 뷰어(체인 이벤트 조회) | 이벤트 5종 표시 |
 | Z-1.G.13 | 자동 업데이트(tauri-plugin-updater) | 서명된 업데이트 |
 
@@ -159,7 +159,7 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | ~~1~~ ✅ | ~~`Z-1.H.4` 배포 스크립트~~ | 2026-09-21 완료 |
 | ~~2~~ ✅ | ~~`Z-1.G.9` 열람 요청 UI~~ | 2026-09-21 완료 |
 | ~~3~~ ✅ | ~~`Z-1.G.10` 데스크톱 승인 UI~~ | 2026-09-22 완료. 모바일 승인 앱(Z-1.P.2) 없이 베타 가능 |
-| 4 | `Z-1.G.11` 회수 + 활성 세션 | 시나리오 E |
+| ~~4~~ ✅ | ~~`Z-1.G.11` 회수 + 활성 세션~~ | 2026-09-22 완료 |
 | 5 | `Z-1.G.12` 감사 로그 뷰어 | MVP DoD 3의 "조회 가능" |
 | 6 | `Z-1.U.4` 오류 카탈로그 | 베타 참가자는 우리에게 물어볼 수 없다. 모든 오류가 다음 행동을 말해야 한다 |
 | 7 | `Z-1.U.5` 알림 액션 버튼 | U-3(10초 내 승인). 없으면 소유자가 창을 찾아 들어가야 한다 |
@@ -248,12 +248,12 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | T12 소유자 기기 분실 | Z-1.A.4 (암호화 백업·복구 코드), Z-1.H.10 (다른 기기에서 해지), Z-2.A.1 (다중 기기·소셜 복구), Z-2.U.1 (복구 UX) | contracts `test_t12_*` 3종; 포크 `test_t12_enroll_second_device_then_revoke_first`; core `backup.rs` 9종 |
 | T13 온체인 식별 | Z-1.C.5 (fileId 솔트, 파일명 길이 패딩), Z-1.H.9 (페이마스터), Z-3.Z.1/2 (ZK) | contracts fileId = H(hash‖salt); core `name_padding_hides_length_and_roundtrips` |
 | T14 컨트랙트 검증 우회 | Z-1.H.2 (EIP-712·ERC-1271·low-s), Z-1.H.5 (Slither/Echidna), Z-1.H.6 (HF 감사), Z-1.H.8 (WebAuthn 서명 인코딩) | contracts `test_t14_*` 3종, aa-passkey `test_t14_tampered_signature_rejected`, proto `t14_struct_hash_matches_the_solidity_vector` |
-| T15 만료 우회 | Z-1.H.2 (체인 시간), Z-1.G.4 (로컬 시계 병행) | contracts `test_t15_*` 2종 |
+| T15 만료 우회 | Z-1.H.2 (체인 시간), Z-1.G.4 (로컬 시계 병행) | contracts `test_t15_*` 2종, agent `t15_an_expired_grant_closes_the_session_on_its_own` |
 | T16 Relay DoS | Z-1.R.1 (본문 상한·할당량 정의), Z-1.R.2 (서명·레이트리밋), Z-1.R.4 (셀프호스팅), Z-1.H.7 (체인 이벤트 폴백 — 구현됨), Z-2.R.1 | proto `oversized_bodies_are_refused_on_both_sides`; relay `t16_quota_stops_a_flood`, `an_oversized_body_is_refused` |
 | T17 스텁 위장 | Z-1.S.1/S.2 (코드 서명·해시 고정), Z-1.C.2 (Agent는 컨테이너만 파싱), Z-1.G.13 (서명된 업데이트) | tauri-assoc: 파일 인자를 경로로만 취급, `inspect`만 수행 |
 | T18 파서 취약점 | Z-1.C.2 (길이 상한·악성 입력 20종), Z-1.C.3 (cargo-fuzz) | core `tests/malicious.rs` 31종; 퍼징 24h 420,679,318회 무크래시 |
 | T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책), Z-1.C.4 (`verify_version_chain`), Z-1.H.2 (온체인 버전 바인딩) | core `t19_*`; reseal `t19_*` 3종; contracts `test_t19_grant_must_name_the_current_version`, agent `t19_a_grant_for_another_version_is_refused` |
-| T20 회수 무시 | Z-1.C.4 (재봉인 시 새 DEK), Z-1.G.4 (TTL·주기 확인), Z-1.G.11 (revoke), Z-1.H.7 (이벤트 구독), Z-1.G.13 (코드 서명), Z-3.H.3 (어테스테이션) | contracts `test_t20_revoke_only_owner`; core `t20_each_version_*`; session `t20_revoke_*`; chain `t20_the_watcher_sees_a_revoke_without_the_relay`, `t20_a_revoked_grant_is_never_resurrected_by_the_cache` |
+| T20 회수 무시 | Z-1.C.4 (재봉인 시 새 DEK), Z-1.G.4 (TTL·주기 확인), Z-1.G.11 (revoke), Z-1.H.7 (이벤트 구독), Z-1.G.13 (코드 서명), Z-3.H.3 (어테스테이션) | contracts `test_t20_revoke_only_owner`; core `t20_each_version_*`; session `t20_revoke_*`; chain `t20_the_watcher_sees_a_revoke_without_the_relay`, `t20_a_revoked_grant_is_never_resurrected_by_the_cache`, relay `t20_revocations_reach_the_devices_that_asked`, agent `t20_*` 2종 + `scenario_e_alice_revokes_and_bobs_session_ends` |
 | T21 번들러·페이마스터 검열/지연 | Z-1.H.8 (다중 번들러 엔드포인트), Z-1.H.9 (페이마스터 폴백: 자체 예치), Z-1.G.4 (`strict_onchain` 아닌 경우 체인 확정 미대기), Z-1.R.5 (다중 Relay 장애 조치) | aa-passkey: EntryPoint 직접 `handleOps` + Pimlico 실제 제출; client `t21_a_dead_endpoint_falls_over_to_a_live_one` |
 | T22 동기화 패스키 복제 | Z-1.A.2 (BE/BS 플래그 기록·정책), Z-1.A.7 (기기 바운드 키 대안), Z-1.H.10 (등록·해지 온체인), Z-1.U.7 (선택 UI) | auth `t22_synced_passkey_flags_detected`; contracts `test_t22_keys_are_scoped_to_the_enrolling_account` |
 | T23 무프롬프트 기기 키 남용 | Z-1.A.7 (OS 확인 옵션·속도 제한), Z-1.G.10 (명시적 탭에만 키 사용), Z-1.H.10 (즉시 해지), Z-3.G.2 (VBS) | auth `t23_*` 2종; contracts `requireOsConfirm` 온체인 기록, agent `approve::answer`가 `ConfirmationPolicy::required` 적용 |

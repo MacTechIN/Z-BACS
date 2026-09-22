@@ -157,18 +157,35 @@ async fn a_refusal_travels_the_same_way_without_an_envelope() {
     assert!(grant.envelope.is_none());
 }
 
+/// T20: a revoke reaches every device that asked about the file, and nobody else.
 #[tokio::test]
-async fn revocations_are_queued() {
+async fn t20_revocations_reach_the_devices_that_asked() {
     let app = router(Relay::new());
     let alice = DeviceIdentity::generate().unwrap();
-    post(&app, "/v1/devices", announce_bytes(&alice, None)).await;
+    let bob = DeviceIdentity::generate().unwrap();
+    let carol = DeviceIdentity::generate().unwrap();
+    for d in [&alice, &bob, &carol] {
+        post(&app, "/v1/devices", announce_bytes(d, None)).await;
+    }
+    // Bob asked about file 1; Carol about file 2 (request_bytes uses fid [1; 32])
+    post(&app, "/v1/requests", request_bytes(&bob, b"alice", nonce(31))).await;
 
     let revoke = Revoke { grant_id: [7; 32], fid: [1; 32], ts: now() };
     let body = Signed::sign(&alice, &revoke, now(), nonce(4)).unwrap().to_bytes().unwrap();
     let (status, ack) = post(&app, "/v1/revocations", body).await;
     assert_eq!(status, StatusCode::OK);
     assert!(ack.ok);
-    assert_eq!(inbox(&app, &format!("device={}", hex::encode(alice.kid()))).await.len(), 1);
+    // Bob's inbox: his own request answer slot is empty, the revoke is there
+    let bobs = inbox(&app, &format!("device={}", hex::encode(bob.kid()))).await;
+    assert_eq!(bobs.iter().filter(|e| e.kind == Kind::Revoke).count(), 1);
+    assert!(
+        inbox(&app, &format!("device={}", hex::encode(carol.kid()))).await.is_empty(),
+        "Carol never asked"
+    );
+    assert!(
+        inbox(&app, &format!("device={}", hex::encode(alice.kid()))).await.is_empty(),
+        "not echoed to the owner"
+    );
 }
 
 // ------------------------------------------------------------------ what it refuses
