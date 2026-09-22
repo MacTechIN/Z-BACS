@@ -78,6 +78,11 @@ pub struct AccessRequest {
     /// Requesting device's X25519 public key (the DEK envelope target).
     #[serde(with = "serde_bytes")]
     pub x25519_pub: [u8; 32],
+    /// Requesting device's Ed25519 public key. With `x25519_pub` it forms the grant's
+    /// `deviceKeyHash`, and it lets the owner verify this envelope itself rather than trust the
+    /// relay's word (T05). Must hash to `device_kid`.
+    #[serde(with = "serde_bytes")]
+    pub ed25519_pub: [u8; 32],
     /// 1 = ReadOnly, 2 = Edit.
     pub requested: u8,
     /// Request nonce; the owner copies it into the grant so the answer cannot be re-aimed.

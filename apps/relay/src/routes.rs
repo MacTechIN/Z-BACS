@@ -131,8 +131,9 @@ async fn requests(State(relay): State<Relay>, body: Bytes) -> Response {
         Ok(v) => v,
         Err(code) => return refuse(code),
     };
-    if request.device_kid != signed.kid {
-        // the request must be about the device that signed it (T05)
+    if request.device_kid != signed.kid || zbacs_proto::identity::kid_of(&request.ed25519_pub) != signed.kid {
+        // the request must be about the device that signed it, and carry that device's own
+        // signing key so the owner can check the envelope itself (T05)
         return refuse(ErrorCode::Unauthenticated);
     }
     if request.owner.is_empty() || request.owner.len() > 64 {

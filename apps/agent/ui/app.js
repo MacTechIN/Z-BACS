@@ -78,6 +78,24 @@ const ANSWERS = {
   expired: { title: "주인이 아직 답하지 않았어요", line: "주인이 자리에 없을 수 있어요. 나중에 다시 물어봐 주세요." },
 };
 
+// Why an answer could not be sent. Each one names the next thing to do.
+const APPROVE_PROBLEMS = {
+  unknown_file: "이 컴퓨터에서 잠근 파일이 아니라서 허락할 수 없어요. 잠근 컴퓨터에서 허락해 주세요.",
+  version: "그 뒤로 파일이 바뀌어서 이 요청은 허락할 수 없어요. 받은 사람에게 새 파일을 보내 주세요.",
+  file_moved: "잠근 파일을 찾을 수 없어요. 파일을 원래 자리로 되돌린 뒤 다시 해 주세요.",
+  not_mine: "이 파일은 내가 잠근 파일이 아니에요.",
+  cancelled: "확인이 취소됐어요. 다시 눌러 주세요.",
+  relay_unreachable: "지금은 답을 보낼 수 없어요. 인터넷 연결을 확인하고 다시 시도해 주세요.",
+  unknown_request: "이 요청은 이미 처리됐어요.",
+  not_set_up: "먼저 준비를 마쳐야 해요.",
+  failed: "답을 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+};
+
+const WANTS = {
+  read_only: "읽기만 하고 싶어 해요.",
+  edit: "편집도 하고 싶어 해요.",
+};
+
 const SETUP_PROBLEMS = {
   cancelled: "확인이 취소됐어요. 다시 눌러 주세요.",
   unsupported: "이 방법은 이 컴퓨터에서 쓸 수 없어요. 다른 방법을 골라 주세요.",
@@ -90,7 +108,7 @@ let status = null;
 
 // ---------------------------------------------------------------- screens
 
-const SCREENS = ["welcome", "choice", "working", "done", "blocked", "home", "seal", "sealed", "request", "answer"];
+const SCREENS = ["welcome", "choice", "working", "done", "blocked", "home", "seal", "sealed", "request", "answer", "approve"];
 
 function show(name) {
   for (const screen of SCREENS) {
@@ -171,6 +189,7 @@ async function completeSetup(style) {
   }
   showDev();
   show("done");
+  invoke("ensure_watching").catch(() => {});
 }
 
 // ---------------------------------------------------------------- locking a file
@@ -318,6 +337,100 @@ function onRequestUpdate(update) {
   showDev();
 }
 
+// ---------------------------------------------------------------- answering a request
+
+// Requests waiting for the person, oldest first. The screen shows one at a time.
+let approvals = [];
+
+function whenWords(ts) {
+  const ago = Math.max(0, Math.floor(Date.now() / 1000 - ts));
+  if (ago < 60) return "방금";
+  if (ago < 3600) return `${Math.floor(ago / 60)}분 전`;
+  if (ago < 86400) return `${Math.floor(ago / 3600)}시간 전`;
+  return `${Math.floor(ago / 86400)}일 전`;
+}
+
+function renderApproval() {
+  const button = document.getElementById("to-approve");
+  button.hidden = approvals.length === 0;
+  button.textContent = approvals.length === 1 ? "확인할 요청 보기" : `확인할 요청 ${approvals.length}개 보기`;
+
+  const current = approvals[0];
+  if (!current) return;
+  document.getElementById("approve-when").textContent = whenWords(current.asked_at);
+  document.getElementById("approve-file").textContent = current.known
+    ? `"${current.file_name}" 파일을 열려고 해요.`
+    : "이 컴퓨터에서 잠근 기록이 없는 파일이에요.";
+  document.getElementById("approve-wants").textContent = WANTS[current.requested] ?? "";
+  const note = document.getElementById("approve-note");
+  if (!current.known) {
+    note.textContent = APPROVE_PROBLEMS.unknown_file;
+    note.hidden = false;
+  } else if (!current.same_version) {
+    note.textContent = APPROVE_PROBLEMS.version;
+    note.hidden = false;
+  } else {
+    note.hidden = true;
+  }
+  document.getElementById("approve-allow").hidden = !current.can_allow;
+  const count = document.getElementById("approve-count");
+  count.hidden = approvals.length < 2;
+  count.textContent = `이 뒤에 ${approvals.length - 1}개 더 있어요.`;
+}
+
+async function refreshApprovals() {
+  try {
+    approvals = await invoke("pending_approvals");
+  } catch {
+    approvals = [];
+  }
+  renderApproval();
+  showDev();
+}
+
+function onApproval(incoming) {
+  if (!approvals.some((a) => a.id === incoming.id)) approvals.push(incoming);
+  renderApproval();
+  showDev();
+  // The window was just brought forward by the Agent; land on the request unless the person
+  // is in the middle of locking something.
+  const busy = ["seal", "working", "choice", "welcome"].some(
+    (name) => !document.getElementById(`screen-${name}`).hidden,
+  );
+  if (!busy) show("approve");
+}
+
+async function decideCurrent(decision) {
+  const current = approvals[0];
+  if (!current) return;
+  show("working");
+  document.getElementById("working-line").textContent =
+    decision === "deny" ? "거절을 보내고 있어요." : "확인하고 있어요.";
+  let answered;
+  try {
+    answered = await invoke("decide", { id: current.id, decision });
+  } catch (problem) {
+    answer({ title: "답을 보내지 못했어요" }, {
+      line: APPROVE_PROBLEMS[problem] ?? APPROVE_PROBLEMS.failed,
+      warn: true,
+      again: problem !== "unknown_request",
+    });
+    if (problem === "unknown_request") approvals.shift();
+    return;
+  }
+  approvals = approvals.filter((a) => a.id !== current.id);
+  if (answered.decision === "deny") {
+    answer({ title: "거절했어요" }, { line: "받은 사람에게 열 수 없다고 알려 줬어요." });
+  } else {
+    answer({ title: "허락했어요" }, {
+      line: answered.decision === "edit" ? "편집까지 할 수 있어요. 정한 시간이 지나면 다시 잠겨요." : "읽기만 할 수 있어요. 정한 시간이 지나면 다시 잠겨요.",
+      open: true,
+    });
+  }
+  renderApproval();
+  showDev();
+}
+
 // ---------------------------------------------------------------- files
 
 function render() {
@@ -396,6 +509,7 @@ function accept(files) {
 function showDev() {
   const lines = [...seen.values()].map((f) => `${f.path}\n  ${f.detail ?? f.problem ?? ""}`);
   if (sealing.result) lines.unshift(`sealed ${JSON.stringify(sealing.result)}`);
+  for (const a of approvals) lines.push(`approval ${JSON.stringify(a)}`);
   for (const f of seen.values()) if (f.request) lines.push(`request ${JSON.stringify(f.request)}`);
   if (status) lines.unshift(`setup ${JSON.stringify(status)}`);
   document.getElementById("dev").textContent = lines.join("\n");
@@ -417,7 +531,16 @@ async function main() {
     invoke("cancel_request", { path: asking.path }).catch(() => {});
     show("home");
   });
-  document.getElementById("answer-done").addEventListener("click", () => show("home"));
+  document.getElementById("answer-done").addEventListener("click", () => {
+    show(approvals.length > 0 ? "approve" : "home");
+  });
+  document.getElementById("to-approve").addEventListener("click", () => {
+    renderApproval();
+    show("approve");
+  });
+  document.getElementById("approve-read").addEventListener("click", () => decideCurrent("read_only"));
+  document.getElementById("approve-edit").addEventListener("click", () => decideCurrent("edit"));
+  document.getElementById("approve-deny").addEventListener("click", () => decideCurrent("deny"));
   document.getElementById("answer-again").addEventListener("click", () => {
     const file = seen.get(asking.path);
     if (file) requestAccess(file);
@@ -480,8 +603,13 @@ async function main() {
 
   await listen("zbacs://opened", (event) => accept(event.payload));
   await listen("zbacs://request", (event) => onRequestUpdate(event.payload));
+  await listen("zbacs://approval", (event) => onApproval(event.payload));
   status = await invoke("setup_status");
   route();
+  if (status?.onboarded) {
+    invoke("ensure_watching").catch(() => {});
+    await refreshApprovals();
+  }
 
   accept(await invoke("take_pending"));
   const caps = await invoke("capabilities");

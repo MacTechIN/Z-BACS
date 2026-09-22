@@ -81,6 +81,7 @@
           <p class="card__note">창을 닫아도 계속 실행됩니다. 오른쪽 아래 아이콘에서 다시 열 수 있어요.</p>
         </div>
         <div id="files" class="files" hidden></div>
+        <button id="to-approve" class="btn btn--ok" hidden>확인할 요청 보기</button>
         <button id="to-seal" class="btn btn--ok">파일 잠그기</button>
       </section>
 
@@ -176,6 +177,29 @@
         </div>
         <button id="answer-again" class="btn btn--ok" hidden>다시 물어보기</button>
         <button id="answer-done" class="btn">확인</button>
+      </section>
+
+      <!-- S5 승인 요청(소유자) (Z-1.G.10) -->
+      <section id="screen-approve" class="screen" hidden>
+        <div class="hero hero--tight">
+          <h2 class="hero__title">누군가 내 파일을 열려고 해요</h2>
+          <p class="hero__line">허락할지 정해 주세요. 허락하면 정한 시간 동안만 열 수 있어요.</p>
+        </div>
+        <article class="card">
+          <div class="card__row">
+            <span id="approve-tag" class="tag">잠김</span>
+            <span id="approve-when" class="card__size"></span>
+          </div>
+          <p id="approve-file" class="card__line"></p>
+          <p id="approve-wants" class="card__note"></p>
+          <p id="approve-note" class="notes__line" hidden></p>
+        </article>
+        <div id="approve-allow">
+          <button id="approve-read" class="btn btn--ok">읽기만 허락</button>
+          <button id="approve-edit" class="btn btn--ok">편집도 허락</button>
+        </div>
+        <button id="approve-deny" class="btn btn--danger">거절</button>
+        <p id="approve-count" class="card__note" hidden></p>
       </section>
 
       <details class="dev">

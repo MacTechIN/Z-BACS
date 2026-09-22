@@ -82,6 +82,29 @@ impl Signed {
         Ok((payload, self.nonce))
     }
 
+    /// Like [`Signed::verify`] but without the clock-skew rule: for a message read back from
+    /// a relay queue, which may be hours old (the relay keeps requests for 24h). The caller
+    /// applies its own freshness rule to `ts`.
+    pub fn verify_queued<T: Message>(&self, ed25519_pub: &[u8; 32]) -> Result<(T, u64)> {
+        if self.kind != T::KIND {
+            return Err(ProtoError::Malformed("envelope kind does not match the payload type"));
+        }
+        if self.payload.len() > MAX_BODY_LEN {
+            return Err(ProtoError::TooLarge(self.payload.len()));
+        }
+        if crate::identity::kid_of(ed25519_pub) != self.kid {
+            return Err(ProtoError::BadSignature);
+        }
+        verify_raw(
+            ed25519_pub,
+            &Self::signing_bytes(self.kind, self.ts, &self.nonce, &self.payload),
+            &self.sig,
+        )?;
+        let payload: T = ciborium::from_reader(self.payload.as_slice())
+            .map_err(|_| ProtoError::Malformed("payload is not valid CBOR for this kind"))?;
+        Ok((payload, self.ts))
+    }
+
     /// CBOR bytes of the envelope, as put on the wire.
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         let mut out = Vec::new();

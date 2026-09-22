@@ -15,6 +15,7 @@ fn request(device: &DeviceIdentity) -> AccessRequest {
         owner: b"eip155:8453:0xA11CE".to_vec(),
         device_kid: device.kid(),
         x25519_pub: device.x25519_pub(),
+        ed25519_pub: device.ed25519_pub(),
         requested: 1,
         nonce: [9; 16],
         hint: None,

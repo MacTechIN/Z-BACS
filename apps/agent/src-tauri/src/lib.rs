@@ -12,9 +12,10 @@
 //!   show "this is locked, shall I ask the owner?" before any approval exists.
 //!
 //! Z-1.G.2 added the first run: two taps and the Agent has this machine's keys and the owner's
-//! chosen approval style (see [`setup`]). Z-1.G.3 added locking (see [`seal`]) and Z-1.G.9
-//! asking the owner and waiting for the answer (see [`request`]). Opening the file after an
-//! approval is still ahead, and the UI says so rather than pretending.
+//! chosen approval style (see [`setup`]). Z-1.G.3 added locking (see [`seal`]), Z-1.G.9 asking
+//! the owner and waiting for the answer (see [`request`]), and Z-1.G.10 the owner's side of
+//! that — the request arriving and being answered on this PC (see [`approve`]). Opening the
+//! file after an approval is still ahead, and the UI says so rather than pretending.
 
 use std::fs::File;
 use std::io::BufReader;
@@ -26,6 +27,8 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 
+pub mod approve;
+pub mod ledger;
 pub mod request;
 pub mod seal;
 pub mod setup;
@@ -185,6 +188,7 @@ fn capabilities() -> serde_json::Value {
         "onboarding": true,    // Z-1.G.2
         "sealing": true,       // Z-1.G.3
         "requestAccess": true, // Z-1.G.9
+        "approve": true,       // Z-1.G.10
         "openFile": false      // Z-1.G.7/G.8
     })
 }
@@ -211,6 +215,7 @@ pub fn run() {
         .manage(Pending::default())
         .manage(setup::Identity::default())
         .manage(request::Requests::default())
+        .manage(approve::Approvals::default())
         .invoke_handler(tauri::generate_handler![
             take_pending,
             inspect_path,
@@ -223,7 +228,10 @@ pub fn run() {
             seal::seal_file,
             seal::shred_original,
             request::request_access,
-            request::cancel_request
+            request::cancel_request,
+            approve::ensure_watching,
+            approve::pending_approvals,
+            approve::decide
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -231,6 +239,7 @@ pub fn run() {
                 log::warn!("no app config directory ({e}); falling back to the working directory");
                 std::path::PathBuf::from(".")
             });
+            handle.manage(ledger::Ledger::new(&config_dir));
             handle.manage(setup::SetupHost::new(config_dir));
             setup::restore(&handle);
             build_tray(&handle)?;

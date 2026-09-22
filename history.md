@@ -1090,3 +1090,26 @@ Z-1.G.9 열람 요청·승인 대기 UI 완료, 커밋·푸시했습니다.
 
 다음: Z-1.G.10 데스크톱 승인 UI(소유자 쪽). 통합 테스트의 owner_answers가 그 골격입니다.
 ```
+
+### #41 [U] 2026-09-22
+```
+다음
+```
+
+### #41 [C] 2026-09-22
+```
+Z-1.G.10 데스크톱 승인 UI(소유자 쪽) 완료, 커밋·푸시했습니다. 시나리오 B가 두 기기 사이에서 왕복합니다(뷰어 제외).
+
+만든 것
+- apps/agent/src-tauri/src/approve.rs: 준비가 끝난 Agent는 3초마다 주인 받은편지함을 읽고, 요청이 오면 창을 앞으로 가져와 S5 화면을 띄운다. 요청자의 서명은 요청이 담은 키로 Agent가 직접 검증(Relay를 믿지 않음, T05). [읽기만 허락][편집도 허락][거절] → EIP-712 digest를 기기 서명기로 서명(편집·연속 승인은 OS 확인, T23 정책) → 파일 키(DEK)를 요청 기기 키로 다시 싸서(aad = grantId) GrantMsg로 회신. 거절은 서명·키 없이 회신.
+- apps/agent/src-tauri/src/ledger.rs: 이 컴퓨터에서 잠근 파일의 로컬 기록(sealed.json). 승인 화면의 파일명·정책은 요청이 아니라 이 기록에서 온다(T06). 기록에 없거나 버전이 다른 파일은 허락 불가(키를 낼 수 없으므로) — [거절]만 보인다. 승인 nonce도 여기서 발급(재시작 후에도 이어짐, T03).
+- 프로토콜: AccessRequest에 ed25519_pub 추가(deviceKeyHash 계산과 자체 검증용, Relay는 kid 일치 확인), zbacs-proto에 EIP-712 struct hash/digest(Solidity 벡터 d57d…78fa와 일치), Signed::verify_queued(큐에서 꺼낸 오래된 메시지용).
+- UI: S5 화면 + 홈의 "확인할 요청 N개 보기". 입력 0개, 금지 용어 0개.
+- 테스트: 시나리오 B 왕복 통합 3종(두 SetupHost + 실제 Relay: 허락 → Bob이 DEK를 열어 파일 복호화 + Alice 서명 검증 / 거절 / 모르는 파일은 허락 불가·거절만) + 단위 9종 + Relay T05 테스트. Agent 전체 27+11 통과, 워크스페이스 clippy·Windows 크로스체크 통과.
+
+정직하게 남긴 것: 허락을 체인에 기록(tx_hash)하는 것은 Z-1.H.8. EIP-712 서명은 지금 Anvil 배포(Deployment::DEV)에 묶여 있고 Z-1.H.11에서 테스트넷 주소로 바뀐다.
+
+문서: dev_plan G.10 ✅·베타 컷·T05/T06/T14/T23 근거, relay_protocol §4.2/§4.3(ed25519_pub, owner_sig·envelope 형태, aad 규칙, 로컬 기록 대조), Agent README, windows_checklist §3.8(PC 한 대로 허락 확인), CLAUDE.md.
+
+베타 컷 남은 코드: G.11 회수 → G.12 감사 로그 뷰어 → U.4 → U.5 → R.4 → Q.2 → Q.1. 다음은 Z-1.G.11 회수 + 활성 세션입니다.
+```

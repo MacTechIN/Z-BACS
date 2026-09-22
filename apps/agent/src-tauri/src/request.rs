@@ -149,6 +149,7 @@ pub fn build_request(
         owner: target.owner.clone(),
         device_kid: device.kid(),
         x25519_pub: device.x25519_pub(),
+        ed25519_pub: device.ed25519_pub(),
         requested: requested as u8,
         nonce,
         hint: None,

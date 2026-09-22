@@ -67,6 +67,7 @@ fn request_bytes(device: &DeviceIdentity, owner: &[u8], request_nonce: [u8; 16])
         owner: owner.to_vec(),
         device_kid: device.kid(),
         x25519_pub: device.x25519_pub(),
+        ed25519_pub: device.ed25519_pub(),
         requested: 1,
         nonce: request_nonce,
         hint: None,
@@ -196,6 +197,7 @@ async fn t05_a_request_about_another_device_is_refused() {
         owner: b"owner".to_vec(),
         device_kid: bob.kid(),
         x25519_pub: bob.x25519_pub(),
+        ed25519_pub: bob.ed25519_pub(),
         requested: 1,
         nonce: nonce(9),
         hint: None,
@@ -248,6 +250,7 @@ async fn a_stale_envelope_is_refused() {
         owner: b"owner".to_vec(),
         device_kid: bob.kid(),
         x25519_pub: bob.x25519_pub(),
+        ed25519_pub: bob.ed25519_pub(),
         requested: 1,
         nonce: nonce(9),
         hint: None,
@@ -380,4 +383,31 @@ async fn perf_throughput_is_well_over_100_requests_per_second() {
     let rate = total as f64 / elapsed.as_secs_f64();
     println!("relay handled {total} signed requests in {elapsed:?} ({rate:.0}/s)");
     assert!(rate >= 100.0, "only {rate:.0} requests/s");
+}
+
+/// T05: the request must carry the signing key that hashes to its `device_kid`, so the owner
+/// can verify the envelope itself.
+#[tokio::test]
+async fn t05_a_request_must_carry_its_own_signing_key() {
+    let relay = Relay::new();
+    let app = router(relay);
+    let bob = DeviceIdentity::generate().unwrap();
+    assert_eq!(post(&app, "/v1/devices", announce_bytes(&bob, None)).await.0, StatusCode::OK);
+
+    let lying = AccessRequest {
+        fid: [1; 32],
+        header_hash: [2; 32],
+        owner: b"alice".to_vec(),
+        device_kid: bob.kid(),
+        x25519_pub: bob.x25519_pub(),
+        ed25519_pub: DeviceIdentity::generate().unwrap().ed25519_pub(),
+        requested: 1,
+        nonce: [7; 16],
+        hint: None,
+        ts: now(),
+    };
+    let body = Signed::sign(&bob, &lying, now(), nonce(9)).unwrap().to_bytes().unwrap();
+    let (status, ack) = post(&app, "/v1/requests", body).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(ack.error, Some(ErrorCode::Unauthenticated));
 }

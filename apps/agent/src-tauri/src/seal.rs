@@ -111,6 +111,10 @@ pub struct SealResult {
     pub size: u64,
     /// Machine values for what is still outstanding.
     pub pending: Vec<&'static str>,
+    /// Container file id, hex. Developer panel and the local ledger (Z-1.G.10).
+    pub fid: String,
+    /// Header hash of the version just written, hex.
+    pub header_hash: String,
 }
 
 /// A file the person dropped or picked, checked before anything is offered.
@@ -175,7 +179,7 @@ pub fn sealed_path(source: &Path) -> PathBuf {
 /// (Z-1.H.8) that address is it; until then the owner's own signing key, which is stable and
 /// already identifies them. Resealing carries the old value forward, so a file's versions never
 /// disagree.
-fn owner_account(profile: &DeviceProfile) -> Vec<u8> {
+pub fn owner_account(profile: &DeviceProfile) -> Vec<u8> {
     match profile.account {
         Some(address) => address.to_vec(),
         None => profile.owner_signing_pub.to_vec(),
@@ -211,6 +215,13 @@ pub fn seal_now(
     })?;
 
     let size = std::fs::metadata(&output).map(|m| m.len()).unwrap_or_default();
+    let (header, header_hash) = std::fs::File::open(&output)
+        .map_err(zbacs_core::Error::from)
+        .and_then(zbacs_core::inspect)
+        .map_err(|e| {
+            log::warn!("the file just written does not read back: {e}");
+            "failed"
+        })?;
     log::info!(
         "sealed a file: {} bytes, permission={:?}, ttl={}s, opens={}",
         size,
@@ -227,6 +238,8 @@ pub fn seal_now(
         // Registering the file on chain is Z-1.H.4/H.8; the file is complete without it, and
         // the UI does not pretend otherwise.
         pending: vec!["chain_registration"],
+        fid: hex::encode(header.body.fid.0),
+        header_hash: hex::encode(header_hash.0),
     })
 }
 
@@ -248,7 +261,15 @@ pub async fn seal_file(app: AppHandle, request: SealRequest) -> Result<SealResul
             "not_set_up".to_string()
         })?;
 
-        seal_now(&owner, &profile, &request).map_err(|e| e.to_string())
+        let result = seal_now(&owner, &profile, &request).map_err(|e| e.to_string())?;
+        // Remember it: an approval request names the file by id, and the approval screen must
+        // show the name and policy from *this* machine's record, never from the request (T06).
+        if let Err(e) =
+            app.state::<crate::ledger::Ledger>().record(&crate::ledger::Entry::from_seal(&result, &request))
+        {
+            log::warn!("locked, but could not record it for later approvals: {e}");
+        }
+        Ok(result)
     })
     .await
     .map_err(|e| format!("join: {e}"))?

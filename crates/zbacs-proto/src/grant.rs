@@ -38,7 +38,70 @@ pub struct AccessGrantTerms {
     pub grant_nonce: u64,
 }
 
+/// EIP-712 domain name and version (`AccessPolicy` constructor).
+pub const DOMAIN_NAME: &str = "Z-BACS";
+/// EIP-712 domain version.
+pub const DOMAIN_VERSION: &str = "1";
+
+/// The type hash, computed from the type string so a typo shows up in the test, not on chain.
+pub fn typehash() -> [u8; 32] {
+    keccak(&[b"AccessGrant(bytes32 fileId,bytes32 headerHash,bytes32 deviceKeyHash,uint8 permission,uint64 notBefore,uint64 expiry,uint16 maxOpens,bytes16 requestNonce,uint256 grantNonce)"])
+}
+
+fn keccak(parts: &[&[u8]]) -> [u8; 32] {
+    let mut h = Keccak256::new();
+    for p in parts {
+        h.update(p);
+    }
+    h.finalize().into()
+}
+
+fn word_u64(v: u64) -> [u8; 32] {
+    let mut w = [0u8; 32];
+    w[24..].copy_from_slice(&v.to_be_bytes());
+    w
+}
+
+fn word_bytes16(v: &[u8; 16]) -> [u8; 32] {
+    // `bytes16` is left-aligned in its 32-byte word
+    let mut w = [0u8; 32];
+    w[..16].copy_from_slice(v);
+    w
+}
+
 impl AccessGrantTerms {
+    /// EIP-712 `hashStruct` — also the on-chain `grantId`, and the `aad` of the DEK envelope
+    /// sent with the grant.
+    pub fn struct_hash(&self) -> [u8; 32] {
+        keccak(&[
+            &typehash(),
+            &self.file_id,
+            &self.header_hash,
+            &self.device_key_hash,
+            &word_u64(self.permission as u64),
+            &word_u64(self.not_before),
+            &word_u64(self.expiry),
+            &word_u64(self.max_opens as u64),
+            &word_bytes16(&self.request_nonce),
+            &word_u64(self.grant_nonce),
+        ])
+    }
+
+    /// EIP-712 digest for `AccessPolicy` at `verifying_contract` on `chain_id` — what the owner
+    /// signs (`OwnerSig`, approval_protocol §1.5).
+    pub fn digest(&self, chain_id: u64, verifying_contract: &[u8; 20]) -> [u8; 32] {
+        let mut contract = [0u8; 32];
+        contract[12..].copy_from_slice(verifying_contract);
+        let domain = keccak(&[
+            &keccak(&[b"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"]),
+            &keccak(&[DOMAIN_NAME.as_bytes()]),
+            &keccak(&[DOMAIN_VERSION.as_bytes()]),
+            &word_u64(chain_id),
+            &contract,
+        ]);
+        keccak(&[b"\x19\x01", &domain, &self.struct_hash()])
+    }
+
     /// CBOR bytes, as carried in `GrantMsg.grant`.
     pub fn to_cbor(&self) -> Result<Vec<u8>> {
         let mut out = Vec::new();
@@ -85,6 +148,31 @@ mod tests {
         let bytes = t.to_cbor().unwrap();
         assert_eq!(AccessGrantTerms::from_cbor(&bytes).unwrap(), t);
         assert!(AccessGrantTerms::from_cbor(b"nope").is_err());
+    }
+
+    /// vector-1 from docs/research/contracts_eip712_grant.md, produced by the Solidity library.
+    #[test]
+    fn t14_struct_hash_matches_the_solidity_vector() {
+        let t = AccessGrantTerms {
+            file_id: [0; 31].iter().copied().chain([1]).collect::<Vec<_>>().try_into().unwrap(),
+            header_hash: [0; 31].iter().copied().chain([2]).collect::<Vec<_>>().try_into().unwrap(),
+            device_key_hash: [0; 31].iter().copied().chain([3]).collect::<Vec<_>>().try_into().unwrap(),
+            permission: 1,
+            not_before: 1_700_000_000,
+            expiry: 1_700_003_600,
+            max_opens: 1,
+            request_nonce: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4],
+            grant_nonce: 0,
+        };
+        assert_eq!(
+            hex::encode(t.struct_hash()),
+            "d57d596bf1b00f8b8cc22ada6875352e42b07bf7bc0d02db0c208083732b78fa"
+        );
+        // the digest changes with the chain and the contract: a grant cannot be replayed
+        // across either (T03)
+        let a = t.digest(31337, &[0x11; 20]);
+        assert_ne!(a, t.digest(84532, &[0x11; 20]));
+        assert_ne!(a, t.digest(31337, &[0x22; 20]));
     }
 
     #[test]

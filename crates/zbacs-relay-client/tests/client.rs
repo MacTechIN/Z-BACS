@@ -53,6 +53,7 @@ fn request_for(device: &DeviceIdentity, owner: &[u8], nonce: [u8; 16]) -> Access
         owner: owner.to_vec(),
         device_kid: device.kid(),
         x25519_pub: device.x25519_pub(),
+        ed25519_pub: device.ed25519_pub(),
         requested: 1,
         nonce,
         hint: None,
