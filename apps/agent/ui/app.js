@@ -115,7 +115,7 @@ let status = null;
 
 // ---------------------------------------------------------------- screens
 
-const SCREENS = ["welcome", "choice", "working", "done", "blocked", "home", "seal", "sealed", "request", "answer", "approve", "given"];
+const SCREENS = ["welcome", "choice", "working", "done", "blocked", "home", "seal", "sealed", "request", "answer", "approve", "given", "log"];
 
 function show(name) {
   for (const screen of SCREENS) {
@@ -522,6 +522,78 @@ async function revoke(g) {
   answer({ title: "허락을 거뒀어요" }, { line: `"${g.file_name}" 파일은 이제 상대가 열 수 없어요.` });
 }
 
+// ---------------------------------------------------------------- the record (S10)
+
+let logEntries = [];
+let logFilter = "all";
+
+// One sentence per entry. The subject is the file (owner side) or "받은 파일" (recipient
+// side, whose name this machine never sees).
+function logSentence(e) {
+  const name = e.file_name ? `"${e.file_name}"` : "받은 파일";
+  const perm = e.detail === "edit" ? "편집까지" : "읽기만";
+  const owner = e.role === "owner";
+  switch (e.kind) {
+    case "sealed":
+      return `${name} 파일을 잠갔어요. (${e.detail === "edit" ? "편집도 가능" : "읽기만"})`;
+    case "requested":
+      return owner ? `누군가 ${name} 파일을 열고 싶어 했어요.` : `${name}을 열려고 주인에게 물어봤어요.`;
+    case "granted":
+      return owner ? `${name} 파일을 ${perm} 허락했어요.` : `주인이 ${name}을 ${perm} 허락했어요.`;
+    case "denied":
+      return owner ? `${name} 파일 열람을 거절했어요.` : `주인이 ${name} 열람을 허락하지 않았어요.`;
+    case "revoked":
+      return owner ? `${name} 파일의 허락을 거뒀어요.` : `주인이 ${name}의 허락을 거뒀어요.`;
+    case "opened":
+      return `${name}을 열었어요.`;
+    case "expired":
+      return `${name}의 허락 시간이 끝났어요.`;
+    case "failed":
+      return e.detail === "no_answer" ? `${name} 요청에 답이 오지 않았어요.` : `${name}에서 문제가 있었어요.`;
+    default:
+      return "";
+  }
+}
+
+const LOG_TAGS = {
+  sealed: ["잠금", ""],
+  requested: ["요청", "tag--open"],
+  granted: ["허락", "tag--open"],
+  denied: ["거절", "tag--error"],
+  revoked: ["거둠", "tag--error"],
+  opened: ["열람", "tag--open"],
+  expired: ["끝남", ""],
+  failed: ["문제", "tag--error"],
+};
+
+function renderLog() {
+  const list = document.getElementById("log");
+  const template = document.getElementById("log-card");
+  list.replaceChildren();
+  const shown = logEntries.filter((e) => logFilter === "all" || e.kind === logFilter);
+  for (const e of shown) {
+    const card = template.content.cloneNode(true);
+    const tag = card.querySelector('[data-role="tag"]');
+    const [word, cls] = LOG_TAGS[e.kind] ?? ["", ""];
+    tag.textContent = word;
+    if (cls) tag.classList.add(cls);
+    card.querySelector('[data-role="when"]').textContent = whenWords(e.at);
+    card.querySelector('[data-role="line"]').textContent = logSentence(e);
+    list.append(card);
+  }
+  document.getElementById("log-empty").hidden = shown.length > 0;
+}
+
+async function openLog() {
+  try {
+    logEntries = await invoke("audit_entries", { limit: 200 });
+  } catch {
+    logEntries = [];
+  }
+  renderLog();
+  show("log");
+}
+
 // ---------------------------------------------------------------- files
 
 function render() {
@@ -643,6 +715,17 @@ async function main() {
     show("given");
   });
   document.getElementById("given-back").addEventListener("click", () => show("home"));
+  document.getElementById("to-log").addEventListener("click", openLog);
+  document.getElementById("log-back").addEventListener("click", () => show("home"));
+  for (const chip of document.getElementById("log-chips").querySelectorAll(".chip")) {
+    chip.addEventListener("click", () => {
+      for (const other of document.getElementById("log-chips").querySelectorAll(".chip")) {
+        other.setAttribute("aria-pressed", String(other === chip));
+      }
+      logFilter = chip.dataset.value;
+      renderLog();
+    });
+  }
   document.getElementById("answer-again").addEventListener("click", () => {
     const file = seen.get(asking.path);
     if (file) requestAccess(file);

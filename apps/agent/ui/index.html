@@ -83,6 +83,7 @@
         <div id="files" class="files" hidden></div>
         <button id="to-approve" class="btn btn--ok" hidden>확인할 요청 보기</button>
         <button id="to-given" class="btn" hidden>내가 허락한 파일</button>
+        <button id="to-log" class="btn">기록</button>
         <button id="to-seal" class="btn btn--ok">파일 잠그기</button>
       </section>
 
@@ -214,6 +215,25 @@
         <button id="given-back" class="btn">돌아가기</button>
       </section>
 
+      <!-- S10 기록 (Z-1.G.12) -->
+      <section id="screen-log" class="screen" hidden>
+        <div class="hero hero--tight">
+          <h2 class="hero__title">기록</h2>
+          <p class="hero__line">이 컴퓨터에서 있었던 일이에요. 최근 것이 위에 있어요.</p>
+        </div>
+        <div id="log-chips" class="chips" role="group" aria-label="종류">
+          <button class="chip" data-value="all" aria-pressed="true">전체</button>
+          <button class="chip" data-value="sealed" aria-pressed="false">잠금</button>
+          <button class="chip" data-value="requested" aria-pressed="false">요청</button>
+          <button class="chip" data-value="granted" aria-pressed="false">허락</button>
+          <button class="chip" data-value="denied" aria-pressed="false">거절</button>
+          <button class="chip" data-value="revoked" aria-pressed="false">거둠</button>
+        </div>
+        <div id="log" class="files"></div>
+        <p id="log-empty" class="card__note" hidden>아직 기록이 없어요.</p>
+        <button id="log-back" class="btn">돌아가기</button>
+      </section>
+
       <details class="dev">
         <summary class="dev__summary">개발용 정보</summary>
         <pre id="dev" class="dev__body"></pre>
@@ -241,6 +261,16 @@
         <p class="card__line" data-role="headline"></p>
         <p class="card__note" data-role="note"></p>
         <button class="btn btn--danger" data-role="revoke">허락 거두기</button>
+      </article>
+    </template>
+
+    <template id="log-card">
+      <article class="card">
+        <div class="card__row">
+          <span class="tag" data-role="tag"></span>
+          <span class="card__size" data-role="when"></span>
+        </div>
+        <p class="card__line" data-role="line"></p>
       </article>
     </template>
 

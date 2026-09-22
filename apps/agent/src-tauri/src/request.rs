@@ -579,7 +579,12 @@ pub async fn request_access(app: AppHandle, path: String, requested: RequestedAr
     let handle = app.clone();
     let key = path.clone();
     let cancel_for_watch = cancel.clone();
+    // The recipient does not know the file's name (it is encrypted); the record says what
+    // happened to which id, and the screen says "받은 파일".
+    let fid = target.fid;
     tauri::async_runtime::spawn(async move {
+        use crate::audit::{Kind, Role};
+        handle.state::<crate::audit::AuditLog>().record(Kind::Requested, Role::Recipient, &fid, None, None);
         let reporter = handle.clone();
         let emit = move |u: Update| {
             if let Err(e) = reporter.emit(REQUEST_EVENT, &u) {
@@ -600,6 +605,22 @@ pub async fn request_access(app: AppHandle, path: String, requested: RequestedAr
         )
         .await;
         log::info!("request ended: {outcome:?}");
+        {
+            let audit = handle.state::<crate::audit::AuditLog>();
+            match &outcome {
+                Outcome::Granted { permission, .. } => {
+                    audit.record(Kind::Granted, Role::Recipient, &fid, None, Some(decision_word(*permission)))
+                }
+                Outcome::Denied => audit.record(Kind::Denied, Role::Recipient, &fid, None, None),
+                Outcome::Expired => {
+                    audit.record(Kind::Failed, Role::Recipient, &fid, None, Some("no_answer"))
+                }
+                Outcome::Failed(reason) => {
+                    audit.record(Kind::Failed, Role::Recipient, &fid, None, Some(reason))
+                }
+                Outcome::Cancelled => {}
+            }
+        }
         {
             let state = handle.state::<Requests>();
             let mut requests = state.0.lock().expect("requests mutex");
@@ -622,6 +643,12 @@ pub async fn request_access(app: AppHandle, path: String, requested: RequestedAr
             };
             let end = watch_grant(&client, guarding, emit).await;
             log::info!("grant ended: {end:?}");
+            let audit = handle.state::<crate::audit::AuditLog>();
+            match end {
+                GrantEnd::Revoked => audit.record(Kind::Revoked, Role::Recipient, &fid, None, None),
+                GrantEnd::Expired => audit.record(Kind::Expired, Role::Recipient, &fid, None, None),
+                GrantEnd::Cancelled => {}
+            }
             let state = handle.state::<Requests>();
             let mut requests = state.0.lock().expect("requests mutex");
             if let Some(active) = requests.get_mut(&key) {

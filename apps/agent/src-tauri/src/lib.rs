@@ -28,6 +28,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 
 pub mod approve;
+pub mod audit;
 pub mod ledger;
 pub mod request;
 pub mod seal;
@@ -190,6 +191,7 @@ fn capabilities() -> serde_json::Value {
         "requestAccess": true, // Z-1.G.9
         "approve": true,       // Z-1.G.10
         "revoke": true,        // Z-1.G.11
+        "auditLog": true,      // Z-1.G.12 (local; chain_events pending Z-1.H.8)
         "openFile": false      // Z-1.G.7/G.8
     })
 }
@@ -234,7 +236,8 @@ pub fn run() {
             approve::pending_approvals,
             approve::decide,
             approve::given_grants,
-            approve::revoke_grant
+            approve::revoke_grant,
+            audit::audit_entries
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -243,6 +246,7 @@ pub fn run() {
                 std::path::PathBuf::from(".")
             });
             handle.manage(ledger::Ledger::new(&config_dir));
+            handle.manage(audit::AuditLog::new(&config_dir));
             handle.manage(setup::SetupHost::new(config_dir));
             setup::restore(&handle);
             build_tray(&handle)?;

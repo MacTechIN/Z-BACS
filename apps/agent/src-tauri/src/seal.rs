@@ -264,10 +264,18 @@ pub async fn seal_file(app: AppHandle, request: SealRequest) -> Result<SealResul
         let result = seal_now(&owner, &profile, &request).map_err(|e| e.to_string())?;
         // Remember it: an approval request names the file by id, and the approval screen must
         // show the name and policy from *this* machine's record, never from the request (T06).
-        if let Err(e) =
-            app.state::<crate::ledger::Ledger>().record(&crate::ledger::Entry::from_seal(&result, &request))
-        {
+        let entry = crate::ledger::Entry::from_seal(&result, &request);
+        if let Err(e) = app.state::<crate::ledger::Ledger>().record(&entry) {
             log::warn!("locked, but could not record it for later approvals: {e}");
+        }
+        if let Ok(fid) = <[u8; 32]>::try_from(hex::decode(&result.fid).unwrap_or_default()) {
+            app.state::<crate::audit::AuditLog>().record(
+                crate::audit::Kind::Sealed,
+                crate::audit::Role::Owner,
+                &fid,
+                Some(&entry.name),
+                Some(&entry.permission),
+            );
         }
         Ok(result)
     })

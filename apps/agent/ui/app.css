@@ -399,3 +399,27 @@ body {
   margin: 0;
   font: var(--zb-text-sm);
 }
+
+/* S10 기록: category chips (ui_guideline "Category chip") */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--zb-space-2);
+  margin-bottom: var(--zb-space-3);
+}
+
+.chip {
+  font: var(--zb-text-sm);
+  border: none;
+  border-radius: var(--zb-radius-chip);
+  padding: var(--zb-space-1) var(--zb-space-3);
+  min-height: var(--zb-touch-min);
+  background: var(--zb-key-bg);
+  color: var(--zb-fg);
+  cursor: pointer;
+}
+
+.chip[aria-pressed="true"] {
+  background: var(--zb-grad-ok);
+  color: var(--zb-white);
+}

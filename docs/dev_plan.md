@@ -108,7 +108,7 @@
 | Z-1.G.9 ✅ | 승인 대기 UI, 거부/만료 처리 | UX 리뷰 (2026-09-21: `apps/agent` `request.rs` + S4 화면. 기기 등록→서명 요청→받은편지함 폴링→답 분류(파일·버전·기기·nonce 일치 검사, T05/T19)→세션 상태머신 구동. 120s 안내·300s 만료·취소·Relay 불통 처리. 실제 `zbacs-relay`를 띄운 통합 테스트 6종 + 단위 8종. 소유자 서명 검증은 `owner_signature_check` pending으로 표시 — Z-1.H.8/H.10) |
 | Z-1.G.10 ✅ | 데스크톱 승인 UI(소유자가 PC에서 승인) — 패스키 프롬프트 + EIP-712 내용 표시 | T06 체크 (2026-09-22: `apps/agent` `approve.rs` + `ledger.rs` + S5 화면. 소유자 받은편지함 감시(3s) → 요청자 서명을 요청이 담은 키로 직접 검증(T05) → **로컬 잠금 기록**으로 파일명·정책 표시, 기록 없음/다른 버전이면 허락 불가(T06/T19) → [읽기만 허락][편집도 허락][거절] → EIP-712 digest(Solidity 벡터 일치)를 기기 서명기로 서명(T23 확인 정책) → DEK를 요청 기기 키로 재봉인(aad=grantId) → GrantMsg. 시나리오 B 왕복 통합 테스트 3종(두 SetupHost + 실제 Relay: 허락→Bob이 DEK 열고 복호화·서명 검증, 거절, 모르는 파일 허락 불가) + 단위 9종. 체인 기록은 Z-1.H.8) |
 | Z-1.G.11 ✅ | 회수(Revoke) 기능 + 활성 세션 목록 | E2E (2026-09-22: 소유자 — 허락할 때 `sealed.json`에 기록, "내가 허락한 파일" 화면(남은 시간·[허락 거두기]) → Relay `Revoke` + 기록. Relay — revoke를 그 파일을 요청했던 모든 기기로 라우팅(이전엔 소유자 자신에게만 가던 버그 수정, T20 테스트). 수신자 — 허락 뒤에도 받은편지함을 계속 읽어 revoke면 `Revoked`, 만료면 `Closed`로 세션을 닫고 화면에 알림. 두 기기 통합 테스트: 회수 → 상대 세션 즉시 종료, 만료 자체 종료(T15). 체인 revoke는 Z-1.H.8) |
-| Z-1.G.12 | 감사 로그 뷰어(체인 이벤트 조회) | 이벤트 5종 표시 |
+| Z-1.G.12 ◐ | 감사 로그 뷰어(체인 이벤트 조회) | 이벤트 5종 표시 (2026-09-22: `apps/agent` `audit.rs` + S10 화면 — 잠금·요청·허락·거절·거둠(+열람·만료·문제)을 append-only `audit.jsonl`에 기록하고 칩 필터·시간순으로 문장 표시. 파일명은 로컬 기록에서만(T06). **체인 이벤트 소스는 Z-1.H.8이 체인에 쓰기 시작해야 읽을 것이 생김** — `Source::Chain` 자리만 있고 개발 패널에 `chain_events` pending. 단위 4종) |
 | Z-1.G.13 | 자동 업데이트(tauri-plugin-updater) | 서명된 업데이트 |
 
 ### 1.6 Approve App (P) — MVP는 데스크톱 승인(G.10)으로 대체 가능, 모바일은 1단계 후반
@@ -160,7 +160,7 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | ~~2~~ ✅ | ~~`Z-1.G.9` 열람 요청 UI~~ | 2026-09-21 완료 |
 | ~~3~~ ✅ | ~~`Z-1.G.10` 데스크톱 승인 UI~~ | 2026-09-22 완료. 모바일 승인 앱(Z-1.P.2) 없이 베타 가능 |
 | ~~4~~ ✅ | ~~`Z-1.G.11` 회수 + 활성 세션~~ | 2026-09-22 완료 |
-| 5 | `Z-1.G.12` 감사 로그 뷰어 | MVP DoD 3의 "조회 가능" |
+| ~~5~~ ◐ | ~~`Z-1.G.12` 감사 로그 뷰어~~ | 2026-09-22 로컬 기록 완료. 체인 이벤트 병합은 Z-1.H.8 뒤 |
 | 6 | `Z-1.U.4` 오류 카탈로그 | 베타 참가자는 우리에게 물어볼 수 없다. 모든 오류가 다음 행동을 말해야 한다 |
 | 7 | `Z-1.U.5` 알림 액션 버튼 | U-3(10초 내 승인). 없으면 소유자가 창을 찾아 들어가야 한다 |
 | 8 | `Z-1.R.4` Docker | 두 대가 닿을 수 있는 Relay 한 대. 직접 `cargo run -p zbacs-relay`로도 되지만 베타 참가자에게 시킬 일은 아니다 |
@@ -240,7 +240,7 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | T04 Relay DEK 탈취 | Z-1.C.1 (HPKE 봉투 정식화), Z-1.R.2 (Relay는 암호문만) | core `t04_wrong_key_cannot_open`, `extra_recipient_envelope_opens` |
 | T05 요청자 바꿔치기 | Z-1.A.3 (기기 키), Z-1.R.1 (요청 서명·devicePub 해시), Z-1.R.2 (서명자≠요청자 거부), Z-1.H.2 (티켓에 deviceKid), Z-1.G.9 (답의 deviceKeyHash·nonce 검사) | agent `t05_*` 2종 · proto `t05_*` 2종; relay `t05_a_request_about_another_device_is_refused`|
 | T06 승인 피싱 | Z-1.G.10, Z-1.P.2 (EIP-712 구조화 표시), Z-1.U.5 (알림 액션에 파일·권한 표시) | contracts EIP-712 타입 해시 벡터, agent `t06_the_screen_shows_the_record_not_the_request`, `t06_a_file_this_machine_did_not_lock_cannot_be_allowed` |
-| T07 승인 후 평문 복사 | Z-1.G.5/7 (ACL·읽기전용), Z-1.H.3 + Z-1.G.12 (감사 로그), Z-2.G.4 (워터마크), Z-3.G.1 (미니필터) | session `t07_read_only_marking_blocks_writes`, `workspace_is_private_*`; contracts `AuditLog.t.sol` 5종 |
+| T07 승인 후 평문 복사 | Z-1.G.5/7 (ACL·읽기전용), Z-1.H.3 + Z-1.G.12 (감사 로그), Z-2.G.4 (워터마크), Z-3.G.1 (미니필터) | session `t07_read_only_marking_blocks_writes`, `workspace_is_private_*`; contracts `AuditLog.t.sol` 5종 agent `audit.rs` 로컬 기록(잠금·요청·허락·거절·거둠) |
 | T08 화면 촬영 | 범위 밖(명시). 추적성만: Z-2.G.4 | — |
 | T09 평문 잔존 | Z-1.G.8 (재봉인·안전 삭제), Z-1.Q.2 (포렌식 CI), Z-2.G.3 (가상 드라이브) | session `t09_wipe_overwrites_and_removes_everything`, `t09_secure_delete_overwrites_before_unlinking` |
 | T10 앱 임시파일 | Z-1.G.6 (경로 고정·저장 감지), Z-1.G.8 (앱별 잔존 청소), Z-2.G.3 | session `a_temp_and_rename_save_is_detected`, `other_files_in_the_workspace_are_ignored` |

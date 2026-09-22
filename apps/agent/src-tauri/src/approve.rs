@@ -554,7 +554,19 @@ pub fn given_grants(app: AppHandle) -> Vec<Given> {
 pub async fn revoke_grant(app: AppHandle, grant_id: String) -> Result<Given, String> {
     let (client, _owner) = client_for(&app).map_err(str::to_string)?;
     let ledger = app.state::<Ledger>();
-    revoke_now(&client, &ledger, &grant_id).await.map_err(str::to_string)
+    let given = revoke_now(&client, &ledger, &grant_id).await.map_err(str::to_string)?;
+    if let Some(grant) = ledger.grant(&grant_id) {
+        if let Ok(fid) = <[u8; 32]>::try_from(hex::decode(&grant.fid).unwrap_or_default()) {
+            app.state::<crate::audit::AuditLog>().record(
+                crate::audit::Kind::Revoked,
+                crate::audit::Role::Owner,
+                &fid,
+                Some(&grant.file_name),
+                None,
+            );
+        }
+    }
+    Ok(given)
 }
 
 /// The person answered. Off the UI thread: a real signer shows an OS prompt.
@@ -600,6 +612,13 @@ pub async fn decide(app: AppHandle, id: String, decision: DecisionArg) -> Result
     if decision != DecisionArg::Deny {
         approvals.recent.lock().expect("approvals mutex").push(now());
     }
+    app.state::<crate::audit::AuditLog>().record(
+        if decision == DecisionArg::Deny { crate::audit::Kind::Denied } else { crate::audit::Kind::Granted },
+        crate::audit::Role::Owner,
+        &pending.request.fid,
+        pending.entry.as_ref().map(|e| e.name.as_str()),
+        Some(decision.word()),
+    );
     Ok(answered)
 }
 
