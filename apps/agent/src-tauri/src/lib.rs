@@ -30,6 +30,7 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 pub mod approve;
 pub mod audit;
 pub mod ledger;
+pub mod notify;
 pub mod request;
 pub mod seal;
 pub mod setup;
@@ -198,6 +199,7 @@ fn capabilities() -> serde_json::Value {
         "approve": true,       // Z-1.G.10
         "revoke": true,        // Z-1.G.11
         "auditLog": true,      // Z-1.G.12 (local; chain_events pending Z-1.H.8)
+        "notifyButtons": cfg!(windows), // Z-1.U.5: toast buttons on Windows, plain elsewhere
         "openFile": false      // Z-1.G.7/G.8
     })
 }
@@ -216,6 +218,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             // Another double-click while we are running: take its file, keep one Agent.
             log::info!("second instance handed over {} argument(s)", argv.len());

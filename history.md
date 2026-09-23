@@ -1177,3 +1177,24 @@ Z-1.U.4 오류 카탈로그 완료, 커밋·푸시했습니다.
 
 베타 컷 남은 코드: U.5 알림 액션 → R.4 Docker → Q.2 포렌식 → Q.1 E2E. 다음은 Z-1.U.5입니다(Windows 토스트 액션은 Windows 실기 확인이 필요한 부분이 있어, Linux에서 되는 데까지 만들고 체크리스트에 남깁니다).
 ```
+
+### #45 [U] 2026-09-23
+```
+다음
+```
+
+### #45 [C] 2026-09-23
+```
+Z-1.U.5 알림 액션 버튼 — 코드 완료(◐, Windows 토스트 실기 확인 대기), 커밋·푸시했습니다.
+
+만든 것
+- apps/agent/src-tauri/src/notify.rs: 요청이 오면 데스크톱 알림. Windows 토스트에 [읽기만 허락][편집도 허락][거절][앱에서 보기] 버튼(tauri-winrt-notification). 누르면 화면과 똑같은 decide 경로를 탄다 — 편집·연속 승인의 OS 확인(T23)이 토스트라고 약해지지 않음 → "허락했어요"/"거절했어요" 결과 토스트, 실패하면 창을 띄우고 "앱을 열어 다시 시도해 주세요". 다른 OS(Linux 개발 환경)는 tauri-plugin-notification의 버튼 없는 알림 + "앱에서 답해 주세요".
+- 알림 내용은 S5 화면과 같은 규칙(T06): 파일명은 로컬 잠금 기록에서, 상대는 "누군가". 기록에 없거나 버전이 다른 파일은 [거절][앱에서 보기]만.
+- 벤더는 Notifier 트레이트 뒤에(규칙 6). 문구·버튼은 Plan 값으로 분리해 OS 없이 테스트: 단위 4종(U-3 세 답 모두 있음, T06, 액션 문자열 파싱, 결과 문구). Agent 37+16 통과, clippy·ux-lint 통과.
+
+정직하게 남긴 것: Windows 토스트는 설치 바로가기(AUMID)가 있어야 뜨고, 버튼 동작은 Windows에서만 확인 가능 → windows_checklist §3.11(창을 한 번도 열지 않고 허락이 끝나야 U-3 통과). 개발 빌드는 ZBACS_TOAST_POWERSHELL=1로 임시 확인. 모바일 푸시는 P 트랙(베타 제외). CI의 windows-latest agent 잡이 컴파일을 확인합니다.
+
+문서: dev_plan U.5 ◐·베타 컷, Agent README, windows_checklist §3.11, CLAUDE.md.
+
+베타 컷 남은 코드: R.4 Relay Docker → Q.2 포렌식 → Q.1 E2E. 다음은 Z-1.R.4입니다.
+```

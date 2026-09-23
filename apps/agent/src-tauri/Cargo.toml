@@ -33,6 +33,9 @@ tauri-plugin-log = "2"
 # The one webview capability beyond events: choosing a file to lock. Dropping a file works
 # without it, but a person who cannot drag needs a way in too.
 tauri-plugin-dialog = "2"
+# The approval notification (Z-1.U.5). On Windows the toast itself carries the three answers
+# (tauri-winrt-notification below); elsewhere this plugin's plain notification opens the app.
+tauri-plugin-notification = "2"
 log = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -50,6 +53,8 @@ ciborium = "0.2"
 [target.'cfg(windows)'.dependencies]
 # Windows Hello and the TPM device key: the two real signer paths (ADR-0006).
 zbacs-auth = { path = "../../../crates/zbacs-auth", features = ["windows-hardware", "os-keystore"] }
+# Toasts with buttons, answered in place (Z-1.U.5, U-3).
+tauri-winrt-notification = "0.8"
 
 [dev-dependencies]
 # A real relay for the request test: the same server the beta will run.

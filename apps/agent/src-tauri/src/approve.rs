@@ -153,7 +153,8 @@ impl DecisionArg {
         }
     }
 
-    fn word(self) -> &'static str {
+    /// Machine value for records and logs.
+    pub fn word(self) -> &'static str {
         match self {
             Self::Deny => "deny",
             Self::ReadOnly => "read_only",
@@ -532,6 +533,8 @@ pub fn ensure_watching(app: AppHandle) -> Result<(), String> {
                     if let Err(e) = handle.emit(APPROVAL_EVENT, &incoming) {
                         log::warn!("cannot show the request: {e}");
                     }
+                    // ...and on the desktop itself, answerable there (Z-1.U.5, U-3).
+                    crate::notify::announce(&handle, &incoming);
                 }
                 // The person has to see it: the Agent's whole job is to be there now (U-3).
                 if let Some(window) = handle.get_webview_window("main") {
