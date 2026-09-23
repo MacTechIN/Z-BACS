@@ -168,14 +168,23 @@ fn exclude_from_indexing(path: &Path) -> Result<()> {
     use std::os::windows::ffi::OsStrExt;
     use windows::core::PCWSTR;
     use windows::Win32::Storage::FileSystem::{
-        SetFileAttributesW, FILE_ATTRIBUTE_NOT_CONTENT_INDEXED, FILE_ATTRIBUTE_TEMPORARY,
+        GetFileAttributesW, SetFileAttributesW, FILE_ATTRIBUTE_NOT_CONTENT_INDEXED,
+        FILE_FLAGS_AND_ATTRIBUTES, INVALID_FILE_ATTRIBUTES,
     };
 
+    // The workspace is a directory: `FILE_ATTRIBUTE_TEMPORARY` is a file-only attribute and
+    // Windows answers it with ERROR_INVALID_PARAMETER (found by the first real Windows run in
+    // CI). Not-content-indexed is what keeps the plaintext out of Search; it is OR-ed onto
+    // whatever the directory already has, because SetFileAttributesW replaces the whole set.
     let wide: Vec<u16> = path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
     unsafe {
+        let current = GetFileAttributesW(PCWSTR(wide.as_ptr()));
+        if current == INVALID_FILE_ATTRIBUTES {
+            return Err(SessionError::Workspace("get attributes: not found".into()));
+        }
         SetFileAttributesW(
             PCWSTR(wide.as_ptr()),
-            FILE_ATTRIBUTE_NOT_CONTENT_INDEXED | FILE_ATTRIBUTE_TEMPORARY,
+            FILE_FLAGS_AND_ATTRIBUTES(current) | FILE_ATTRIBUTE_NOT_CONTENT_INDEXED,
         )
         .map_err(|e| SessionError::Workspace(format!("set attributes: {e}")))?;
     }

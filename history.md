@@ -1240,3 +1240,8 @@ Z-1.R.4 Relay Docker 이미지 + 셀프호스팅 문서 완료, 커밋·푸시�
 
 베타 컷 남은 코드: Q.2 포렌식 → Q.1 E2E. 다음은 Z-1.Q.2입니다.
 ```
+
+### #46b [C] 2026-09-23 (CI 복구 4 — 실제 Windows에서 처음 잡힌 버그)
+```
+CI가 처음으로 Windows에서 워크스페이스 테스트를 실제 실행하자 zbacs-session 3개가 "set attributes: The parameter is incorrect (0x80070057)"로 실패했습니다. 원인: 보호 작업공간 디렉터리에 FILE_ATTRIBUTE_TEMPORARY(파일 전용 속성)를 걸어서. 수정: GetFileAttributesW로 현재 속성을 읽어 NOT_CONTENT_INDEXED만 OR 해서 설정(SetFileAttributesW는 전체를 덮어쓰므로). Linux 크로스 컴파일로는 못 잡는 종류이며, 이제 CI의 windows-latest가 매 커밋마다 이 경로를 실행합니다.
+```
