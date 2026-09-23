@@ -130,7 +130,7 @@ impl WindowsPasskey {
             };
 
             let attestation =
-                WebAuthNAuthenticatorMakeCredential(hwnd, &rp, &user, &params, &client, Some(&mut options))
+                WebAuthNAuthenticatorMakeCredential(hwnd, &rp, &user, &params, &client, Some(&options))
                     .map_err(|e| hello_err("create passkey", e))?;
             if attestation.is_null() {
                 return Err(AuthError::Hardware("webauthn returned no attestation".into()));

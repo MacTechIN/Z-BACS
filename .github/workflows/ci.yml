@@ -30,6 +30,10 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      # zbacs-auth's Linux keychain backend (keyring `sync-secret-service`) links libdbus.
+      - name: system libraries (dbus for the Linux keychain)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
       - name: fmt
         run: cargo fmt --all --check
       - name: clippy

@@ -1198,3 +1198,12 @@ Z-1.U.5 알림 액션 버튼 — 코드 완료(◐, Windows 토스트 실기 확
 
 베타 컷 남은 코드: R.4 Relay Docker → Q.2 포렌식 → Q.1 E2E. 다음은 Z-1.R.4입니다.
 ```
+
+### #45b [C] 2026-09-23 (CI 복구)
+```
+CI가 여러 커밋 전부터 빨간 상태였던 것을 확인하고 고쳤습니다(로컬 검사는 통과해서 못 보고 있었음).
+1. rust (ubuntu): zbacs-auth의 Linux 보관함 백엔드(keyring sync-secret-service)가 libdbus를 링크하는데 러너에 헤더가 없었음 → CI rust 잡에 libdbus-1-dev 설치 단계 추가, tools/setup.sh 패키지 목록에도 추가.
+2. rust (windows): Windows 전용 코드의 clippy — WebAuthNAuthenticatorMakeCredential에 &mut을 넘기던 것(unnecessary_mut_passed) → &로. Linux 크로스체크는 clippy가 아니라 check라 못 잡던 것.
+3. agent (windows): setup.rs의 DeviceCapabilities import가 Windows 경로에서는 안 쓰여 -D warnings에 걸림 → 쓰는 함수 안으로 이동.
+푸시 후 CI 결과를 다시 확인합니다.
+```

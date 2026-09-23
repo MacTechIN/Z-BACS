@@ -36,7 +36,7 @@ install_apt_deps() {
   [[ "$OS" != "Linux" ]] && return 0
   [[ "${SKIP_APT:-0}" == "1" ]] && { log "SKIP_APT=1, skipping apt"; return 0; }
   if ! have apt-get; then log "non-apt Linux: install Tauri deps manually (see https://v2.tauri.app/start/prerequisites/)"; return 0; fi
-  local pkgs=(build-essential pkg-config libssl-dev curl wget file git
+  local pkgs=(build-essential pkg-config libssl-dev libdbus-1-dev curl wget file git
               libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev)
   local missing=()
   for p in "${pkgs[@]}"; do dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p"); done

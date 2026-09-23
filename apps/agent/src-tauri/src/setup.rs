@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
-use zbacs_auth::setup::{ApprovalStyle, DeviceCapabilities, Pending, Prepared, Setup, SignerFactory};
+use zbacs_auth::setup::{ApprovalStyle, Pending, Prepared, Setup, SignerFactory};
 use zbacs_auth::store::{KeyStore, MemoryKeyStore};
 
 /// Relying-party id for the platform passkey. A constant, because the person never types one.
@@ -218,6 +218,7 @@ fn signer_factory(_store: Arc<dyn KeyStore>, persistent: bool) -> Option<Arc<dyn
 fn signer_factory(store: Arc<dyn KeyStore>, persistent: bool) -> Option<Arc<dyn SignerFactory>> {
     // A developer box with no TPM. The keys are ordinary process memory, which setup reports as
     // `software_signer`, and the UI says so rather than implying hardware protection.
+    use zbacs_auth::setup::DeviceCapabilities;
     let caps =
         DeviceCapabilities { os_authenticator: true, hardware_key: false, persistent_store: persistent };
     Some(Arc::new(zbacs_auth::software::SoftwareSignerFactory::new(store, RP_ID).with_capabilities(caps)))
@@ -225,7 +226,6 @@ fn signer_factory(store: Arc<dyn KeyStore>, persistent: bool) -> Option<Arc<dyn 
 
 #[cfg(all(not(windows), not(feature = "demo-signer")))]
 fn signer_factory(_store: Arc<dyn KeyStore>, _persistent: bool) -> Option<Arc<dyn SignerFactory>> {
-    let _ = DeviceCapabilities::default();
     None
 }
 
