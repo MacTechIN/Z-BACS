@@ -270,6 +270,9 @@ pub async fn complete_setup(app: AppHandle, style: StyleArg) -> Result<SetupStat
     .map_err(|e| format!("join: {e}"))?
 }
 
+/// Every machine value setup can hand the UI (Z-1.U.4).
+pub const SETUP_PROBLEMS: &[&str] = &["cancelled", "unsupported", "no_signer", "failed"];
+
 /// Map a failure to a value the UI turns into a sentence with an action (ux_principles rule 6).
 fn error_id(e: &zbacs_auth::AuthError) -> &'static str {
     match e {

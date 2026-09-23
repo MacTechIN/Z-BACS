@@ -60,5 +60,7 @@ ZBACS_RELAY_URL=http://127.0.0.1:8787 cargo tauri dev
 사용자에게 보이는 문구는 전부 `ui/`에 있다. 백엔드는 `"biometric"`, `"volatile_key_store"` 같은 **기계값만** 돌려주고 문장을 만들지 않는다 — 그래야 `tools/ux-lint.sh`가 화면의 말을 한곳에서 검사할 수 있다.
 
 ```
-tools/ux-lint.sh   # 금지 용어(U-5), 텍스트 입력 0개(U-6), 토큰만 사용, id/data-role 일치
+tools/ux-lint.sh   # 금지 용어(U-5), 텍스트 입력 0개(U-6), 토큰만 사용, id/data-role 일치, 오류 카탈로그 일치
 ```
+
+오류는 기계값으로만 넘어오고(`relay_unreachable`, `not_sealed`…) 문장과 버튼은 `ui/app.js`의 `*_PROBLEMS` 표에 있다. 전체 목록과 각 오류의 다음 행동은 `docs/design/ui_strings.md` §7. 새 기계값은 백엔드 모듈의 `*_PROBLEMS` 상수 → app.js → §7 순서로 넣는다; 빠지면 `tests/errors.rs`나 린트가 잡는다.

@@ -113,6 +113,28 @@ for js in $(git ls-files 'apps/*/ui/app.js'); do
   done
 done
 
+# ---------------------------------------------------------------- 5. every error has a sentence (Z-1.U.4)
+
+# The catalogue in the dictionary (§7) is the list of machine values the backend may return.
+# Each must have a sentence in app.js, and app.js must not invent values the catalogue does
+# not know. The backend side of the same triangle is apps/agent/src-tauri/tests/errors.rs.
+catalogue=$(awk '/ux-lint:errors:start/{on=1;next} /ux-lint:errors:end/{on=0} on' "$DICT" |
+  grep -oE '^\| `[a-z_]+`' | sed -e 's/^| `//' -e 's/`$//' | sort -u)
+if [ -z "$catalogue" ]; then
+  bad "$DICT has no error catalogue block (§7)"
+fi
+for js in $(git ls-files 'apps/*/ui/app.js'); do
+  keys=$(awk '/^const [A-Z_]*_PROBLEMS = \{/{on=1;next} on && /^\};/{on=0} on' "$js" |
+    grep -oE '^[[:space:]]+[a-z_]+:' | tr -d ' :' | sort -u)
+  for id in $catalogue; do
+    printf '%s\n' "$keys" | grep -qxF -- "$id" || bad "$js has no sentence for the catalogued error '$id'"
+  done
+  for id in $keys; do
+    printf '%s\n' "$catalogue" | grep -qxF -- "$id" || bad "$js invents an error '$id' that $DICT §7 does not list"
+  done
+  note "$(printf '%s\n' "$catalogue" | grep -c .) catalogued error(s), all with a sentence"
+done
+
 # ---------------------------------------------------------------- result
 
 if [ "$fail" -eq 0 ]; then

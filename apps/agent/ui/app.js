@@ -39,6 +39,15 @@ const NOTES = {
   software_signer: "이 컴퓨터에는 전용 보안 칩이 없어요. 쓰는 데는 문제가 없지만 보호는 조금 약합니다.",
 };
 
+// Why a file the person double-clicked cannot be read. Each names the next step, and the
+// card's button does it.
+const INSPECT_PROBLEMS = {
+  not_sealed: "잠긴 파일이 아니에요. 잠그고 싶다면 아래 버튼을 눌러 주세요.",
+  newer_version: "더 새로운 방식으로 잠긴 파일이에요. 앱을 업데이트한 뒤 다시 열어 주세요.",
+  missing: "그 파일을 찾을 수 없어요. 옮겼거나 지워졌는지 확인해 주세요.",
+  damaged: "파일이 손상되었거나 읽을 수 없어요. 보낸 사람에게 다시 받아 주세요.",
+};
+
 // Why a dropped file cannot be locked. Every one of these says what the person can do next
 // (ux_principles rule 6), because "안 됩니다" alone leaves them stuck.
 const FILE_PROBLEMS = {
@@ -643,11 +652,25 @@ function render() {
     } else {
       tag.textContent = "열 수 없음";
       tag.classList.add("tag--error");
-      headline.textContent = file.problem ?? "이 파일은 열 수 없습니다.";
+      headline.textContent = INSPECT_PROBLEMS[file.problem] ?? INSPECT_PROBLEMS.damaged;
       note.textContent = "";
       size.textContent = "";
-      action.textContent = "확인";
-      action.disabled = true;
+      action.disabled = false;
+      if (file.problem === "not_sealed") {
+        action.textContent = "이 파일 잠그기";
+        action.addEventListener("click", async () => {
+          seen.delete(file.path);
+          render();
+          openSealScreen();
+          await offerFile(file.path);
+        });
+      } else {
+        action.textContent = "목록에서 지우기";
+        action.addEventListener("click", () => {
+          seen.delete(file.path);
+          render();
+        });
+      }
     }
     list.append(card);
   }

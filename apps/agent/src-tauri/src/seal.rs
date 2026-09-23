@@ -21,6 +21,19 @@ use zbacs_core::{Permission, Policy, SealOptions};
 
 use crate::setup::{Identity, SetupHost};
 
+/// Every machine value the lock screen can be handed (Z-1.U.4).
+pub const SEAL_PROBLEMS: &[&str] = &[
+    "is_folder",
+    "already_locked",
+    "empty",
+    "output_exists",
+    "missing",
+    "unreadable",
+    "not_set_up",
+    "no_locked_copy",
+    "failed",
+];
+
 /// Extension of a locked file.
 pub const SEALED_EXT: &str = "zbacs";
 

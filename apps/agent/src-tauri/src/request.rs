@@ -35,6 +35,21 @@ use zbacs_session::{Event, Session, State};
 
 use crate::setup::{Identity, SetupHost};
 
+/// Every machine value asking can hand the UI, as a command error or an `Update.problem`
+/// (Z-1.U.4).
+pub const REQUEST_PROBLEMS: &[&str] = &[
+    "relay_unreachable",
+    "relay_refused",
+    "not_set_up",
+    "owner_denies",
+    "already_asking",
+    "mismatch",
+    "window",
+    "missing",
+    "unreadable",
+    "failed",
+];
+
 /// Event the webview listens for while a request is in flight.
 pub const REQUEST_EVENT: &str = "zbacs://request";
 /// Developer override for the relay, comma-separated. There is no user-facing setting: the

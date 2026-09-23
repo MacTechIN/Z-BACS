@@ -36,6 +36,21 @@ use crate::request::relay_endpoints;
 use crate::seal::owner_account;
 use crate::setup::{Identity, SetupHost};
 
+/// Every machine value answering can hand the UI (Z-1.U.4).
+pub const APPROVE_PROBLEMS: &[&str] = &[
+    "unknown_file",
+    "version",
+    "file_moved",
+    "not_mine",
+    "cancelled",
+    "relay_unreachable",
+    "unknown_request",
+    "not_set_up",
+    "failed",
+];
+/// Every machine value pulling an approval back can hand the UI (Z-1.U.4).
+pub const REVOKE_PROBLEMS: &[&str] = &["unknown_grant", "relay_unreachable", "not_set_up", "failed"];
+
 /// Event the webview listens for when a request arrives or is answered.
 pub const APPROVAL_EVENT: &str = "zbacs://approval";
 /// How often the owner inbox is read while the Agent runs.

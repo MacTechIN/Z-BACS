@@ -55,9 +55,14 @@ pub struct OpenedFile {
     pub size: Option<u64>,
     /// Technical summary, for the developer panel only.
     pub detail: Option<String>,
-    /// Why the file could not be read, in words a person can act on.
-    pub problem: Option<String>,
+    /// Why the file could not be read, as a machine value the UI turns into a sentence with a
+    /// next step (`not_sealed` | `newer_version` | `damaged` | `missing`).
+    pub problem: Option<&'static str>,
 }
+
+/// Every machine value [`inspect_file`] can put in `problem`. Z-1.U.4: the UI must turn each
+/// into a sentence with a next step; `tests/errors.rs` checks that it does.
+pub const INSPECT_PROBLEMS: &[&str] = &["not_sealed", "newer_version", "missing", "damaged"];
 
 /// Files pending because they arrived before the webview was listening.
 #[derive(Default)]
@@ -108,16 +113,17 @@ pub fn inspect_file(path: &Path) -> OpenedFile {
                 header.body.env.len()
             ));
         }
-        Err(zbacs_core::Error::BadMagic) => {
-            out.problem = Some("이 파일은 Z-BACS로 잠근 파일이 아닙니다.".into());
-        }
+        Err(zbacs_core::Error::BadMagic) => out.problem = Some("not_sealed"),
         Err(zbacs_core::Error::UnsupportedVersion(major, _)) => {
-            out.problem =
-                Some(format!("더 새로운 방식(v{major})으로 잠긴 파일입니다. 앱을 업데이트해 주세요."));
+            log::info!("a container from a newer format: v{major}");
+            out.problem = Some("newer_version");
+        }
+        Err(zbacs_core::Error::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => {
+            out.problem = Some("missing");
         }
         Err(e) => {
             log::warn!("cannot read container: {e}");
-            out.problem = Some("파일이 손상되었거나 읽을 수 없습니다.".into());
+            out.problem = Some("damaged");
         }
     }
     out
