@@ -63,7 +63,7 @@ cd contracts && forge script script/Deploy.s.sol --rpc-url anvil --broadcast --p
 tools/ux-lint.sh                                 # UI 용어·입력·토큰·마크업·오류 카탈로그 일치 (CI `ux` 잡)
 cd apps/agent/src-tauri && cargo test --features demo-signer   # Agent (루트 워크스페이스 밖, CI `agent` 잡)
 gh workflow run release.yml   # Windows 설치 파일 + zbacs-wincheck.exe 아티팩트 (Z-1.S.3, `v*` 태그면 Release)
-tools/chain-it.sh                          # 컨트랙트 빌드 + Anvil 통합 테스트
+tools/chain-it.sh                          # 컨트랙트 빌드 + zbacs-chain/abi 사본 갱신(커밋 대상) + Anvil 통합 테스트
 RUSTDOCFLAGS=-D warnings cargo doc --workspace --no-deps          # 공개 API 문서 게이트
 cargo llvm-cov -p zbacs-core -p zbacs-auth --fail-under-lines 90  # 커버리지 게이트
 # Windows 전용 코드 컴파일 검증 (Linux에서). 네트워크 크레이트 둘은 제외 — rustls/ring이

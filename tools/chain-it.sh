@@ -12,6 +12,11 @@ command -v anvil >/dev/null || { echo "anvil not found — run tools/setup.sh"; 
 echo "== building contracts (the Rust bindings are generated from these artifacts)"
 (cd "$ROOT/contracts" && forge build)
 
+echo "== refreshing the checked-in artifact copies in crates/zbacs-chain/abi"
+for name in FileRegistry AccessPolicy AuditLog P256Validator ERC1967Proxy; do
+  cp "$ROOT/contracts/out/$name.sol/$name.json" "$ROOT/crates/zbacs-chain/abi/$name.json"
+done
+
 echo "== zbacs-chain against Anvil"
 cd "$ROOT"
 cargo test -p zbacs-chain -- --nocapture

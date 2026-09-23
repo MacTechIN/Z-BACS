@@ -78,6 +78,18 @@ jobs:
         run: |
           forge fmt --check
           forge build --sizes
+      # zbacs-chain compiles against checked-in copies of these artifacts (crates/zbacs-chain/abi).
+      # A contract change must ship with refreshed copies: tools/chain-it.sh does that.
+      - name: abi copies in sync
+        if: steps.present.outputs.yes == 'true'
+        working-directory: contracts
+        run: |
+          for name in FileRegistry AccessPolicy AuditLog P256Validator ERC1967Proxy; do
+            if ! diff <(jq -S .abi "out/$name.sol/$name.json") <(jq -S .abi "../crates/zbacs-chain/abi/$name.json") >/dev/null; then
+              echo "::error::crates/zbacs-chain/abi/$name.json is stale — run tools/chain-it.sh and commit"
+              exit 1
+            fi
+          done
           forge test -vvv
           forge coverage --ir-minimum --no-match-coverage script --report summary
       - name: chain integration (zbacs-chain against Anvil)

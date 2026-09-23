@@ -1207,3 +1207,11 @@ CI가 여러 커밋 전부터 빨간 상태였던 것을 확인하고 고쳤습�
 3. agent (windows): setup.rs의 DeviceCapabilities import가 Windows 경로에서는 안 쓰여 -D warnings에 걸림 → 쓰는 함수 안으로 이동.
 푸시 후 CI 결과를 다시 확인합니다.
 ```
+
+### #45c [C] 2026-09-23 (CI 복구 2)
+```
+두 번째 CI 실행에서 남은 원인 3개를 고쳤습니다.
+1. rust (ubuntu/windows): zbacs-chain이 sol! 매크로로 contracts/out/*.json(Foundry 빌드 산출물, gitignore)을 컴파일 시점에 읽어서, Foundry 없는 러너에서는 파일이 없어 실패. ABI 산출물 5개를 crates/zbacs-chain/abi/에 커밋하고 sol! 경로를 그쪽으로 바꿈. tools/chain-it.sh가 forge build 뒤 사본을 갱신하고, CI contracts 잡이 .abi가 소스와 어긋나면 실패하도록 검사 추가.
+2. windows clippy: passkey.rs의 이제 불필요해진 let mut.
+3. ux lint: notify.rs 문서 주석의 한글 줄에 있던 영어 단어 decide가 금지어 CID(대소문자 무시 부분일치)에 걸림 → 문장 고침.
+```

@@ -1,10 +1,11 @@
 //! Z-1.U.5 — the approval notification, answerable from the notification itself (U-3: the
 //! owner allows or refuses within ten seconds, without finding the window).
 //!
-//! On Windows the toast carries the same three buttons as the S5 screen — [읽기만 허락]
-//! [편집도 허락] [거절] — and pressing one runs the very same [`crate::approve::decide`] the
-//! screen runs, OS confirmation and all (T23 is not weakened by the shortcut). Elsewhere the
-//! notification has no buttons and says so: it brings the person to the window.
+//! On Windows the toast carries the same three buttons as the S5 screen (allow read-only,
+//! allow edit, refuse), and pressing one runs the very same answer path the screen runs
+//! ([`crate::approve`]'s command), OS confirmation and all: T23 is not weakened by the
+//! shortcut. Elsewhere the notification has no buttons and says so: it brings the person to
+//! the window.
 //!
 //! The notification never carries more than the S5 screen would (T06): the file's name comes
 //! from this machine's record, the other party is "누군가", nothing technical. What is shown

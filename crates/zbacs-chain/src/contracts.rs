@@ -1,6 +1,11 @@
 //! Contract bindings, generated from the Foundry artifacts so the ABI can never drift from
 //! what is actually deployed: if a contract changes and the artifact is rebuilt, this crate
 //! stops compiling until the Rust side is updated too.
+//!
+//! The artifacts are checked-in copies in `abi/` (Foundry's `contracts/out/` is a build
+//! product and not in git), so this crate builds on a machine without Foundry — the Windows
+//! CI runner, a fresh clone. `tools/chain-it.sh` refreshes the copies after `forge build`,
+//! and the `contracts` CI job fails if a copy's ABI no longer matches the source.
 
 use alloy::sol;
 
@@ -8,28 +13,28 @@ sol!(
     #[sol(rpc)]
     #[allow(missing_docs)]
     FileRegistry,
-    "../../contracts/out/FileRegistry.sol/FileRegistry.json"
+    "abi/FileRegistry.json"
 );
 
 sol!(
     #[sol(rpc)]
     #[allow(missing_docs)]
     AccessPolicy,
-    "../../contracts/out/AccessPolicy.sol/AccessPolicy.json"
+    "abi/AccessPolicy.json"
 );
 
 sol!(
     #[sol(rpc)]
     #[allow(missing_docs)]
     AuditLog,
-    "../../contracts/out/AuditLog.sol/AuditLog.json"
+    "abi/AuditLog.json"
 );
 
 sol!(
     #[sol(rpc)]
     #[allow(missing_docs)]
     P256Validator,
-    "../../contracts/out/P256Validator.sol/P256Validator.json"
+    "abi/P256Validator.json"
 );
 
 // The proxy the stateful contracts live behind (Z-1.H.4). Tests deploy through it so the
@@ -39,5 +44,5 @@ sol!(
     #[sol(rpc)]
     #[allow(missing_docs)]
     ERC1967Proxy,
-    "../../contracts/out/ERC1967Proxy.sol/ERC1967Proxy.json"
+    "abi/ERC1967Proxy.json"
 );

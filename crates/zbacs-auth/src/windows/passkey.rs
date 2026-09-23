@@ -120,7 +120,7 @@ impl WindowsPasskey {
                 pbClientDataJSON: cd_bytes.as_mut_ptr(),
                 pwszHashAlgId: WEBAUTHN_HASH_ALGORITHM_SHA_256,
             };
-            let mut options = WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS {
+            let options = WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS {
                 dwVersion: WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_VERSION_1,
                 dwTimeoutMilliseconds: 60_000,
                 dwAuthenticatorAttachment: WEBAUTHN_AUTHENTICATOR_ATTACHMENT_PLATFORM,
