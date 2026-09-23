@@ -109,9 +109,10 @@ async fn an_agent_pair_exchanges_a_request_and_a_grant_over_http() {
     assert_eq!(got.decision, 1);
     assert_eq!(got.request_nonce, nonce);
 
-    // and a revoke travels the same way
+    // and a revoke reaches whoever asked about the file — Bob — not the owner's own inbox (T20)
     alice.send_revoke(&Revoke { grant_id: [7; 32], fid: [1; 32], ts: now() }).await.unwrap();
-    assert_eq!(alice.inbox_for_device().await.unwrap().len(), 1);
+    assert_eq!(bob.inbox_for_device().await.unwrap().len(), 1);
+    assert!(alice.inbox_for_device().await.unwrap().is_empty());
 
     server.abort();
 }

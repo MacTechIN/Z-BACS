@@ -1215,3 +1215,8 @@ CI가 여러 커밋 전부터 빨간 상태였던 것을 확인하고 고쳤습�
 2. windows clippy: passkey.rs의 이제 불필요해진 let mut.
 3. ux lint: notify.rs 문서 주석의 한글 줄에 있던 영어 단어 decide가 금지어 CID(대소문자 무시 부분일치)에 걸림 → 문장 고침.
 ```
+
+### #45d [C] 2026-09-23 (CI 복구 3)
+```
+세 번째 실행: agent(windows)·ux lint·contracts·docs 통과. 남은 둘을 고침 — (1) rust(windows) clippy items_after_test_module: zbacs-auth windows/mod.rs의 상수를 테스트 모듈 위로 이동. (2) rust(ubuntu) 테스트: relay-client 테스트가 회수가 소유자 자신에게 돌아오던 옛 동작을 단언하고 있었음(G.11에서 라우팅을 고친 뒤 relay-client 테스트를 다시 안 돌린 내 실수) → 요청한 기기(Bob)에게 가고 소유자에겐 안 가는 것으로 수정.
+```

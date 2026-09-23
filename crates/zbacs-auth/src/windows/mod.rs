@@ -83,6 +83,10 @@ pub fn der_to_low_s(der: &[u8]) -> Result<([u8; 32], [u8; 32])> {
     Ok((sig.r().to_bytes().into(), sig.s().to_bytes().into()))
 }
 
+/// The CNG key name this device's approval key is created under. Stable: changing it would
+/// orphan the TPM key and silently enrol a second one.
+pub const DEVICE_KEY_NAME: &str = "Z-BACS approval key";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,10 +115,6 @@ mod tests {
         assert_eq!(back, folded, "already-low s is untouched");
     }
 }
-
-/// The CNG key name this device's approval key is created under. Stable: changing it would
-/// orphan the TPM key and silently enrol a second one.
-pub const DEVICE_KEY_NAME: &str = "Z-BACS approval key";
 
 /// Windows' half of [`crate::setup::SignerFactory`]: Hello for the biometric style, a TPM key
 /// for the "this device" style (ADR-0006).
