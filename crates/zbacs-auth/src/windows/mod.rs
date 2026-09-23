@@ -87,35 +87,6 @@ pub fn der_to_low_s(der: &[u8]) -> Result<([u8; 32], [u8; 32])> {
 /// orphan the TPM key and silently enrol a second one.
 pub const DEVICE_KEY_NAME: &str = "Z-BACS approval key";
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn half_n_is_the_documented_constant() {
-        // n/2 for secp256r1
-        let expected =
-            hex::decode("7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8").unwrap();
-        assert_eq!(half_n().to_vec(), expected);
-    }
-
-    #[test]
-    fn normalize_low_s_folds_only_high_values() {
-        let r = [1u8; 32];
-        let low = half_n();
-        assert_eq!(normalize_low_s(r, low), (r, low), "s == n/2 is already low");
-
-        let mut high = N;
-        high[31] -= 1; // n - 1, definitely high
-        let (_, folded) = normalize_low_s(r, high);
-        assert_eq!(folded[31], 1, "n - (n-1) == 1");
-        assert!(!is_high_s(&folded));
-        // folding twice returns to the original
-        let (_, back) = normalize_low_s(r, folded);
-        assert_eq!(back, folded, "already-low s is untouched");
-    }
-}
-
 /// Windows' half of [`crate::setup::SignerFactory`]: Hello for the biometric style, a TPM key
 /// for the "this device" style (ADR-0006).
 ///
@@ -238,4 +209,33 @@ fn keychain_available() -> bool {
 #[cfg(not(feature = "os-keystore"))]
 fn keychain_available() -> bool {
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn half_n_is_the_documented_constant() {
+        // n/2 for secp256r1
+        let expected =
+            hex::decode("7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8").unwrap();
+        assert_eq!(half_n().to_vec(), expected);
+    }
+
+    #[test]
+    fn normalize_low_s_folds_only_high_values() {
+        let r = [1u8; 32];
+        let low = half_n();
+        assert_eq!(normalize_low_s(r, low), (r, low), "s == n/2 is already low");
+
+        let mut high = N;
+        high[31] -= 1; // n - 1, definitely high
+        let (_, folded) = normalize_low_s(r, high);
+        assert_eq!(folded[31], 1, "n - (n-1) == 1");
+        assert!(!is_high_s(&folded));
+        // folding twice returns to the original
+        let (_, back) = normalize_low_s(r, folded);
+        assert_eq!(back, folded, "already-low s is untouched");
+    }
 }

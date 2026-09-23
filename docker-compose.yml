@@ -1,0 +1,24 @@
+# Z-1.R.4 — one relay, reachable by both Agents.
+#   docker compose up -d          # start
+#   curl http://localhost:8787/v1/health
+#   docker compose logs -f relay
+# Put a TLS reverse proxy in front for anything beyond a LAN (docs/relay_selfhost.md).
+services:
+  relay:
+    build:
+      context: .
+      dockerfile: apps/relay/Dockerfile
+    image: zbacs-relay:local
+    container_name: zbacs-relay
+    ports:
+      - "8787:8787"
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8787/v1/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

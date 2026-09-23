@@ -91,7 +91,7 @@
 | Z-1.R.1 ✅ | Relay 프로토콜 정의(`AccessRequest/GrantMsg/Revoke`, CBOR over HTTPS+WebSocket) | 스키마 문서 (2026-09-19: `docs/specs/relay_protocol.md` v1 — 엔드포인트 7개, `Signed<T>` 서명 봉투(kind 바인딩·ts·nonce), 메시지 8종, 오류 9종↔HTTP, 할당량·프라이버시·셀프호스팅. 실행 가능한 스키마로 `crates/zbacs-proto` 신설, 테스트 14종) |
 | Z-1.R.2 ✅ | axum 서버: 큐, 기기 등록, 서명 검증, 레이트리밋 | 부하 테스트 100 req/s (2026-09-20: `apps/relay` — 엔드포인트 7개, 인증 순서(형식→크기→서명자→할당량→재전송)로 미등록 기기가 남의 할당량을 못 쓰고 나쁜 서명이 nonce를 태우지 못함, 요청 nonce로 답장 라우팅(소유자가 수신자를 말할 필요 없음), 24h 큐·5분 nonce·기기당 30/분. 테스트 16종. **실측 12,816 req/s**(release, DoD의 128배). CI perf 게이트가 `#[ignore]` 테스트를 건너뛰어 사실상 비어 있던 것도 함께 수정) |
 | Z-1.R.3 | 푸시 연동: FCM(승인 앱), ntfy 폴백 | 푸시 도달 ≤ 10s |
-| Z-1.R.4 | Docker 이미지, 셀프호스팅 문서 | `docker compose up` |
+| Z-1.R.4 ✅ | Docker 이미지, 셀프호스팅 문서 | `docker compose up` (2026-09-23: `apps/relay/Dockerfile` 멀티스테이지(rust 빌더 → debian-slim + 바이너리, 비특권 사용자, HEALTHCHECK `/v1/health`), 루트 `docker-compose.yml`(read_only, no-new-privileges), `docs/relay_selfhost.md`(빠른 시작·TLS(Caddy)·Agent 연결·운영 값·무료 호스팅 4곳). CI `relay-image` 잡이 이미지를 빌드해 health 스모크. 호스팅 계정은 사용자 결정 대기) |
 | Z-1.R.5 ✅ | `zbacs-relay-client` 크레이트 | 재연결·재시도 (2026-09-20: 엔드포인트 장애 조치(T21), 지수 백오프+지터, **같은 바이트로 재시도**해 중복 큐잉을 구조적으로 차단(재전송 응답=이미 전달됨), 영구 거부는 즉시 반환·일시 거부만 재시도, 끊긴 Relay가 돌아오면 자동 복구, `poll_device_inbox`는 장애 중에도 죽지 않음. 실제 서버를 띄워 HTTP로 검증하는 테스트 10종) |
 
 ### 1.5 Agent (G)
@@ -163,7 +163,7 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | ~~5~~ ◐ | ~~`Z-1.G.12` 감사 로그 뷰어~~ | 2026-09-22 로컬 기록 완료. 체인 이벤트 병합은 Z-1.H.8 뒤 |
 | ~~6~~ ✅ | ~~`Z-1.U.4` 오류 카탈로그~~ | 2026-09-23 완료 |
 | ~~7~~ ◐ | ~~`Z-1.U.5` 알림 액션 버튼~~ | 2026-09-23 코드 완료. Windows 토스트 버튼 실기 확인만 남음(§3.11) |
-| 8 | `Z-1.R.4` Docker | 두 대가 닿을 수 있는 Relay 한 대. 직접 `cargo run -p zbacs-relay`로도 되지만 베타 참가자에게 시킬 일은 아니다 |
+| ~~8~~ ✅ | ~~`Z-1.R.4` Docker~~ | 2026-09-23 완료. 실제 호스팅(계정)은 사용자 차례 — `docs/relay_selfhost.md` §5 |
 | 9 | `Z-1.Q.2` 포렌식 스크립트 | MVP DoD 4(평문 잔존 없음) |
 | 10 | `Z-1.Q.1` E2E 하네스 | A~E를 **주장이 아니라 검사**로 만든다 |
 

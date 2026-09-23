@@ -1,0 +1,12 @@
+# Only what the relay image needs: the workspace sources and lockfile.
+target/
+**/target/
+spikes/
+contracts/out/
+contracts/cache/
+contracts/lib/
+apps/agent/
+docs/
+node_modules/
+.git/
+*.zbacs

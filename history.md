@@ -1220,3 +1220,23 @@ CI가 여러 커밋 전부터 빨간 상태였던 것을 확인하고 고쳤습�
 ```
 세 번째 실행: agent(windows)·ux lint·contracts·docs 통과. 남은 둘을 고침 — (1) rust(windows) clippy items_after_test_module: zbacs-auth windows/mod.rs의 상수를 테스트 모듈 위로 이동. (2) rust(ubuntu) 테스트: relay-client 테스트가 회수가 소유자 자신에게 돌아오던 옛 동작을 단언하고 있었음(G.11에서 라우팅을 고친 뒤 relay-client 테스트를 다시 안 돌린 내 실수) → 요청한 기기(Bob)에게 가고 소유자에겐 안 가는 것으로 수정.
 ```
+
+### #46 [U] 2026-09-23
+```
+다음
+```
+
+### #46 [C] 2026-09-23
+```
+Z-1.R.4 Relay Docker 이미지 + 셀프호스팅 문서 완료, 커밋·푸시했습니다. (CI 복구도 이어서 — 남은 Windows clippy 1건: windows/mod.rs의 테스트 모듈을 파일 끝으로 이동.)
+
+만든 것
+- apps/relay/Dockerfile: 멀티스테이지(rust 빌더에서 -p zbacs-relay만 빌드 → debian-slim + 바이너리 1개, 비특권 사용자 uid 10001, HEALTHCHECK /v1/health). 이미지 138MB. 볼륨·비밀·설정 파일 없음 — Relay는 지킬 것이 없는 우체통이라(봉투는 열 수 없고 24시간 뒤 사라짐) 그렇게 설계됨.
+- docker-compose.yml(루트): read_only, no-new-privileges, healthcheck. 로컬 확인: docker compose up -d → 7초 뒤 healthy, /v1/health 응답, down 정상.
+- docs/relay_selfhost.md: Relay가 무엇/무엇이 아닌지, 빠른 시작, 인터넷 공개 시 TLS(Caddy 3줄), Agent 연결(ZBACS_RELAY_URL, 내장은 Z-1.H.11), 운영 값 표(큐 24h·할당량·64KiB·시계 오차 120s·100 req/s), 무료 호스팅 4곳 비교(Fly.io/Oracle Free/Render·Railway/집 PC+Cloudflare Tunnel), 확인 목록.
+- CI relay-image 잡: 이미지를 빌드해 컨테이너 띄우고 health 스모크(GHA 캐시).
+
+남은 것: 실제 호스팅 계정은 사용자 차례(relay_selfhost §5). 그 URL이 나오면 Z-1.H.11에서 Agent에 내장합니다.
+
+베타 컷 남은 코드: Q.2 포렌식 → Q.1 E2E. 다음은 Z-1.Q.2입니다.
+```
