@@ -6309,6 +6309,7 @@ dependencies = [
  "serde",
  "serde_json",
  "zbacs-core",
+ "zbacs-session",
 ]
 
 [[package]]

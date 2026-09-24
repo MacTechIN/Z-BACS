@@ -1250,3 +1250,23 @@ CI가 처음으로 Windows에서 워크스페이스 테스트를 실제 실행�
 ```
 eefb3dc 기준 CI 10개 잡 전부 통과: rust(ubuntu/windows), agent(ubuntu/windows), relay docker image, foundry, node, docs links, ux lint, Security audit. 여러 커밋 동안 빨갛던 상태를 이 세션에서 원인 7개(dbus 헤더, ABI 사본, Windows clippy 3건, 회수 라우팅 테스트, Windows 디렉터리 속성 버그)를 고쳐 복구했습니다. 이제 Windows 전용 코드가 매 커밋마다 실제 Windows에서 컴파일·테스트됩니다.
 ```
+
+### #47 [U] 2026-09-24
+```
+다음
+```
+
+### #47 [C] 2026-09-24
+```
+Z-1.Q.2 평문 잔존 포렌식 완료, 커밋·푸시했습니다. CI의 forensic 워크플로(루프 디스크 원시 스캔)가 첫 실행 중이며 결과를 이어서 보고합니다.
+
+만든 것
+- zbacs forensic-session --base --marker --rounds: Agent와 똑같은 프리미티브(seal_to_path, secure_delete, Workspace, open_with_dek, reseal_to_path, Workspace::wipe)로 Edit 세션 전체를 N회 실행. 원본에만 존재하는 고엔트로피 마커를 심고, 오피스처럼 임시파일 rename 저장과 잠금파일까지 흉내 낸 뒤 wipe.
+- tools/forensic.sh: image 모드 — ext4 루프 이미지에서 세션을 돌리고 언마운트한 원시 이미지 바이트(데이터 블록·빈 공간·저널)에서 마커를 검색(grep -a + strings). dir 모드 — 남은 파일만 검색(sudo 없는 환경). 음성 대조군: 단순 삭제만 한 평문이 검출되지 않으면 "스캔이 눈이 멀었다"로 exit 2 — 스캔 방법 자체를 매번 검증.
+- .github/workflows/forensic.yml: 야간 02:30 KST + 관련 파일 push 시 image 모드 5라운드/128MB.
+- 로컬(dir 모드, sudo 없음): 3라운드 → 5,214B 암호문만 남고 마커 0건, 대조군 검출 OK.
+
+문서: dev_plan Q.2 ✅·G.8 포렌식 통과·T09/T10 근거·베타 컷, CLAUDE.md 빌드 명령, tools/README.
+
+베타 컷 남은 코드: Q.1 E2E 하네스 하나. 다음은 Z-1.Q.1입니다 — 지금 통합 테스트가 B/E를 이미 덮으므로 A·C·D와 열기 단계(G.7/G.8)를 잇는 것이 핵심입니다.
+```

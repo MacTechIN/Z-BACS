@@ -1,0 +1,28 @@
+name: forensic
+# Z-1.Q.2: nightly proof that a session leaves no plaintext on disk (T09, T10). A loopback
+# ext4 image is scanned raw — data blocks, free space and journal — for a marker that only
+# ever existed in the plaintext. Reproduce locally with tools/forensic.sh image.
+on:
+  schedule:
+    - cron: "30 17 * * *" # 02:30 KST, after the fuzz run starts
+  workflow_dispatch:
+  push:
+    paths:
+      - "crates/zbacs-session/**"
+      - "crates/zbacs-core/src/container.rs"
+      - "crates/zbacs-cli/**"
+      - "tools/forensic.sh"
+      - ".github/workflows/forensic.yml"
+jobs:
+  disk-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: raw-disk scan after 5 session rounds
+        env:
+          FORENSIC_ROUNDS: "5"
+          FORENSIC_IMAGE_MB: "128"
+        run: tools/forensic.sh image

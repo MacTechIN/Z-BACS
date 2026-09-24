@@ -13,3 +13,6 @@
 
 ## fuzz.sh
 `zbacs-core` 퍼즈 타깃 4종을 nightly + cargo-fuzz로 돌린다. `tools/fuzz.sh 24h`가 Z-1.C.3 게이트, 기본은 5분 스모크. 크래시가 있으면 `fuzz/artifacts/` 목록을 출력하고 실패한다.
+
+## forensic.sh
+세션이 끝난 뒤 평문이 디스크에 남는지 검사한다(Z-1.Q.2, T09/T10). `image` 모드는 ext4 루프 이미지 위에서 `zbacs forensic-session`을 돌리고 언마운트한 원시 이미지를 마커로 검색한다(sudo 필요, 야간 CI가 실행). `dir` 모드는 남은 파일만 본다. 단순 삭제한 대조군이 검출되지 않으면 방법 자체가 잘못된 것으로 보고 exit 2.

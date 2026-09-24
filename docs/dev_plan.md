@@ -104,7 +104,7 @@
 | Z-1.G.5 ◐ | 보호 작업공간: ACL 설정, 인덱싱·백업 제외 | ACL 검증 스크립트 (2026-09-19: `zbacs-session::Workspace` — 세션별 디렉터리, Unix 0700 검증 테스트, Windows는 `FILE_ATTRIBUTE_NOT_CONTENT_INDEXED|TEMPORARY`(크로스 컴파일 통과). 남은 것: Windows 상속 ACL 제거(설치 단계)와 실기 ACL 검증 스크립트) |
 | Z-1.G.6 ◐ | 열람 앱 실행 + PID 추적 + `notify` 저장 감지 | Word/메모장/PDF 3종 (2026-09-20: `zbacs-session::viewer` — 추적 실행(PID·생존 확인·정상 종료 요청은 SIGTERM/taskkill, 드롭 시 강제 종료)과 `SaveWatcher`(디렉터리 감시 + 디바운스: 평문 쓰기·**임시파일 rename**(Word 방식)·연속 쓰기 묶기·잠금파일 무시·삭제는 Vanished). 테스트 12종. **실제 3종 앱 확인은 Windows + Agent UI 이후** — `docs/windows_checklist.md` §4) |
 | Z-1.G.7 ✅ | ReadOnly 모드: 읽기전용 속성, 변경 폐기 | 테스트 (2026-09-19: `mark_read_only`/`clear_read_only` + 쓰기 거부 확인, 상태머신이 ReadOnly 저장을 `DiscardChanges`로 처리하고 버전을 만들지 않음) |
-| Z-1.G.8 ◐ | Edit 모드: 종료/TTL/revoke 시 재봉인, 안전 삭제 | 포렌식 스크립트 통과(T09) (2026-09-19: 상태머신의 Saved→Reseal→Resealed 흐름과 회수/만료 시 미봉인 변경 폐기, `Workspace::wipe`/`secure_delete`(0 덮어쓰기 후 삭제, 하드링크로 덮어쓰기 확인). 남은 것: Z-1.Q.2 디스크 포렌식 스크립트) |
+| Z-1.G.8 ◐ | Edit 모드: 종료/TTL/revoke 시 재봉인, 안전 삭제 | 포렌식 스크립트 통과(T09) (2026-09-19: 상태머신의 Saved→Reseal→Resealed 흐름과 회수/만료 시 미봉인 변경 폐기, `Workspace::wipe`/`secure_delete`(0 덮어쓰기 후 삭제, 하드링크로 덮어쓰기 확인). Z-1.Q.2 디스크 포렌식 통과(2026-09-24)) |
 | Z-1.G.9 ✅ | 승인 대기 UI, 거부/만료 처리 | UX 리뷰 (2026-09-21: `apps/agent` `request.rs` + S4 화면. 기기 등록→서명 요청→받은편지함 폴링→답 분류(파일·버전·기기·nonce 일치 검사, T05/T19)→세션 상태머신 구동. 120s 안내·300s 만료·취소·Relay 불통 처리. 실제 `zbacs-relay`를 띄운 통합 테스트 6종 + 단위 8종. 소유자 서명 검증은 `owner_signature_check` pending으로 표시 — Z-1.H.8/H.10) |
 | Z-1.G.10 ✅ | 데스크톱 승인 UI(소유자가 PC에서 승인) — 패스키 프롬프트 + EIP-712 내용 표시 | T06 체크 (2026-09-22: `apps/agent` `approve.rs` + `ledger.rs` + S5 화면. 소유자 받은편지함 감시(3s) → 요청자 서명을 요청이 담은 키로 직접 검증(T05) → **로컬 잠금 기록**으로 파일명·정책 표시, 기록 없음/다른 버전이면 허락 불가(T06/T19) → [읽기만 허락][편집도 허락][거절] → EIP-712 digest(Solidity 벡터 일치)를 기기 서명기로 서명(T23 확인 정책) → DEK를 요청 기기 키로 재봉인(aad=grantId) → GrantMsg. 시나리오 B 왕복 통합 테스트 3종(두 SetupHost + 실제 Relay: 허락→Bob이 DEK 열고 복호화·서명 검증, 거절, 모르는 파일 허락 불가) + 단위 9종. 체인 기록은 Z-1.H.8) |
 | Z-1.G.11 ✅ | 회수(Revoke) 기능 + 활성 세션 목록 | E2E (2026-09-22: 소유자 — 허락할 때 `sealed.json`에 기록, "내가 허락한 파일" 화면(남은 시간·[허락 거두기]) → Relay `Revoke` + 기록. Relay — revoke를 그 파일을 요청했던 모든 기기로 라우팅(이전엔 소유자 자신에게만 가던 버그 수정, T20 테스트). 수신자 — 허락 뒤에도 받은편지함을 계속 읽어 revoke면 `Revoked`, 만료면 `Closed`로 세션을 닫고 화면에 알림. 두 기기 통합 테스트: 회수 → 상대 세션 즉시 종료, 만료 자체 종료(T15). 체인 revoke는 Z-1.H.8) |
@@ -136,7 +136,7 @@
 | ID | 태스크 | DoD |
 |---|---|---|
 | Z-1.Q.1 | E2E 테스트 하네스: Windows VM 2대 + Anvil + Relay 도커 | 시나리오 A~E 자동화 |
-| Z-1.Q.2 | 평문 잔존 포렌식 스크립트(디스크 문자열 검색) | CI 야간 실행 |
+| Z-1.Q.2 ✅ | 평문 잔존 포렌식 스크립트(디스크 문자열 검색) | CI 야간 실행 (2026-09-24: `zbacs forensic-session`이 Agent와 같은 프리미티브로 Edit 세션 전체(봉인→원본 안전 삭제→작업공간 열기→임시파일·잠금파일 포함 편집→재봉인→wipe)를 N회 실행. `tools/forensic.sh image`가 ext4 루프 이미지에서 실행 후 **언마운트한 원시 이미지**(데이터 블록·빈 공간·저널)를 마커로 검색, `dir` 모드는 파일만. 음성 대조군(단순 삭제한 평문은 반드시 검출)으로 스캔 자체를 검증. `.github/workflows/forensic.yml` 야간 02:30 KST + 관련 파일 push 시) |
 | Z-1.Q.3 | 위협 T01~T20 대응 테스트 매핑 및 실행 | 100% 매핑 |
 | Z-1.Q.4 | 의존성 감사(`cargo audit`, `npm audit`), SBOM | CI |
 
@@ -164,7 +164,7 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | ~~6~~ ✅ | ~~`Z-1.U.4` 오류 카탈로그~~ | 2026-09-23 완료 |
 | ~~7~~ ◐ | ~~`Z-1.U.5` 알림 액션 버튼~~ | 2026-09-23 코드 완료. Windows 토스트 버튼 실기 확인만 남음(§3.11) |
 | ~~8~~ ✅ | ~~`Z-1.R.4` Docker~~ | 2026-09-23 완료. 실제 호스팅(계정)은 사용자 차례 — `docs/relay_selfhost.md` §5 |
-| 9 | `Z-1.Q.2` 포렌식 스크립트 | MVP DoD 4(평문 잔존 없음) |
+| ~~9~~ ✅ | ~~`Z-1.Q.2` 포렌식 스크립트~~ | 2026-09-24 완료 |
 | 10 | `Z-1.Q.1` E2E 하네스 | A~E를 **주장이 아니라 검사**로 만든다 |
 
 **베타에 반드시 필요한 것 (사용자만 할 수 있는 일)**
@@ -242,8 +242,8 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | T06 승인 피싱 | Z-1.G.10, Z-1.P.2 (EIP-712 구조화 표시), Z-1.U.5 (알림 액션에 파일·권한 표시) | contracts EIP-712 타입 해시 벡터, agent `t06_the_screen_shows_the_record_not_the_request`, `t06_a_file_this_machine_did_not_lock_cannot_be_allowed` |
 | T07 승인 후 평문 복사 | Z-1.G.5/7 (ACL·읽기전용), Z-1.H.3 + Z-1.G.12 (감사 로그), Z-2.G.4 (워터마크), Z-3.G.1 (미니필터) | session `t07_read_only_marking_blocks_writes`, `workspace_is_private_*`; contracts `AuditLog.t.sol` 5종 agent `audit.rs` 로컬 기록(잠금·요청·허락·거절·거둠) |
 | T08 화면 촬영 | 범위 밖(명시). 추적성만: Z-2.G.4 | — |
-| T09 평문 잔존 | Z-1.G.8 (재봉인·안전 삭제), Z-1.Q.2 (포렌식 CI), Z-2.G.3 (가상 드라이브) | session `t09_wipe_overwrites_and_removes_everything`, `t09_secure_delete_overwrites_before_unlinking` |
-| T10 앱 임시파일 | Z-1.G.6 (경로 고정·저장 감지), Z-1.G.8 (앱별 잔존 청소), Z-2.G.3 | session `a_temp_and_rename_save_is_detected`, `other_files_in_the_workspace_are_ignored` |
+| T09 평문 잔존 | Z-1.G.8 (재봉인·안전 삭제), Z-1.Q.2 (포렌식 CI), Z-2.G.3 (가상 드라이브) | session `t09_wipe_overwrites_and_removes_everything`, `t09_secure_delete_overwrites_before_unlinking` `tools/forensic.sh image` 원시 디스크 스캔(야간 CI) |
+| T10 앱 임시파일 | Z-1.G.6 (경로 고정·저장 감지), Z-1.G.8 (앱별 잔존 청소), Z-2.G.3 | session `a_temp_and_rename_save_is_detected`, `other_files_in_the_workspace_are_ignored` forensic-session이 rename 임시파일·잠금파일을 만들고 wipe 뒤 스캔 |
 | T11 메모리 덤프 | Z-1.C.6 (zeroize·secrecy), Z-1.A.3 (DPAPI), Z-3.G.2 (TEE/VBS) | core `t11_key_types_zeroize_on_drop_and_redact_in_logs`; 감사 `research/key_hygiene_audit.md` |
 | T12 소유자 기기 분실 | Z-1.A.4 (암호화 백업·복구 코드), Z-1.H.10 (다른 기기에서 해지), Z-2.A.1 (다중 기기·소셜 복구), Z-2.U.1 (복구 UX) | contracts `test_t12_*` 3종; 포크 `test_t12_enroll_second_device_then_revoke_first`; core `backup.rs` 9종 |
 | T13 온체인 식별 | Z-1.C.5 (fileId 솔트, 파일명 길이 패딩), Z-1.H.9 (페이마스터), Z-3.Z.1/2 (ZK) | contracts fileId = H(hash‖salt); core `name_padding_hides_length_and_roundtrips` |

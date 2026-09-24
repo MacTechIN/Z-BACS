@@ -5,9 +5,12 @@ use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::Cursor;
+use std::fs::File;
+use std::io::{BufReader, Cursor};
 use std::path::{Path, PathBuf};
-use zbacs_core::container::{inspect, open, reseal_to_path, seal_to_path, SealOptions};
+use zbacs_core::container::{
+    inspect, open, open_with_dek, read_header, reseal_to_path, seal_to_path, SealOptions,
+};
 use zbacs_core::{
     export_backup, restore_backup, DeviceKeys, OwnerKeys, Permission, Policy, RecoveryCode, SigningKeys,
 };
@@ -54,6 +57,20 @@ enum Cmd {
         input: PathBuf,
         #[arg(short, long)]
         output: Option<PathBuf>,
+    },
+    /// Z-1.Q.2: run one whole Edit session the way the Agent does — seal, erase the original,
+    /// open into a protected workspace, edit, reseal, wipe — under `base`, with `marker`
+    /// planted in the plaintext. tools/forensic.sh then scans the raw disk for the marker.
+    ForensicSession {
+        /// Directory (ideally a mounted scratch filesystem) everything is written under.
+        #[arg(long)]
+        base: PathBuf,
+        /// High-entropy string that must not survive anywhere in plain form.
+        #[arg(long)]
+        marker: String,
+        /// How many open/edit/reseal rounds to run.
+        #[arg(long, default_value_t = 3)]
+        rounds: u32,
     },
     /// Reseal an edited plaintext as the next version of an existing container (new DEK,
     /// ver + 1, atomic replace) — what the Agent does when an Edit session saves.
@@ -176,6 +193,7 @@ fn main() -> Result<()> {
                 opened.header.body.pol.default
             );
         }
+        Cmd::ForensicSession { base, marker, rounds } => forensic_session(&base, &marker, rounds)?,
         Cmd::Reseal { key, input, container, perm, ttl, max_opens } => {
             let owner = load_owner(&key)?;
             let policy =
@@ -233,5 +251,73 @@ fn main() -> Result<()> {
             }
         }
     }
+    Ok(())
+}
+
+/// One Edit session end to end, leaving only ciphertext behind (T09, T10).
+///
+/// Every step is the Agent's own primitive: `seal_to_path`, `secure_delete`, `Workspace`,
+/// `open_with_dek`, `reseal_to_path`, `Workspace::wipe`. What this adds is the *marker* — a
+/// string that exists nowhere else — so a raw scan of the device afterwards can only find it
+/// if some step left plaintext behind.
+fn forensic_session(base: &Path, marker: &str, rounds: u32) -> Result<()> {
+    use std::io::Write;
+    use zbacs_session::{secure_delete, Workspace};
+
+    fs::create_dir_all(base)?;
+    let owner = OwnerKeys::generate()?;
+    let original = base.join("original.txt");
+    let sealed = base.join("original.txt.zbacs");
+
+    // 1. the owner's plaintext, with the marker in it, then locked and erased
+    let mut body = format!("confidential {marker} line 1\n").repeat(64);
+    body.push_str(&format!("tail {marker}\n"));
+    fs::write(&original, &body)?;
+    let mut opts = SealOptions::new(b"forensic:owner", "original.txt");
+    opts.policy = Policy { default: Permission::Edit, ttl: 3600, max: 0, pin: true, strict: false };
+    seal_to_path(&original, &sealed, &owner, &opts)?;
+    secure_delete(&original)?;
+    println!("sealed {} and erased the original", sealed.display());
+
+    // 2. rounds of: open into a workspace, edit, reseal, wipe
+    for round in 1..=rounds {
+        let ws = Workspace::create(&base.join("sessions"), &format!("forensic-{round}"))?;
+        let plain = ws.file("original.txt")?;
+        let (hdr, hh, rest) = read_header(BufReader::new(File::open(&sealed)?))?;
+        let env = hdr.body.env.iter().find(|e| e.kid == owner.sealing.key_id()).context("owner envelope")?;
+        let dek = env.open(&owner.sealing, hdr.body.fid.as_bytes())?;
+        open_with_dek(hdr, hh, rest, File::create(&plain)?, &dek)?;
+
+        // the viewer "saves": an edit that also carries the marker, plus a temp file the way
+        // office suites write (rename into place), then a lock file
+        let tmp = ws.file(&format!("~$original-{round}.tmp"))?;
+        {
+            let mut f = File::create(&tmp)?;
+            f.write_all(fs::read(&plain)?.as_slice())?;
+            writeln!(f, "edit {round} {marker}")?;
+            f.sync_all()?;
+        }
+        fs::rename(&tmp, &plain)?;
+        fs::write(ws.file("~$original.txt")?, format!("lock {marker}"))?;
+
+        let hdr = reseal_to_path(
+            &plain,
+            &sealed,
+            &owner,
+            Policy { default: Permission::Edit, ttl: 3600, max: 0, pin: true, strict: false },
+        )?;
+        ws.wipe()?;
+        println!("round {round}: resealed to version {}", hdr.body.ver);
+    }
+
+    // 3. what remains must be ciphertext only
+    let left = fs::read(&sealed)?;
+    anyhow::ensure!(
+        !left.windows(marker.len()).any(|w| w == marker.as_bytes()),
+        "the container leaks the marker"
+    );
+    let f = File::open(base)?;
+    f.sync_all().ok();
+    println!("done: {} bytes of ciphertext remain, workspace gone", left.len());
     Ok(())
 }

@@ -12,6 +12,8 @@ path = "src/main.rs"
 
 [dependencies]
 zbacs-core = { path = "../zbacs-core" }
+# The forensic session (Z-1.Q.2) drives the same workspace and wipe the Agent uses.
+zbacs-session = { path = "../zbacs-session" }
 anyhow.workspace = true
 clap.workspace = true
 hex.workspace = true
