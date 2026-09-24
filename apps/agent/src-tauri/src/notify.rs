@@ -75,7 +75,10 @@ pub fn plan_for(incoming: &Incoming) -> Plan {
     if incoming.can_allow {
         buttons
             .push(Button { label: "읽기만 허락".into(), action: format!("read_only:{}", incoming.id) });
-        buttons.push(Button { label: "편집도 허락".into(), action: format!("edit:{}", incoming.id) });
+        if incoming.can_allow_edit {
+            buttons
+                .push(Button { label: "편집도 허락".into(), action: format!("edit:{}", incoming.id) });
+        }
     }
     buttons.push(Button { label: "거절".into(), action: format!("deny:{}", incoming.id) });
     buttons.push(Button { label: "앱에서 보기".into(), action: format!("open:{}", incoming.id) });
@@ -250,6 +253,7 @@ mod tests {
             default_permission: known.then(|| "read_only".to_string()),
             asked_at: 1_700_000_000,
             can_allow: known && same_version,
+            can_allow_edit: known && same_version,
         }
     }
 
@@ -278,6 +282,16 @@ mod tests {
         let other_version = plan_for(&incoming(true, false, "read_only"));
         assert!(other_version.body.contains("바뀐 파일"));
         assert_eq!(other_version.buttons.len(), 2);
+    }
+
+    /// T23: a device that cannot show the OS prompt does not offer 편집 from the toast.
+    #[test]
+    fn t23_no_edit_button_when_the_device_cannot_confirm() {
+        let mut i = incoming(true, true, "edit");
+        i.can_allow_edit = false;
+        let plan = plan_for(&i);
+        let labels: Vec<_> = plan.buttons.iter().map(|b| b.label.as_str()).collect();
+        assert_eq!(labels, ["읽기만 허락", "거절", "앱에서 보기"]);
     }
 
     #[test]

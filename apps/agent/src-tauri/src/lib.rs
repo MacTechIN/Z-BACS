@@ -31,6 +31,7 @@ pub mod approve;
 pub mod audit;
 pub mod ledger;
 pub mod notify;
+pub mod open;
 pub mod request;
 pub mod seal;
 pub mod setup;
@@ -200,7 +201,7 @@ fn capabilities() -> serde_json::Value {
         "revoke": true,        // Z-1.G.11
         "auditLog": true,      // Z-1.G.12 (local; chain_events pending Z-1.H.8)
         "notifyButtons": cfg!(windows), // Z-1.U.5: toast buttons on Windows, plain elsewhere
-        "openFile": false      // Z-1.G.7/G.8
+        "openFile": false      // Z-1.G.7/G.8: open step exists (open.rs), UI/viewer wiring next
     })
 }
 

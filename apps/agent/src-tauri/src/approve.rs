@@ -42,6 +42,7 @@ pub const APPROVE_PROBLEMS: &[&str] = &[
     "version",
     "file_moved",
     "not_mine",
+    "needs_os_confirm",
     "cancelled",
     "relay_unreachable",
     "unknown_request",
@@ -103,6 +104,9 @@ pub struct Incoming {
     pub asked_at: u64,
     /// Whether an allow is possible at all (known file, same version).
     pub can_allow: bool,
+    /// Whether *editing* can be allowed from this device: an Edit approval always goes through
+    /// the OS prompt (T23), and a device whose signer cannot show one can only allow 읽기만.
+    pub can_allow_edit: bool,
 }
 
 /// One request held for the person.
@@ -128,8 +132,22 @@ impl PendingRequest {
             default_permission: self.entry.as_ref().map(|e| e.permission.clone()),
             asked_at: self.request.ts,
             can_allow: self.entry.is_some() && same_version,
+            can_allow_edit: true,
         }
     }
+
+    /// Same, with what this device's signer can do folded in.
+    pub fn incoming_on(&self, edit_supported: bool) -> Incoming {
+        let mut i = self.incoming();
+        i.can_allow_edit = i.can_allow && edit_supported;
+        i
+    }
+}
+
+/// Whether this device can sign an Edit approval under `policy`: either the policy does not
+/// demand OS confirmation for edits, or the signer can put the OS prompt in front of the key.
+pub fn edit_supported(signer: &dyn AuthProvider, policy: &ConfirmationPolicy) -> bool {
+    !policy.edit_requires_confirmation || signer.supports_os_confirmation()
 }
 
 /// The owner's answer, as the screen sends it.
@@ -337,6 +355,9 @@ pub async fn answer(
         log::warn!("approval signature failed: {e}");
         match e {
             zbacs_auth::AuthError::Cancelled => "cancelled",
+            // T23: the policy wanted the OS to confirm and this device cannot ask it to. The
+            // person can still allow 읽기만, or set up a biometric confirmation.
+            zbacs_auth::AuthError::ConfirmationUnavailable(_, _) => "needs_os_confirm",
             _ => "failed",
         }
     })?;
@@ -470,6 +491,8 @@ pub struct Approvals {
     pub recent: Mutex<Vec<u64>>,
     /// Whether the inbox watcher is running.
     pub watching: AtomicBool,
+    /// Whether this device's signer can approve edits (T23), decided when watching starts.
+    pub edit_supported: AtomicBool,
 }
 
 fn client_for(app: &AppHandle) -> Result<(RelayClient, Vec<u8>), &'static str> {
@@ -502,6 +525,18 @@ pub fn ensure_watching(app: AppHandle) -> Result<(), String> {
             return Err(e.to_string());
         }
     };
+    {
+        let identity = app.state::<Identity>();
+        let held = identity.0.lock().expect("identity mutex");
+        let supported = held
+            .as_ref()
+            .map(|p| edit_supported(p.signer.as_ref(), &ConfirmationPolicy::default()))
+            .unwrap_or(false);
+        approvals.edit_supported.store(supported, Ordering::SeqCst);
+        if !supported {
+            log::info!("this device can approve 읽기만: its signer cannot show an OS confirmation (T23)");
+        }
+    }
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         // The relay must know this device before it will take a grant from it; announcing
@@ -516,9 +551,10 @@ pub fn ensure_watching(app: AppHandle) -> Result<(), String> {
                 let mut arrived = Vec::new();
                 {
                     let approvals = handle.state::<Approvals>();
+                    let edit_ok = approvals.edit_supported.load(Ordering::SeqCst);
                     let mut pending = approvals.pending.lock().expect("approvals mutex");
                     for p in fresh {
-                        let incoming = p.incoming();
+                        let incoming = p.incoming_on(edit_ok);
                         if pending.insert(incoming.id.clone(), p).is_none() {
                             arrived.push(incoming);
                         }
@@ -553,8 +589,9 @@ pub fn ensure_watching(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn pending_approvals(app: AppHandle) -> Vec<Incoming> {
     let approvals = app.state::<Approvals>();
+    let edit_ok = approvals.edit_supported.load(Ordering::SeqCst);
     let pending = approvals.pending.lock().expect("approvals mutex");
-    let mut list: Vec<Incoming> = pending.values().map(PendingRequest::incoming).collect();
+    let mut list: Vec<Incoming> = pending.values().map(|p| p.incoming_on(edit_ok)).collect();
     list.sort_by_key(|i| i.asked_at);
     list
 }

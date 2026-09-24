@@ -93,6 +93,7 @@ const APPROVE_PROBLEMS = {
   version: "그 뒤로 파일이 바뀌어서 이 요청은 허락할 수 없어요. 받은 사람에게 새 파일을 보내 주세요.",
   file_moved: "잠근 파일을 찾을 수 없어요. 파일을 원래 자리로 되돌린 뒤 다시 해 주세요.",
   not_mine: "이 파일은 내가 잠근 파일이 아니에요.",
+  needs_os_confirm: "편집 허락은 얼굴·지문·PIN 확인이 필요한데 이 컴퓨터에는 준비돼 있지 않아요. 읽기만 허락하거나, 확인 방법을 설정한 뒤 다시 해 주세요.",
   cancelled: "확인이 취소됐어요. 다시 눌러 주세요.",
   relay_unreachable: "지금은 답을 보낼 수 없어요. 인터넷 연결을 확인하고 다시 시도해 주세요.",
   unknown_request: "이 요청은 이미 처리됐어요.",
@@ -395,6 +396,11 @@ function renderApproval() {
     note.hidden = true;
   }
   document.getElementById("approve-allow").hidden = !current.can_allow;
+  document.getElementById("approve-edit").hidden = !current.can_allow_edit;
+  if (current.can_allow && !current.can_allow_edit) {
+    note.textContent = "이 컴퓨터에서는 읽기만 허락할 수 있어요. 편집 허락은 얼굴·지문·PIN 확인이 필요해요.";
+    note.hidden = false;
+  }
   const count = document.getElementById("approve-count");
   count.hidden = approvals.length < 2;
   count.textContent = `이 뒤에 ${approvals.length - 1}개 더 있어요.`;
