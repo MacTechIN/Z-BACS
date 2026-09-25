@@ -80,8 +80,8 @@ const REQUEST_PROBLEMS = {
 const ANSWERS = {
   granted: {
     title: "허락받았어요",
-    read_only: "읽기만 할 수 있어요. 파일 열기는 다음 단계에서 연결됩니다.",
-    edit: "편집도 할 수 있어요. 파일 열기는 다음 단계에서 연결됩니다.",
+    read_only: "읽기만 할 수 있어요. 목록에서 [열기]를 누르면 열려요.",
+    edit: "편집도 할 수 있어요. 목록에서 [열기]를 누르면 열려요.",
   },
   denied: { title: "주인이 허락하지 않았어요", line: "이 파일은 열 수 없어요. 필요하면 주인에게 직접 이야기해 보세요." },
   expired: { title: "주인이 아직 답하지 않았어요", line: "주인이 자리에 없을 수 있어요. 나중에 다시 물어봐 주세요." },
@@ -99,6 +99,24 @@ const APPROVE_PROBLEMS = {
   unknown_request: "이 요청은 이미 처리됐어요.",
   not_set_up: "먼저 준비를 마쳐야 해요.",
   failed: "답을 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+};
+
+// Why a granted file could not be opened, or stopped mid-way. Each names the next step.
+const OPEN_PROBLEMS = {
+  not_granted: "아직 허락받지 않은 파일이에요. 먼저 주인에게 물어봐 주세요.",
+  envelope: "받은 허락이 이 컴퓨터용이 아니에요. 주인에게 다시 물어봐 주세요.",
+  version: "그 뒤로 파일이 바뀌어서 이 허락으로는 열 수 없어요. 주인에게 다시 물어봐 주세요.",
+  opens_exhausted: "허락받은 횟수를 모두 썼어요. 다시 열려면 주인에게 다시 물어봐 주세요.",
+  workspace: "파일을 열 자리를 만들지 못했어요. 디스크 공간을 확인하고 다시 시도해 주세요.",
+  damaged: "파일이 손상되었거나 읽을 수 없어요. 보낸 사람에게 다시 받아 주세요.",
+  missing: "그 파일을 찾을 수 없어요. 옮겼거나 지워졌는지 확인해 주세요.",
+  no_owner_key: "이 파일은 오래된 방식으로 잠겨 있어 저장할 수 없어요. 주인에게 새로 잠근 파일을 받아 주세요.",
+  not_saving: "지금은 저장을 반영할 수 없어요. 파일을 닫고 다시 열어 주세요.",
+  already_open: "이 파일은 이미 열려 있어요.",
+  no_viewer: "이 파일을 열 프로그램을 찾지 못했어요. 파일 종류에 맞는 프로그램을 설치한 뒤 다시 열어 주세요.",
+  relay_unreachable: "저장은 됐지만 주인에게 알리지 못했어요. 인터넷 연결을 확인하고 다시 저장해 주세요.",
+  not_set_up: "먼저 준비를 마쳐야 해요.",
+  failed: "열지 못했어요. 잠시 뒤 다시 시도해 주세요.",
 };
 
 const REVOKE_PROBLEMS = {
@@ -125,7 +143,7 @@ let status = null;
 
 // ---------------------------------------------------------------- screens
 
-const SCREENS = ["welcome", "choice", "working", "done", "blocked", "home", "seal", "sealed", "request", "answer", "approve", "given", "log"];
+const SCREENS = ["welcome", "choice", "working", "done", "blocked", "home", "seal", "sealed", "request", "answer", "approve", "given", "log", "open"];
 
 function show(name) {
   for (const screen of SCREENS) {
@@ -460,6 +478,80 @@ async function decideCurrent(decision) {
   showDev();
 }
 
+// ---------------------------------------------------------------- an open file (S6/S7)
+
+// The file open right now. One at a time on screen; the Agent may hold more.
+const opening = { path: null, expiry: 0, permission: null, timer: null };
+
+function renderOpen() {
+  document.getElementById("open-line").textContent =
+    opening.permission === "edit" ? "저장하면 다시 잠겨요. 다 쓰면 그냥 닫으면 돼요." : "읽기만 할 수 있어요. 다 보면 그냥 닫으면 돼요.";
+  document.getElementById("open-note").textContent =
+    opening.permission === "edit" ? "저장한 내용은 주인에게 알려져요." : "고친 내용은 저장되지 않아요.";
+  document.getElementById("open-left").textContent = leftWords(opening.expiry);
+}
+
+async function openFile(file) {
+  show("working");
+  document.getElementById("working-line").textContent = "파일을 열고 있어요.";
+  let opened;
+  try {
+    opened = await invoke("open_file", { path: file.path });
+  } catch (problem) {
+    answer({ title: "열지 못했어요" }, { line: OPEN_PROBLEMS[problem] ?? OPEN_PROBLEMS.failed, warn: true });
+    return;
+  }
+  opening.path = file.path;
+  opening.expiry = opened.expiry;
+  opening.permission = opened.permission;
+  renderOpen();
+  clearInterval(opening.timer);
+  opening.timer = setInterval(renderOpen, 30_000);
+  show("open");
+}
+
+function onSession(update) {
+  const file = seen.get(update.path);
+  if (file) {
+    file.session = update;
+    render();
+  }
+  if (update.path !== opening.path) return;
+  switch (update.phase) {
+    case "opened":
+      break;
+    case "saved":
+      document.getElementById("open-tag").textContent = "다시 잠그는 중";
+      break;
+    case "resealed":
+      document.getElementById("open-tag").textContent = "열림";
+      document.getElementById("open-note").textContent = "저장한 내용을 다시 잠갔고 주인에게 알렸어요.";
+      break;
+    case "discarded":
+      document.getElementById("open-note").textContent = "읽기만 허락받아서 고친 내용은 저장되지 않았어요.";
+      break;
+    case "closed":
+      clearInterval(opening.timer);
+      answer({ title: "다시 잠겼어요" }, { line: "파일을 닫아서 다시 잠갔어요. 다시 열려면 주인에게 다시 물어봐 주세요." });
+      break;
+    case "revoked":
+      clearInterval(opening.timer);
+      answer({ title: "주인이 허락을 거뒀어요" }, { line: "파일을 닫고 다시 잠갔어요.", warn: true });
+      break;
+    case "expired":
+      clearInterval(opening.timer);
+      answer({ title: "허락한 시간이 끝났어요" }, { line: "파일을 닫고 다시 잠갔어요. 다시 열려면 주인에게 다시 물어봐 주세요." });
+      break;
+    case "problem":
+      clearInterval(opening.timer);
+      answer({ title: "문제가 생겨 다시 잠갔어요" }, { line: OPEN_PROBLEMS[update.problem] ?? OPEN_PROBLEMS.failed, warn: true });
+      break;
+    default:
+      break;
+  }
+  showDev();
+}
+
 // ---------------------------------------------------------------- what I allowed
 
 let given = [];
@@ -644,13 +736,20 @@ function render() {
         headline.textContent = "허락한 시간이 끝났어요. 다시 물어볼 수 있어요.";
       }
       action.textContent = file.request?.phase === "granted" ? "열기" : "주인에게 물어보기";
+      if (file.session?.phase === "opened" || file.session?.phase === "resealed" || file.session?.phase === "saved") {
+        tag.textContent = "열림";
+        tag.classList.add("tag--open");
+        headline.textContent = "지금 열려 있어요.";
+      }
       if (file.default_permission === "deny") {
         action.disabled = true;
         note.textContent = REQUEST_PROBLEMS.owner_denies;
+      } else if (file.request?.phase === "granted" && !["opened", "saved", "resealed"].includes(file.session?.phase)) {
+        action.disabled = false;
+        action.addEventListener("click", () => openFile(file));
       } else if (file.request?.phase === "granted") {
-        // Opening is Z-1.G.7/G.8; the button exists so the next step has somewhere to land.
+        action.textContent = "열려 있음";
         action.disabled = true;
-        action.title = "파일 열기는 다음 단계에서 연결됩니다.";
       } else {
         action.disabled = false;
         action.addEventListener("click", () => requestAccess(file));
@@ -745,6 +844,11 @@ async function main() {
   });
   document.getElementById("given-back").addEventListener("click", () => show("home"));
   document.getElementById("to-log").addEventListener("click", openLog);
+  document.getElementById("open-lock").addEventListener("click", () => {
+    show("working");
+    document.getElementById("working-line").textContent = "다시 잠그고 있어요.";
+    invoke("lock_now", { path: opening.path }).catch(() => show("home"));
+  });
   document.getElementById("log-back").addEventListener("click", () => show("home"));
   for (const chip of document.getElementById("log-chips").querySelectorAll(".chip")) {
     chip.addEventListener("click", () => {
@@ -818,6 +922,7 @@ async function main() {
   await listen("zbacs://opened", (event) => accept(event.payload));
   await listen("zbacs://request", (event) => onRequestUpdate(event.payload));
   await listen("zbacs://approval", (event) => onApproval(event.payload));
+  await listen("zbacs://session", (event) => onSession(event.payload));
   status = await invoke("setup_status");
   route();
   if (status?.onboarded) {

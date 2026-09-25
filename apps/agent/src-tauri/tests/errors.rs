@@ -12,6 +12,7 @@ use std::path::Path;
 use zbacs_agent_lib::approve::{APPROVE_PROBLEMS, REVOKE_PROBLEMS};
 use zbacs_agent_lib::request::REQUEST_PROBLEMS;
 use zbacs_agent_lib::seal::SEAL_PROBLEMS;
+use zbacs_agent_lib::session::OPEN_PROBLEMS;
 use zbacs_agent_lib::setup::SETUP_PROBLEMS;
 use zbacs_agent_lib::INSPECT_PROBLEMS;
 
@@ -20,11 +21,19 @@ fn root() -> &'static Path {
 }
 
 fn all_backend_ids() -> BTreeSet<&'static str> {
-    [INSPECT_PROBLEMS, SETUP_PROBLEMS, SEAL_PROBLEMS, REQUEST_PROBLEMS, APPROVE_PROBLEMS, REVOKE_PROBLEMS]
-        .into_iter()
-        .flatten()
-        .copied()
-        .collect()
+    [
+        INSPECT_PROBLEMS,
+        SETUP_PROBLEMS,
+        SEAL_PROBLEMS,
+        REQUEST_PROBLEMS,
+        APPROVE_PROBLEMS,
+        REVOKE_PROBLEMS,
+        OPEN_PROBLEMS,
+    ]
+    .into_iter()
+    .flatten()
+    .copied()
+    .collect()
 }
 
 /// Keys of every `*_PROBLEMS` table in app.js.

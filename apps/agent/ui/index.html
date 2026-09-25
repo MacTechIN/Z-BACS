@@ -204,6 +204,26 @@
         <p id="approve-count" class="card__note" hidden></p>
       </section>
 
+      <!-- S6 열람 중 (Z-1.G.7/G.8) -->
+      <section id="screen-open" class="screen" hidden>
+        <div class="hero">
+          <div class="vault vault--lg vault--open" aria-hidden="true">
+            <div class="vault__body"></div>
+            <div class="vault__dial"></div>
+          </div>
+          <h2 class="hero__title">파일이 열려 있어요</h2>
+          <p id="open-line" class="hero__line"></p>
+        </div>
+        <article class="card">
+          <div class="card__row">
+            <span id="open-tag" class="tag tag--open">열림</span>
+            <span id="open-left" class="card__size"></span>
+          </div>
+          <p id="open-note" class="card__line"></p>
+        </article>
+        <button id="open-lock" class="btn btn--ok">지금 잠그기</button>
+      </section>
+
       <!-- 허락한 파일 / 회수 (Z-1.G.11) -->
       <section id="screen-given" class="screen" hidden>
         <div class="hero hero--tight">

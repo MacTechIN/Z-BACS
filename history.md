@@ -1321,3 +1321,24 @@ Z-1.G.8 잔여(수신자 재봉인) 완결 → 시나리오 C 전체 통과, Q.1
 
 남은 것: 열기 UI(S6) 배선(open.rs를 화면·뷰어 실행·저장 감지와 잇기), Z-1.H.8 체인 쓰기, 사용자 차례(Windows 실기·Relay 호스팅). 다음은 열기 UI(S6)입니다.
 ```
+
+### #50 [U] 2026-09-25
+```
+다음
+```
+
+### #50 [C] 2026-09-25
+```
+열기 UI(S6) 배선 완료, 커밋·푸시했습니다. 이제 Agent에서 [열기]를 누르면 실제로 앱이 뜨고, 저장하면 다시 잠기고 주인에게 알려집니다.
+
+만든 것
+- apps/agent/src-tauri/src/session.rs: 열려 있는 파일 하나당 루프 하나(블로킹 스레드). [열기] → open.rs::materialise(작업공간 복호화) → 연결 프로그램 실행(zbacs_session::Viewer; 개발·테스트는 ZBACS_VIEWER="prog args"로 추적 가능한 앱 지정) → SaveWatcher로 저장 감지 → 편집이면 open.rs::save(수신자 재봉인 + 버전 통지), 읽기만이면 폐기(T07) → 앱 종료·[지금 잠그기]·회수·만료 중 먼저 오는 것으로 끝내고 닫기 요청(5초 뒤 강제) + 항상 wipe(T09). 회수/만료는 G.9의 허락 감시자가 Requests에 남긴 세션 상태를 읽어 감지. 화면에는 phase만(opened/saved/resealed/discarded/closed/revoked/expired/problem).
+- UI S6: 열린 금고 + "저장하면 다시 잠겨요"/"읽기만" 안내 + 남은 시간 + [지금 잠그기] → "다시 잠겼어요". 홈 카드는 허락받음이면 [열기] 활성, 열려 있으면 "열림" 태그. 열기 오류 14종을 카탈로그에 추가(36개, 삼각 검사·린트 통과).
+- 테스트: 스크립트 뷰어(sh)로 통합 2종 — 열기→저장→재봉인(v2)→앱 종료→wipe, Alice 기록이 v2로 이동 / 지금 잠그기·회수 시 30초짜리 앱을 즉시 닫고 wipe. Agent 41+28 통과, clippy·ux-lint 통과.
+
+정직하게 남긴 것: OS 기본 연결 프로그램으로 열면(Windows cmd start / xdg-open) 프로세스를 추적할 수 없어 앱 종료를 못 알아챈다 — 그때는 [지금 잠그기]·회수·만료가 세션을 끝낸다. Windows에서 ShellExecuteEx로 실제 PID를 잡는 것은 후속(README·체크리스트 §3.12에 명시).
+
+문서: dev_plan G.8에 S6 기록, Agent README, windows_checklist §3.12, ui_strings §7, CLAUDE.md(다음 = Z-1.H.8 체인 쓰기).
+
+남은 코드: Z-1.H.8(체인 쓰기: 스마트계정 UserOp로 register/bumpVersion/grant/revoke, tx_hash, 기록에 체인 이벤트 병합) — 그 전에 테스트넷 배포와 H.11 주소 내장. 사용자 차례: Windows 실기 확인, Relay 호스팅.
+```

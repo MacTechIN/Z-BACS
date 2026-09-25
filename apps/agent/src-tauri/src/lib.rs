@@ -34,6 +34,7 @@ pub mod notify;
 pub mod open;
 pub mod request;
 pub mod seal;
+pub mod session;
 pub mod setup;
 
 /// Event the webview listens for when a file is handed to the Agent.
@@ -201,7 +202,7 @@ fn capabilities() -> serde_json::Value {
         "revoke": true,        // Z-1.G.11
         "auditLog": true,      // Z-1.G.12 (local; chain_events pending Z-1.H.8)
         "notifyButtons": cfg!(windows), // Z-1.U.5: toast buttons on Windows, plain elsewhere
-        "openFile": false      // Z-1.G.7/G.8: open step exists (open.rs), UI/viewer wiring next
+        "openFile": true       // Z-1.G.7/G.8: S6 — open, viewer, save → reseal, wipe
     })
 }
 
@@ -229,6 +230,7 @@ pub fn run() {
         .manage(setup::Identity::default())
         .manage(request::Requests::default())
         .manage(approve::Approvals::default())
+        .manage(session::Sessions::default())
         .invoke_handler(tauri::generate_handler![
             take_pending,
             inspect_path,
@@ -247,7 +249,9 @@ pub fn run() {
             approve::decide,
             approve::given_grants,
             approve::revoke_grant,
-            audit::audit_entries
+            audit::audit_entries,
+            session::open_file,
+            session::lock_now
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
