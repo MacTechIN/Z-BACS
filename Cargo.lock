@@ -64,6 +64,7 @@ dependencies = [
  "alloy-eips",
  "alloy-ens",
  "alloy-genesis",
+ "alloy-json-rpc",
  "alloy-network",
  "alloy-node-bindings",
  "alloy-provider",
@@ -6293,10 +6294,13 @@ name = "zbacs-chain"
 version = "0.0.1"
 dependencies = [
  "alloy",
+ "async-trait",
+ "axum",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
+ "url",
 ]
 
 [[package]]

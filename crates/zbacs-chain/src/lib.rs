@@ -16,12 +16,17 @@
 
 #![warn(missing_docs)]
 
+pub mod aa;
+pub mod bundler;
 pub mod cache;
+pub mod calls;
 pub mod client;
 pub mod contracts;
 pub mod error;
 pub mod watcher;
 
+pub use aa::{KernelAccount, PackedUserOperation, RootValidator, ENTRY_POINT_V07};
+pub use bundler::{Bundler, JsonRpcBundler, RpcUserOperation, UserOpReceipt, UserOpSender};
 pub use cache::{Cache, Cached, Freshness, VersionRecord};
 pub use client::{ChainClient, Deployment};
 pub use error::ChainError;

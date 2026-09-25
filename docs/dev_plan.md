@@ -81,7 +81,7 @@
 | Z-1.H.5 | Slither + Echidna 불변식 CI | CI 게이트 |
 | Z-1.H.6 | HF 감사 파이프라인(`tools/audit`): Qwen3-Coder-Audit 로컬/원격 추론 → PR 코멘트 | 샘플 PR 리포트 |
 | Z-1.H.7 ✅ | `zbacs-chain`(alloy): ABI 바인딩, 이벤트 구독, 오프라인 캐시 | 통합 테스트(Anvil) (2026-09-21: Foundry 아티팩트에서 바인딩 생성(ABI 드리프트 시 컴파일 실패), 읽기·쓰기·`AuditLog`, `EventWatcher`(폴링 — 프록시 뒤에서도 동작, 실패한 범위를 건너뛰지 않음), `Cache`(마지막 답과 나이를 함께 보관, **죽은 grant는 되살아나지 않음**, strict 파일은 stale 답으로 열리지 않음). Anvil 통합 7종 + 단위 3종, `tools/chain-it.sh`·CI 연결) |
-| Z-1.H.8 | `packages/chain-ts`: viem 타입, EIP-712 서명 헬퍼, permissionless 계정 생성 | 승인 앱에서 사용 |
+| Z-1.H.8 ◐ | ~~`packages/chain-ts`~~ → **Rust** 스마트계정 클라이언트(승인 앱 = Tauri Agent이므로 TS 대신): `zbacs-chain::aa` Kernel v3.1 계정(카운터팩추얼 주소·initCode·nonce 키·ERC-7579 단일 실행·UserOp v0.7 해시·WebAuthn/P256Validator 서명 인코딩), `calls`(register/bumpVersion/grant/revoke/log calldata, cast sig로 고정), `bundler`(Bundler 트레이트 + JSON-RPC: 가격·스폰서·추정·전송·영수증, `UserOpSender`) | 승인 앱에서 사용 (2026-09-25 **a단계 완료**: 스파이크가 Base Sepolia에서 통과시킨 벡터와 initCode·주소·nonce·callData·userOpHash·서명 인코딩 **바이트 일치** 테스트 5종 + 모의 번들러 통합 2종. **남은 b단계**: Agent 배선 — 소유자 계정 생성·기기 등록(H.10 설치), 허락 시 `grant` UserOp → `GrantMsg.tx_hash`, 잠글 때 `register`, 버전 통지 수락 시 `bumpVersion`, 회수 시 `revoke`, 기록에 체인 이벤트 병합(G.12). 테스트넷 배포(H.4 스크립트) + H.11 주소 내장 + Pimlico 키(H.9)가 있어야 실제로 돈다) |
 | Z-1.H.9 | 페이마스터 설정(Pimlico 샌드박스) | 가스 0 UserOp |
 | Z-1.H.10 ✅ | `P256Validator`(ERC-7579): 계정당 키 집합 add/remove(= 기기 등록/해지 `DeviceEnroll/DeviceRevoke`), P256VERIFY + Daimo 폴백, low-s 강제; Kernel 설치·해지 스크립트 (ADR-0006) | 등록 기기 키로 UserOp 성공, 해지 후 AA24, T12/T22/T23 테스트 (2026-09-19: `contracts/src/P256Validator.sol` + 단위 16종, Base Sepolia 포크 통합 4종 — 실제 Kernel v3.1 팩토리로 계정 생성 후 기기 키 UserOp 성공 216,221 gas, 폰 등록→노트북 해지→해지 기기 AA24, 재전송 AA25) |
 

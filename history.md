@@ -1342,3 +1342,26 @@ Z-1.G.8 잔여(수신자 재봉인) 완결 → 시나리오 C 전체 통과, Q.1
 
 남은 코드: Z-1.H.8(체인 쓰기: 스마트계정 UserOp로 register/bumpVersion/grant/revoke, tx_hash, 기록에 체인 이벤트 병합) — 그 전에 테스트넷 배포와 H.11 주소 내장. 사용자 차례: Windows 실기 확인, Relay 호스팅.
 ```
+
+### #51 [U] 2026-09-25
+```
+ㄷ음
+```
+
+### #52 [U] 2026-09-25 (작업 중 추가 메시지)
+```
+다음
+```
+
+### #51~#52 [C] 2026-09-25
+```
+Z-1.H.8 a단계 — Rust 스마트계정·번들러 클라이언트 완료, 커밋·푸시했습니다. (dev_plan의 H.8은 "packages/chain-ts"였지만 승인 앱이 Tauri Agent(Rust)이므로 Rust로 바꿨습니다.)
+
+만든 것(crates/zbacs-chain)
+- aa.rs: Kernel v3.1 계정 — 루트 검증기(WebAuthn 패스키 / 우리 P256Validator 기기키)별 initialize·installData, 메타팩토리 initCode, solady ERC-1967 클론 CREATE2로 카운터팩추얼 주소, Kernel v3 nonce 키, ERC-7579 단일 실행 callData, UserOp v0.7 해시, WebAuthn 검증기 서명 인코딩(usePrecompiled 선택)·P256Raw 서명. 스파이크가 Base Sepolia에서 실제 통과시킨 벡터(spikes/aa-passkey/vectors/userop.json)와 initCode·주소·nonce·callData·userOpHash·서명 인코딩이 바이트 단위로 일치하는 테스트 5종.
+- calls.rs: register/bumpVersion/grant/revoke/log calldata(셀렉터를 cast sig로 고정). UserOp 경로와 EOA 직접 전송 경로가 같은 바이트를 씀.
+- bundler.rs: Bundler 트레이트(가격·스폰서·추정·전송·영수증) + JSON-RPC 구현(alloy 전송 재사용, Pimlico pm_sponsorUserOperation·pimlico_getUserOperationGasPrice 호환) + UserOpSender(가격→스폰서/추정→스텁 서명→실서명→전송→영수증 대기). 모의 번들러 서버로 순서·와이어 형태·서명 대상 해시 일치 검증 2종.
+- 찾은 것: alloy의 튜플 abi_encode는 바깥 오프셋을 붙이므로 calldata는 abi_encode_params여야 함; u8은 SolValue 미구현(uint256 워드로 동일 인코딩).
+
+남은 b단계(Agent 배선): 첫 실행에서 소유자 계정 주소, 잠글 때 register, 허락 시 grant UserOp→tx_hash, 버전 통지 수락 시 bumpVersion, 회수 시 revoke, 기록에 체인 이벤트 병합. 실제 전송에는 테스트넷 배포(배포 키·faucet은 사용자)·H.11 주소 내장·Pimlico 키가 필요해서, Anvil + EOA 직접 전송 경로로 먼저 E2E를 만듭니다.
+```
