@@ -9,13 +9,15 @@
 //! No viewer is launched here; that is [`zbacs_session::Viewer`]'s job and the UI's (S6). This
 //! module is the part the E2E harness can run headless, and the Agent command will wrap.
 //!
-//! Not here yet: resealing an *edited* file as a new version. The recipient has no owner key to
-//! sign a header with and no owner X25519 key to re-wrap the DEK for — container_format §5
-//! notes the missing `own_pub` field. That is the remainder of Z-1.G.8.
+//! [`save`] is the other half of Z-1.G.8: an edited file becomes the next version, signed by
+//! this device and with the DEK wrapped to the owner's public key from the header (spec §5),
+//! and the owner is told through the relay so the version can be granted again (§4.6).
 
 use std::path::{Path, PathBuf};
 
-use zbacs_core::{DeviceKeys, Permission};
+use zbacs_core::{DeviceKeys, Permission, SigningKeys};
+use zbacs_proto::VersionMsg;
+use zbacs_relay_client::RelayClient;
 use zbacs_session::{Effect, Event, State, Workspace};
 
 use crate::request::Held;
@@ -123,6 +125,81 @@ pub fn close(mat: Materialised, held: &mut Held, event: Event) -> Result<Vec<Eff
         })?;
     }
     Ok(effects)
+}
+
+/// What [`save`] produced.
+#[derive(Debug, Clone)]
+pub struct Saved {
+    /// The new version number.
+    pub ver: u32,
+    /// Header hash of the new version (what the owner must accept, T19).
+    pub header_hash: [u8; 32],
+    /// The notice sent to the owner.
+    pub notice: VersionMsg,
+}
+
+/// The viewer saved an `Edit` session: reseal the edited plaintext over the container as the
+/// next version and tell the owner (Z-1.G.8).
+///
+/// The session must be in `Resealing` (the caller applied `Event::Saved` and got `Reseal`).
+/// The container is replaced atomically; the workspace file stays until the session ends.
+pub async fn save(
+    client: &RelayClient,
+    sealed: &Path,
+    mat: &Materialised,
+    held: &mut Held,
+    device: &DeviceKeys,
+    signer: &SigningKeys,
+) -> Result<Saved, &'static str> {
+    if held.session.state() != State::Resealing {
+        return Err("not_saving");
+    }
+    let terms = held.terms.as_ref().ok_or("not_granted")?;
+    let envelope_bytes = held.envelope.as_ref().ok_or("not_granted")?;
+    let grant_id = terms.struct_hash();
+    let envelope: zbacs_core::Envelope =
+        ciborium::from_reader(envelope_bytes.as_slice()).map_err(|_| "envelope")?;
+    let dek = envelope.open(device, &grant_id).map_err(|_| "envelope")?;
+
+    let (prev, prev_hash) =
+        zbacs_core::inspect(std::io::BufReader::new(std::fs::File::open(sealed).map_err(|_| "missing")?))
+            .map_err(|_| "damaged")?;
+    if prev_hash.0 != terms.header_hash {
+        return Err("version");
+    }
+    let policy = prev.body.pol.clone();
+    let header =
+        zbacs_core::reseal_as_recipient_to_path(&mat.plain, sealed, &dek, signer, policy).map_err(|e| {
+            log::warn!("reseal failed: {e}");
+            match e {
+                zbacs_core::Error::NoOwnerKey => "no_owner_key",
+                _ => "failed",
+            }
+        })?;
+    let (_, new_hash) =
+        zbacs_core::inspect(std::io::BufReader::new(std::fs::File::open(sealed).map_err(|_| "missing")?))
+            .map_err(|_| "damaged")?;
+    let mut owner_envelope = Vec::new();
+    ciborium::into_writer(&header.body.env[0], &mut owner_envelope).map_err(|_| "failed")?;
+
+    let notice = VersionMsg {
+        fid: header.body.fid.0,
+        owner: header.body.own.clone(),
+        prev_header_hash: prev_hash.0,
+        header_hash: new_hash.0,
+        ver: header.body.ver,
+        grant_id,
+        owner_envelope,
+        ed25519_pub: signer.verifying_key().to_bytes(),
+        ts: now(),
+    };
+    client.send_version(&notice).await.map_err(|e| {
+        log::warn!("the owner could not be told about the new version: {e}");
+        "relay_unreachable"
+    })?;
+    let _ = held.session.apply(Event::Resealed { version: header.body.ver }, now());
+    log::info!("resealed as version {} and told the owner", header.body.ver);
+    Ok(Saved { ver: header.body.ver, header_hash: new_hash.0, notice })
 }
 
 /// Whether the owner allowed editing this session.

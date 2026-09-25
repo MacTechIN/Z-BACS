@@ -11,6 +11,7 @@ use http_body_util::BodyExt;
 use tower::ServiceExt;
 use zbacs_proto::{
     AccessRequest, Ack, DeviceAnnounce, DeviceIdentity, Envelope, ErrorCode, GrantMsg, Kind, Revoke, Signed,
+    VersionMsg,
 };
 use zbacs_relay::{router, Relay};
 
@@ -427,4 +428,38 @@ async fn t05_a_request_must_carry_its_own_signing_key() {
     let (status, ack) = post(&app, "/v1/requests", body).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     assert_eq!(ack.error, Some(ErrorCode::Unauthenticated));
+}
+
+/// A version notice reaches the owner's inbox, and must carry the key that signed it (T05).
+#[tokio::test]
+async fn a_version_notice_reaches_the_owner() {
+    let app = router(Relay::new());
+    let bob = DeviceIdentity::generate().unwrap();
+    post(&app, "/v1/devices", announce_bytes(&bob, None)).await;
+    let notice = |ed: [u8; 32]| VersionMsg {
+        fid: [1; 32],
+        owner: b"alice".to_vec(),
+        prev_header_hash: [2; 32],
+        header_hash: [3; 32],
+        ver: 2,
+        grant_id: [4; 32],
+        owner_envelope: vec![0xEE; 80],
+        ed25519_pub: ed,
+        ts: now(),
+    };
+    let body = Signed::sign(&bob, &notice(bob.ed25519_pub()), now(), nonce(41)).unwrap().to_bytes().unwrap();
+    let (status, ack) = post(&app, "/v1/versions", body).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(ack.ok);
+    let inbox = inbox(&app, &format!("owner={}", hex::encode(b"alice"))).await;
+    assert_eq!(inbox.len(), 1);
+    assert_eq!(inbox[0].kind, Kind::Version);
+
+    let lying =
+        Signed::sign(&bob, &notice(DeviceIdentity::generate().unwrap().ed25519_pub()), now(), nonce(42))
+            .unwrap()
+            .to_bytes()
+            .unwrap();
+    let (status, _) = post(&app, "/v1/versions", lying).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
 }

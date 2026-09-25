@@ -8,5 +8,6 @@
 | [ADR-0004](ADR-0004-pre-deferred-to-phase3.md) | PRE/임계값 위임은 Phase 3로 연기 | Accepted |
 | [ADR-0005](ADR-0005-chain-selection.md) | EVM L2(Base) + 로컬 Anvil, 패스키 스마트계정 | Accepted (2026-09-19 재확인) |
 | [ADR-0006](ADR-0006-owner-signer-dual-path.md) | 소유자 승인 서명 이중 경로: 플랫폼 패스키 또는 등록 기기 바운드 키, 소유자 선택 | Accepted |
+| [ADR-0007](ADR-0007-recipient-reseal.md) | 수신자 재봉인: 헤더 v1.1 `opub`, 재봉인 헤더 서명자 = 수신자 기기키, 버전 통지로 소유자 기록 갱신 | Accepted |
 
 새 ADR은 `ADR-NNNN-slug.md` 형식으로 추가하고 이 표를 갱신한다. 템플릿: 컨텍스트 / 결정 / 근거 / 대안 / 결과.

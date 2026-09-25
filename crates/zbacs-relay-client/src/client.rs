@@ -6,6 +6,7 @@ use rand::{rngs::OsRng, RngCore};
 use zbacs_proto::messages::Message;
 use zbacs_proto::{
     AccessRequest, Ack, DeviceAnnounce, DeviceIdentity, Envelope, ErrorCode, GrantMsg, Revoke, Signed,
+    VersionMsg,
 };
 
 use crate::error::{retryable, ClientError, Result};
@@ -146,6 +147,11 @@ impl RelayClient {
     /// Pull access back.
     pub async fn send_revoke(&self, revoke: &Revoke) -> Result<Delivery> {
         self.submit("/v1/revocations", &self.sign(revoke)?).await
+    }
+
+    /// Tell the owner about a version this device wrote (Z-1.G.8).
+    pub async fn send_version(&self, version: &VersionMsg) -> Result<Delivery> {
+        self.submit("/v1/versions", &self.sign(version)?).await
     }
 
     /// Read this device's inbox.

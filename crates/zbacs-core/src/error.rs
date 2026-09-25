@@ -43,6 +43,10 @@ pub enum Error {
     /// No embedded envelope for this device key (the DEK must come from a grant).
     #[error("no envelope for key id")]
     NoEnvelope,
+    /// The container predates v1.1 and carries no owner public key, so a recipient cannot
+    /// reseal it (spec §5).
+    #[error("container has no owner public key; a recipient cannot reseal it")]
+    NoOwnerKey,
     /// HPKE open failed: wrong key, wrong AAD, or unknown suite (T04).
     #[error("envelope open failed")]
     EnvelopeOpen,

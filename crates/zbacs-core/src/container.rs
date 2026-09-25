@@ -13,7 +13,7 @@ use crate::error::{Error, Result};
 use crate::header::{
     Header, HeaderBody, Policy, CIPHER_XCHACHA20_POLY1305_CHUNKED, MAGIC, VERSION_MAJOR, VERSION_MINOR,
 };
-use crate::keys::{Dek, DeviceKeys, OwnerKeys};
+use crate::keys::{Dek, DeviceKeys, OwnerKeys, SigningKeys};
 use crate::types::{FileId, HeaderHash, NoncePrefix, Salt};
 use crate::{DEFAULT_CHUNK, MAX_HEADER_LEN};
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
@@ -155,6 +155,20 @@ pub fn seal<R: Read + Seek, W: Write>(
     owner: &OwnerKeys,
     opts: &SealOptions,
 ) -> Result<Header> {
+    let opub: [u8; 32] = owner.sealing.public_key().try_into().map_err(|_| Error::EnvelopeSeal)?;
+    seal_signed(&mut input, out, &opub, &owner.signing, opts)
+}
+
+/// The general form of [`seal`]: the owner envelope goes to `owner_pk`, the header is signed
+/// by `signer`. The owner uses their own two keys; a recipient resealing (spec §5) uses the
+/// owner's public key from the previous header and their own device signing key.
+fn seal_signed<R: Read + Seek, W: Write>(
+    mut input: R,
+    out: W,
+    owner_pk: &[u8; 32],
+    signer: &SigningKeys,
+    opts: &SealOptions,
+) -> Result<Header> {
     if opts.chunk_size == 0 || opts.chunk_size as u64 > MAX_CHUNK as u64 {
         return Err(Error::BadChunkSize(opts.chunk_size as u32));
     }
@@ -196,8 +210,8 @@ pub fn seal<R: Read + Seek, W: Write>(
         .encrypt(&nonce(&np, NAME_INDEX), Payload { msg: &pad_name(opts.file_name)?, aad: b"name" })
         .map_err(|_| Error::EnvelopeSeal)?;
 
-    // envelopes: owner self-envelope first, AAD = fid
-    let mut env = vec![Envelope::seal(owner.sealing.public_key(), &dek, fid.as_bytes())?];
+    // envelopes: owner envelope first, AAD = fid
+    let mut env = vec![Envelope::seal(owner_pk, &dek, fid.as_bytes())?];
     for pk in opts.extra_recipients {
         env.push(Envelope::seal(pk, &dek, fid.as_bytes())?);
     }
@@ -215,6 +229,7 @@ pub fn seal<R: Read + Seek, W: Write>(
         ver,
         prev,
         own: opts.owner_account.to_vec(),
+        opub: Some(*owner_pk),
         pol: opts.policy.clone(),
         cipher: CIPHER_XCHACHA20_POLY1305_CHUNKED,
         chunk: opts.chunk_size as u32,
@@ -223,7 +238,7 @@ pub fn seal<R: Read + Seek, W: Write>(
         name: name_ct,
         env,
     }
-    .sign(&owner.signing)?;
+    .sign(signer)?;
     let header_bytes = header.encode()?;
     let header_hash = HeaderHash(Sha256::digest(&header_bytes).into());
 
@@ -270,11 +285,22 @@ pub fn seal_to_path(
     owner: &OwnerKeys,
     opts: &SealOptions,
 ) -> Result<Header> {
+    let opub: [u8; 32] = owner.sealing.public_key().try_into().map_err(|_| Error::EnvelopeSeal)?;
+    seal_signed_to_path(in_path, out_path, &opub, &owner.signing, opts)
+}
+
+fn seal_signed_to_path(
+    in_path: &Path,
+    out_path: &Path,
+    owner_pk: &[u8; 32],
+    signer: &SigningKeys,
+    opts: &SealOptions,
+) -> Result<Header> {
     let input = BufReader::new(File::open(in_path)?);
     let tmp = out_path.with_extension("zbacs.tmp");
     let hdr = {
         let f = File::create(&tmp)?;
-        let hdr = seal(input, &f, owner, opts)?;
+        let hdr = seal_signed(input, &f, owner_pk, signer, opts)?;
         f.sync_all()?;
         hdr
     };
@@ -442,6 +468,34 @@ pub fn reseal_to_path(
     opts.file_name = &name;
 
     seal_to_path(plaintext_path, container_path, owner, &opts)
+}
+
+/// Reseal by a *recipient* (spec §5, Z-1.G.8): the holder of the current version's DEK — obtained
+/// through a grant — writes an edited plaintext as the next version.
+///
+/// The new owner envelope is wrapped to the owner's public key carried in the previous header
+/// (`opub`), so the owner can open the new version without ever seeing this device's keys; the
+/// header is signed by `signer`, this device's Ed25519 key, whose public half ends up in
+/// `sigk`. Whether the owner *accepts* the version is decided outside the container: the
+/// version notice (relay_protocol §4.6) and, on chain, `bumpVersion` (Z-1.H.8).
+///
+/// Fails with [`Error::NoOwnerKey`] on a v1.0 container.
+pub fn reseal_as_recipient_to_path(
+    plaintext_path: &Path,
+    container_path: &Path,
+    prev_dek: &Dek,
+    signer: &SigningKeys,
+    policy: Policy,
+) -> Result<Header> {
+    let (prev_header, prev_hash) = inspect(BufReader::new(File::open(container_path)?))?;
+    let opub = prev_header.body.opub.ok_or(Error::NoOwnerKey)?;
+    let mut opts = SealOptions::new(&prev_header.body.own, "");
+    opts.policy = policy;
+    opts.chunk_size = prev_header.body.chunk as usize;
+    opts.prev = Some(PrevVersion::of(&prev_header, prev_hash));
+    let name = decrypt_name(&prev_header, prev_dek)?;
+    opts.file_name = &name;
+    seal_signed_to_path(plaintext_path, container_path, &opub, signer, &opts)
 }
 
 /// Check that `chain` is a well-formed version chain `v1 → v2 → …` (spec §5).

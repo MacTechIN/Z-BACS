@@ -1297,3 +1297,27 @@ E2E가 드러낸 제품 문제 2가지(둘 다 처리)
 
 베타 컷 코드 목록은 끝났고, 남은 것은 G.8 잔여(스펙 §5 own_pub v1.3 → reseal_as_recipient → 시나리오 C 해제)와 열기 UI(S6), 그리고 사용자 차례(Windows 실기, Relay 호스팅). 다음은 G.8 잔여입니다.
 ```
+
+### #49 [U] 2026-09-25
+```
+다음
+```
+
+### #49 [C] 2026-09-25
+```
+Z-1.G.8 잔여(수신자 재봉인) 완결 → 시나리오 C 전체 통과, Q.1 E2E가 A~E 전부를 검사합니다. 커밋·푸시했습니다. ADR-0007로 결정을 남겼습니다.
+
+스펙(먼저)
+- container_format v1.1: 헤더에 opub(소유자 X25519 공개키). 없으면 생략되므로 v1.0 헤더는 바이트 동일 재인코딩·서명 검증 그대로(테스트 벡터 v1/v2로 확인). §5: 수신자 재봉인은 소유자 봉투를 opub으로 만들고, 헤더 서명자는 재봉인한 기기(sigk = 수신자 기기키). 헤더 서명은 무결성·작성자이지 소유자 승인이 아니며, 승인은 소유자가 버전 통지를 수락해 기록을 갱신하고 그 header_hash로만 허락하는 것으로 표현(T19).
+- relay_protocol §4.6 VersionMsg(fid, owner, prev/new header_hash, ver, grant_id, owner_envelope, ed25519_pub) + POST /v1/versions. 소유자 수락 규칙: 자기가 그 파일에 준 grant_id이고 기록의 바로 다음 버전일 때만.
+
+코드
+- zbacs-core: reseal_as_recipient_to_path(평문, 컨테이너, 이전 DEK, 기기 서명키, 정책) — seal을 seal_signed(owner_pk, signer)로 일반화. NoOwnerKey 오류. minor 1.0→1.1. 테스트: 수신자가 v2 작성→소유자가 자기 키만으로 v2 열림·이름 보존·옛 DEK로는 안 열림(T20)·체인 검증(T19); v1.0 픽스처는 NoOwnerKey.
+- zbacs-proto/relay/relay-client: VersionMsg, /v1/versions(kid 일치 검사, T05), send_version. relay 테스트 1.
+- Agent: ledger Entry에 ver·owner_envelope + advance_version(바로 다음 버전만, 재생·역행 거부 T19 테스트); approve — 통지를 검증·수락해 기록 갱신, envelope_for는 저장된 소유자 봉투로 DEK를 꺼내 새 버전을 허락(파일 없이); open.rs::save — 저장 시 수신자 재봉인 + 통지 전송 + 세션 Resealed.
+- e2e 시나리오 C 완성: 편집→저장→v2(Bob 기기 서명, 여전히 암호문)→wipe→Alice 기록이 통지로 v2·봉투 갱신→옛 허락으로 v2 열기 거부→v2 재요청→Alice가 저장된 봉투로 허락→Bob이 v2 내용 열람. Agent 39+26 전부 통과(ignore 0), 워크스페이스 clippy·Windows 크로스체크 통과.
+
+문서: ADR-0007, container_format §2.2/§5, relay_protocol §3/§4.6, dev_plan G.8 ✅·Q.1 ✅·T19 근거, ADR 색인, Agent README, CLAUDE.md.
+
+남은 것: 열기 UI(S6) 배선(open.rs를 화면·뷰어 실행·저장 감지와 잇기), Z-1.H.8 체인 쓰기, 사용자 차례(Windows 실기·Relay 호스팅). 다음은 열기 UI(S6)입니다.
+```

@@ -40,7 +40,7 @@ pub use error::ProtoError;
 pub use grant::{device_key_hash, AccessGrantTerms};
 pub use identity::DeviceIdentity;
 pub use messages::{
-    AccessRequest, Ack, DeviceAnnounce, Envelope, ErrorCode, GrantMsg, Kind, Revoke, Subscribe,
+    AccessRequest, Ack, DeviceAnnounce, Envelope, ErrorCode, GrantMsg, Kind, Revoke, Subscribe, VersionMsg,
 };
 pub use signed::Signed;
 

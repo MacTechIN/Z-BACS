@@ -20,7 +20,7 @@ use std::time::Duration;
 use tokio::net::TcpListener;
 use zbacs_agent_lib::approve::{answer, next_requests, revoke_now, Answering, DecisionArg, Deployment};
 use zbacs_agent_lib::ledger::{Entry, Ledger};
-use zbacs_agent_lib::open::{close, materialise};
+use zbacs_agent_lib::open::{close, materialise, save};
 use zbacs_agent_lib::request::{
     ask, target_of, watch_grant, Asking, GrantEnd, Guarding, Held, Limits, Outcome,
 };
@@ -294,13 +294,72 @@ async fn scenario_c_edit_open_and_save_ask_for_a_reseal() {
     std::fs::remove_dir_all(dir).ok();
 }
 
-/// The rest of scenario C: the resealed version replaces Bob's container and Alice learns of it.
-/// Needs the recipient reseal (owner X25519 pub in the header, container_format §5 v1.3) and a
-/// new-version message — the remainder of Z-1.G.8.
+/// The rest of scenario C (Z-1.G.8): Bob's save reseals his copy as version 2, Alice's machine
+/// learns of it from the notice (she never sees the file), Bob's next request is for version 2,
+/// and Alice can approve it — with a key from the envelope the notice carried.
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "Z-1.G.8: recipient reseal needs the owner's X25519 public key (container_format §5) and a new-version notice"]
 async fn scenario_c_reseal_produces_a_new_version_alice_can_approve() {
-    unimplemented!("Z-1.G.8");
+    let (dir, alice, bob, received, mut held) =
+        granted("c2", PermissionArg::Edit, OpensArg::Unlimited, DecisionArg::Edit).await;
+    let device = bob.host.device_keys().unwrap().envelope;
+    let signer = bob.host.device_keys().unwrap().signing;
+    let mat = materialise(&received, &mut held, &device, &bob.dir.join("sessions"), "c2-1").expect("opens");
+
+    // Bob edits, saves; the container on his disk becomes version 2 and Alice is told
+    std::fs::write(&mat.plain, b"Q3 plan, revised by Bob").unwrap();
+    assert_eq!(held.session.apply(Event::Saved, now()).unwrap(), vec![Effect::Reseal]);
+    let saved = save(&bob.client, &received, &mat, &mut held, &device, &signer).await.expect("resealed");
+    assert_eq!(saved.ver, 2);
+    assert_eq!(held.session.state(), State::Open, "back to Open after the reseal");
+    let (v2, v2_hash) = zbacs_core::inspect(std::fs::File::open(&received).unwrap()).unwrap();
+    assert_eq!(v2_hash.0, saved.header_hash);
+    assert_eq!(v2.sigk, signer.verifying_key().to_bytes().to_vec(), "signed by Bob's device");
+    assert!(!std::fs::read(&received).unwrap().windows(7).any(|w| w == b"revised"), "still ciphertext");
+    let ws = mat.workspace.path().to_path_buf();
+    close(mat, &mut held, Event::ViewerExited).unwrap();
+    assert!(!ws.exists());
+
+    // Alice's machine takes the notice into its record without ever having the file
+    let owner = owner_account(&alice.prepared.profile);
+    let mut entry = None;
+    for _ in 0..100 {
+        let _ = next_requests(&alice.client, &owner, &alice.ledger).await;
+        let e = alice.ledger.entries().into_iter().next().unwrap();
+        if e.ver == 2 {
+            entry = Some(e);
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(30)).await;
+    }
+    let entry = entry.expect("Alice's record advanced to version 2");
+    assert_eq!(entry.header_hash, hex::encode(saved.header_hash));
+    assert!(entry.owner_envelope.is_some(), "the notice carried Alice's envelope for v2");
+
+    // ...and the old DEK is dead: Bob's held grant cannot open version 2 (T20/T19)
+    let mut stale = Held {
+        session: zbacs_session::Session::resume(Permission::Edit, now() - 10, now() + 3600, 0, 1),
+        ..held.clone()
+    };
+    assert_eq!(
+        materialise(&received, &mut stale, &device, &bob.dir.join("sessions"), "c2-x").err(),
+        Some("version")
+    );
+
+    // Bob asks again — for version 2 — and Alice approves it from the stored envelope
+    let alice_side = tokio::spawn(async move {
+        let a = alice;
+        let answered = alice_answers(&a, DecisionArg::ReadOnly).await;
+        (a, answered)
+    });
+    let (outcome, mut held2) = bob_asks(&bob, &received, Permission::ReadOnly).await;
+    let (_alice, _) = alice_side.await.unwrap();
+    assert!(matches!(outcome, Outcome::Granted { permission: Permission::ReadOnly, .. }), "{outcome:?}");
+    assert_eq!(held2.terms.as_ref().unwrap().header_hash, saved.header_hash, "the grant names version 2");
+    let mat2 =
+        materialise(&received, &mut held2, &device, &bob.dir.join("sessions"), "c2-2").expect("opens v2");
+    assert_eq!(std::fs::read(&mat2.plain).unwrap(), b"Q3 plan, revised by Bob");
+    close(mat2, &mut held2, Event::ViewerExited).unwrap();
+    std::fs::remove_dir_all(dir).ok();
 }
 
 // ================================================================ E

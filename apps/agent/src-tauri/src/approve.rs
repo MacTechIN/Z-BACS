@@ -27,7 +27,7 @@ use zbacs_auth::{ApprovalChallenge, ApprovalContext, AuthProvider, Confirmation,
 use zbacs_core::{Envelope as DekEnvelope, OwnerKeys, Permission};
 use zbacs_proto::{
     device_key_hash, AccessGrantTerms, AccessRequest, DeviceIdentity, Envelope, GrantMsg, Kind, Revoke,
-    Signed,
+    Signed, VersionMsg,
 };
 use zbacs_relay_client::RelayClient;
 
@@ -259,6 +259,24 @@ pub fn envelope_for(
     owner: &OwnerKeys,
     grant_id: &[u8; 32],
 ) -> Result<Vec<u8>, &'static str> {
+    // A version a recipient wrote is not on this disk; its owner envelope arrived with the
+    // version notice (Z-1.G.8) and is the only way to the DEK.
+    if let Some(stored) = entry.owner_envelope.as_deref() {
+        if entry.header_hash != hex::encode(request.header_hash) {
+            return Err("version");
+        }
+        let mine: DekEnvelope = ciborium::from_reader(stored).map_err(|_| "not_mine")?;
+        let mut fid = [0u8; 32];
+        hex::decode_to_slice(&entry.fid, &mut fid).map_err(|_| "not_mine")?;
+        let dek = mine.open(&owner.sealing, &fid).map_err(|e| {
+            log::warn!("cannot open the stored owner envelope: {e}");
+            "not_mine"
+        })?;
+        let wrapped = DekEnvelope::seal(&request.x25519_pub, &dek, grant_id).map_err(|_| "failed")?;
+        let mut bytes = Vec::new();
+        ciborium::into_writer(&wrapped, &mut bytes).map_err(|_| "failed")?;
+        return Ok(bytes);
+    }
     let file = std::fs::File::open(&entry.path).map_err(|e| {
         log::warn!("the locked file is no longer where it was: {e}");
         "file_moved"
@@ -464,12 +482,61 @@ pub async fn revoke_now(
     Ok(marked.into())
 }
 
-/// Read the owner inbox once and keep what is for this owner.
+/// Read one queued envelope as a version notice for `owner`, verified with the key it carries
+/// (T05). `None` for anything else.
+pub fn accept_version(envelope: &Envelope, owner: &[u8], now: u64) -> Option<VersionMsg> {
+    if envelope.kind != Kind::Version {
+        return None;
+    }
+    let signed = Signed::from_bytes(&envelope.body).ok()?;
+    let claimed: VersionMsg = ciborium::from_reader(signed.payload.as_slice()).ok()?;
+    if zbacs_proto::identity::kid_of(&claimed.ed25519_pub) != signed.kid {
+        return None;
+    }
+    let (notice, ts) = signed.verify_queued::<VersionMsg>(&claimed.ed25519_pub).ok()?;
+    if notice.owner != owner
+        || ts > now + zbacs_proto::MAX_SKEW_SECS
+        || now.saturating_sub(ts) > MAX_REQUEST_AGE_SECS
+    {
+        return None;
+    }
+    Some(notice)
+}
+
+/// Take a version notice into the record: only for a grant this machine gave for that file,
+/// and only as the next version of what it knows (T19).
+pub fn apply_version(ledger: &Ledger, notice: &VersionMsg) -> Result<Entry, &'static str> {
+    let grant = ledger.grant(&hex::encode(notice.grant_id)).ok_or("unknown_grant")?;
+    if grant.fid != hex::encode(notice.fid) {
+        return Err("unknown_grant");
+    }
+    ledger
+        .advance_version(
+            &notice.fid,
+            &hex::encode(notice.prev_header_hash),
+            &hex::encode(notice.header_hash),
+            notice.ver,
+            notice.owner_envelope.clone(),
+        )
+        .map_err(|e| {
+            log::warn!("version notice refused: {e}");
+            "version"
+        })
+}
+
+/// Read the owner inbox once: version notices go into the record on the spot (Z-1.G.8),
+/// requests come back for the person.
 pub async fn next_requests(client: &RelayClient, owner: &[u8], ledger: &Ledger) -> Vec<PendingRequest> {
     let Ok(envelopes) = client.inbox_for_owner(owner).await else {
         return Vec::new();
     };
     let now = now();
+    for notice in envelopes.iter().filter_map(|e| accept_version(e, owner, now)) {
+        match apply_version(ledger, &notice) {
+            Ok(entry) => log::info!("a recipient wrote version {} of \"{}\"", entry.ver, entry.name),
+            Err(e) => log::warn!("ignored a version notice: {e}"),
+        }
+    }
     envelopes
         .iter()
         .filter_map(|e| accept_request(e, owner, now))
@@ -711,6 +778,8 @@ mod tests {
             ttl: 3600,
             max_opens: 3,
             sealed_at: 1_700_000_000,
+            ver: 1,
+            owner_envelope: None,
         }
     }
 

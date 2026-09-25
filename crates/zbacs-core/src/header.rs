@@ -16,7 +16,7 @@ pub const MAGIC: &[u8; 6] = b"ZBACS\0";
 /// Container format major version. A different major is rejected (T19).
 pub const VERSION_MAJOR: u8 = 1;
 /// Container format minor version (additive changes only).
-pub const VERSION_MINOR: u8 = 0;
+pub const VERSION_MINOR: u8 = 1;
 /// `cipher` id for chunked XChaCha20-Poly1305 (the only cipher in v1).
 pub const CIPHER_XCHACHA20_POLY1305_CHUNKED: u8 = 1;
 
@@ -83,6 +83,12 @@ pub struct HeaderBody {
     /// Owner account identifier committed on chain (opaque bytes: `chainId || address`).
     #[serde(with = "serde_bytes")]
     pub own: Vec<u8>,
+    /// Owner's X25519 sealing public key (v1.1+, spec §5). A recipient who reseals wraps the
+    /// new version's owner envelope to this key. Absent in v1.0 files, which a recipient
+    /// therefore cannot reseal. Omitted from the CBOR when absent, so v1.0 headers re-encode
+    /// byte for byte and their signatures still verify.
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "serde_opt_bytes_array")]
+    pub opub: Option<[u8; 32]>,
     /// Owner policy.
     pub pol: Policy,
     /// Cipher id ([`CIPHER_XCHACHA20_POLY1305_CHUNKED`]).
@@ -189,6 +195,7 @@ mod tests {
             ver: 1,
             prev: None,
             own: b"acct".to_vec(),
+            opub: None,
             pol: Policy::default(),
             cipher: CIPHER_XCHACHA20_POLY1305_CHUNKED,
             chunk: 1024,

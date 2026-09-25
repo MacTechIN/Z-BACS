@@ -17,7 +17,7 @@
 ```
 
 ### 2.1 Magic / Version
-- `magic = b"ZBACS\x00"` (6B) + `major(u8)=1` + `minor(u8)=0`.
+- `magic = b"ZBACS\x00"` (6B) + `major(u8)=1` + `minor(u8)=1` (1.1: `opub` 추가, 2026-09-25 ADR-0007).
 
 ### 2.2 Header (CBOR, RFC 8949)
 ```
@@ -27,6 +27,7 @@
   "ver":   uint          // 버전 번호 (1부터)
   "prev":  bstr(32)|null // 이전 버전 헤더 해시
   "own":   bstr          // 소유자 계정 식별자 (chainId || address)
+  "opub":  bstr(32)?     // v1.1: 소유자 X25519 봉인 공개키. 수신자 재봉인 시 소유자 봉투를 이 키로 만든다(§5). 없으면(v1.0) 수신자 재봉인 불가
   "pol":   { "def": 0|1|2, "ttl": uint, "max": uint, "pin": bool, "strict": bool }
   "cipher": 1            // 1 = XChaCha20-Poly1305 chunked
   "chunk": 65536
@@ -81,7 +82,9 @@
 5. 오류가 나면 이미 출력된 부분 평문은 **폐기**한다(청크 단위로는 진본이지만 파일 전체의 무결성은 보장되지 않음). Agent는 임시 파일에 쓰고 성공 시에만 rename 한다.
 
 ## 5. 재봉인(Reseal)
-- 새 DEK, 새 `np`, `ver+1`, `prev = 이전 header_hash`, 소유자 봉투는 **소유자 공개키로 다시 생성**(수신자는 소유자 공개키를 헤더의 `env[0].kid`로 알고 있음. 소유자 X25519 공개키를 헤더 `own_pub`에 포함하도록 v1.1 검토).
+- 새 DEK, 새 `np`, `ver+1`, `prev = 이전 header_hash`, 소유자 봉투는 **헤더의 `opub`(소유자 X25519 공개키)로 다시 생성**한다(v1.1, ADR-0007). `opub`가 없는 v1.0 파일은 소유자만 재봉인할 수 있다(`NoOwnerKey`).
+- **헤더 서명자 = 재봉인한 기기.** 소유자가 재봉인하면 소유자 서명키, 수신자가 재봉인하면 수신자 기기 Ed25519 키가 `sigk`가 된다. 헤더 서명은 헤더의 무결성과 작성자를 말할 뿐, 소유자의 승인은 아니다 — 승인은 소유자가 버전 통지(relay_protocol §4.6)를 수락해 기록을 갱신하고(체인이 붙으면 `bumpVersion`), 그 `header_hash`로만 허락을 발급하는 것으로 표현된다(approval_protocol `grant()` 검증 순서, T19).
+- 수신자 재봉인은 새 버전의 소유자 봉투를 통지에 실어 보낸다. 소유자는 파일 없이 그 봉투만으로 새 버전을 열거나 다시 허락할 수 있다.
 - **`fid`와 `salt`는 버전 간 불변**이다. `fid`는 파일의 정체성이고 온체인 `FileRegistry`의 키이며, `bumpVersion(fileId, newHeaderHash)`이 같은 `fid` 아래 최신 헤더 해시를 갱신한다. 따라서 `fid = SHA-256(plaintext_hash ‖ salt)` 유도는 **버전 1에만** 적용되고, 이후 버전의 내용 무결성은 `header_hash`(온체인 앵커)와 트레일러가 담당한다.
 - 버전 체인 규칙(파서가 검사): `ver_{n} = ver_{n-1} + 1`, `prev_{n} = SHA-256(header_{n-1})`, `fid`·`salt` 동일. 체인이 끊기면 다운그레이드·교체 공격으로 간주한다(T19).
 - 교체는 원자적이어야 한다: 같은 디렉터리에 임시 파일로 쓴 뒤 `rename`. 실패 시 이전 버전이 그대로 남는다.

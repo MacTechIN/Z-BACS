@@ -38,6 +38,18 @@ pub struct Entry {
     pub max_opens: u16,
     /// Unix seconds.
     pub sealed_at: u64,
+    /// Container version number of `header_hash`.
+    #[serde(default = "one")]
+    pub ver: u32,
+    /// The owner envelope of the current version (`zbacs_core::Envelope`, CBOR, AAD = fid),
+    /// kept once a recipient reseals: this machine never sees that file, only the envelope
+    /// the version notice carried (Z-1.G.8). `None` while the version on disk is current.
+    #[serde(default)]
+    pub owner_envelope: Option<Vec<u8>>,
+}
+
+fn one() -> u32 {
+    1
 }
 
 impl Entry {
@@ -60,6 +72,8 @@ impl Entry {
             ttl: u64::from(policy.ttl),
             max_opens: policy.max,
             sealed_at: now(),
+            ver: 1,
+            owner_envelope: None,
         }
     }
 }
@@ -160,6 +174,31 @@ impl Ledger {
         all
     }
 
+    /// A recipient wrote a new version (Z-1.G.8): move the record to it. Refuses a notice that
+    /// does not continue from the version this machine knows (T19), so a stale or replayed
+    /// notice cannot roll the record back or sideways.
+    pub fn advance_version(
+        &self,
+        fid: &[u8; 32],
+        prev: &str,
+        next: &str,
+        ver: u32,
+        owner_envelope: Vec<u8>,
+    ) -> Result<Entry, String> {
+        let _held = self.lock.lock().expect("ledger mutex");
+        let mut file = self.load()?;
+        let entry = file.files.get_mut(&hex::encode(fid)).ok_or_else(|| "unknown file".to_string())?;
+        if entry.header_hash != prev || ver != entry.ver + 1 {
+            return Err("not the next version".into());
+        }
+        entry.header_hash = next.to_string();
+        entry.ver = ver;
+        entry.owner_envelope = Some(owner_envelope);
+        let out = entry.clone();
+        self.store(&file)?;
+        Ok(out)
+    }
+
     /// Remember an approval this machine gave.
     pub fn record_grant(&self, grant: &Grant) -> Result<(), String> {
         let _held = self.lock.lock().expect("ledger mutex");
@@ -224,6 +263,8 @@ mod tests {
             ttl: 3600,
             max_opens: 1,
             sealed_at: at,
+            ver: 1,
+            owner_envelope: None,
         }
     }
 
@@ -291,6 +332,25 @@ mod tests {
         assert_eq!(ledger.grants(true, 400).len(), 1);
         assert!(ledger.mark_revoked("nope", 1).is_err());
         assert_eq!(Ledger::new(&dir).grant(&hex::encode([2; 32])).unwrap().revoked_at, Some(300), "on disk");
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    /// T19: a version notice must continue from the known version, and only once.
+    #[test]
+    fn t19_versions_advance_only_forward_from_the_known_one() {
+        let dir = std::env::temp_dir().join(format!("zbacs-ledger-ver-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let ledger = Ledger::new(&dir);
+        ledger.record(&entry(1, 10)).unwrap();
+        let fid = [1u8; 32];
+        let v1 = hex::encode([2; 32]);
+        let v2 = hex::encode([9; 32]);
+        assert!(ledger.advance_version(&fid, &hex::encode([7; 32]), &v2, 2, vec![1]).is_err(), "wrong prev");
+        assert!(ledger.advance_version(&fid, &v1, &v2, 3, vec![1]).is_err(), "skips a version");
+        let e = ledger.advance_version(&fid, &v1, &v2, 2, vec![1, 2, 3]).unwrap();
+        assert_eq!((e.ver, e.header_hash.as_str()), (2, v2.as_str()));
+        assert_eq!(e.owner_envelope, Some(vec![1, 2, 3]));
+        assert!(ledger.advance_version(&fid, &v1, &v2, 2, vec![1]).is_err(), "replay does nothing");
         std::fs::remove_dir_all(dir).ok();
     }
 

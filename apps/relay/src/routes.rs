@@ -11,7 +11,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use serde::Deserialize;
 use zbacs_proto::{
-    AccessRequest, Ack, DeviceAnnounce, ErrorCode, GrantMsg, Kind, Revoke, Signed, MAX_BODY_LEN,
+    AccessRequest, Ack, DeviceAnnounce, ErrorCode, GrantMsg, Kind, Revoke, Signed, VersionMsg, MAX_BODY_LEN,
 };
 
 use crate::state::{Device, Inbox, Refusal, Relay};
@@ -24,6 +24,7 @@ pub fn router(relay: Relay) -> Router {
         .route("/v1/requests", post(requests))
         .route("/v1/grants", post(grants))
         .route("/v1/revocations", post(revocations))
+        .route("/v1/versions", post(versions))
         .route("/v1/inbox", get(inbox))
         .route("/v1/stream", get(stream))
         .with_state(relay)
@@ -156,6 +157,23 @@ async fn grants(State(relay): State<Relay>, body: Bytes) -> Response {
         Err(r) => return refuse(refusal_code(r)),
     };
     let id = relay.enqueue(Inbox::Device(to), Kind::Grant, body.to_vec(), now_unix());
+    accept(id)
+}
+
+/// A recipient reports a new version it wrote. Queued for the owner named in it (spec §4.6).
+async fn versions(State(relay): State<Relay>, body: Bytes) -> Response {
+    let (signed, version) = match authenticate::<VersionMsg>(&relay, &body) {
+        Ok(v) => v,
+        Err(code) => return refuse(code),
+    };
+    if zbacs_proto::identity::kid_of(&version.ed25519_pub) != signed.kid {
+        // the notice must carry the key that signed it, so the owner can verify it (T05)
+        return refuse(ErrorCode::Unauthenticated);
+    }
+    if version.owner.is_empty() || version.owner.len() > 64 {
+        return refuse(ErrorCode::Malformed);
+    }
+    let id = relay.enqueue(Inbox::Owner(version.owner.clone()), Kind::Version, body.to_vec(), now_unix());
     accept(id)
 }
 

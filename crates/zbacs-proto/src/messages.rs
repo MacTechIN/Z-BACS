@@ -19,6 +19,8 @@ pub enum Kind {
     Sub,
     /// [`Ack`]
     Ack,
+    /// [`VersionMsg`]
+    Version,
 }
 
 impl Kind {
@@ -31,6 +33,7 @@ impl Kind {
             Self::Revoke => "revoke",
             Self::Sub => "sub",
             Self::Ack => "ack",
+            Self::Version => "version",
         }
     }
 }
@@ -142,6 +145,46 @@ pub struct Revoke {
 
 impl Message for Revoke {
     const KIND: Kind = Kind::Revoke;
+}
+
+/// A recipient tells the owner that it resealed a file as a new version (spec §4.6, Z-1.G.8).
+///
+/// Carries everything the owner needs to accept the version without the file: the new header
+/// hash (what a later grant must name, T19), the previous one (so the owner can check the
+/// chain from the version it knew), the grant this edit happened under, and the owner
+/// envelope of the new version — the DEK wrapped to the owner's `opub`, so the owner can open
+/// or re-grant the new version it has never seen.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VersionMsg {
+    /// Container file id.
+    #[serde(with = "serde_bytes")]
+    pub fid: [u8; 32],
+    /// Owner account identifier, copied from the container header. The relay routes on it.
+    #[serde(with = "serde_bytes")]
+    pub owner: Vec<u8>,
+    /// Header hash of the version the recipient started from.
+    #[serde(with = "serde_bytes")]
+    pub prev_header_hash: [u8; 32],
+    /// Header hash of the version it wrote.
+    #[serde(with = "serde_bytes")]
+    pub header_hash: [u8; 32],
+    /// Container version number written.
+    pub ver: u32,
+    /// EIP-712 struct hash of the grant the edit was made under.
+    #[serde(with = "serde_bytes")]
+    pub grant_id: [u8; 32],
+    /// The new version's owner envelope (`zbacs_core::Envelope`, CBOR), AAD = `fid`.
+    #[serde(with = "serde_bytes")]
+    pub owner_envelope: Vec<u8>,
+    /// Signing device's Ed25519 public key; must hash to the envelope's `kid` (T05).
+    #[serde(with = "serde_bytes")]
+    pub ed25519_pub: [u8; 32],
+    /// Unix seconds.
+    pub ts: u64,
+}
+
+impl Message for VersionMsg {
+    const KIND: Kind = Kind::Version;
 }
 
 /// First WebSocket frame (spec §4.5).

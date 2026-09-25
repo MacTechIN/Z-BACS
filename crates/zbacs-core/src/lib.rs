@@ -32,8 +32,8 @@ pub mod types;
 
 pub use backup::{export_backup, restore_backup, RecoveryCode};
 pub use container::{
-    decrypt_name, inspect, open, open_with_dek, read_header, reseal_to_path, seal, seal_to_path,
-    verify_version_chain, Opened, PrevVersion, SealOptions,
+    decrypt_name, inspect, open, open_with_dek, read_header, reseal_as_recipient_to_path, reseal_to_path,
+    seal, seal_to_path, verify_version_chain, Opened, PrevVersion, SealOptions,
 };
 pub use envelope::Envelope;
 pub use error::{Error, Result};

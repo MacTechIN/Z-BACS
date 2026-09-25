@@ -121,7 +121,7 @@ fn bad_magic_and_version() {
     bad[0] = b'X';
     assert!(matches!(open(Cursor::new(&bad), &mut out, &owner.sealing), Err(Error::BadMagic)));
     ct[6] = 9;
-    assert!(matches!(open(Cursor::new(&ct), &mut out, &owner.sealing), Err(Error::UnsupportedVersion(9, 0))));
+    assert!(matches!(open(Cursor::new(&ct), &mut out, &owner.sealing), Err(Error::UnsupportedVersion(9, _))));
 }
 
 #[test]
@@ -159,4 +159,93 @@ fn perf_100mb_roundtrip() {
     if !cfg!(debug_assertions) {
         assert!(t_seal + t_open <= std::time::Duration::from_secs(2), "seal={t_seal:?} open={t_open:?}");
     }
+}
+
+// ------------------------------------------------------------------ recipient reseal (spec §5, Z-1.G.8)
+
+/// A recipient with the current DEK (from a grant) writes the next version; the owner opens it
+/// with their own keys, and the chain from v1 checks out.
+#[test]
+fn a_recipient_reseals_and_the_owner_can_open_the_new_version() {
+    let dir = std::env::temp_dir().join(format!("zbacs-recipient-reseal-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let plain = dir.join("doc.txt");
+    let sealed = dir.join("doc.txt.zbacs");
+    std::fs::write(&plain, b"version one").unwrap();
+
+    let owner = zbacs_core::OwnerKeys::generate().unwrap();
+    let mut opts = zbacs_core::SealOptions::new(b"acct", "doc.txt");
+    opts.policy = zbacs_core::Policy { default: zbacs_core::Permission::Edit, ..Default::default() };
+    let v1 = zbacs_core::seal_to_path(&plain, &sealed, &owner, &opts).unwrap();
+    let opub: [u8; 32] = owner.sealing.public_key().try_into().unwrap();
+    assert_eq!(v1.body.opub, Some(opub), "v1.1 headers carry the owner's public key");
+    let (_, v1_hash) = zbacs_core::inspect(std::fs::File::open(&sealed).unwrap()).unwrap();
+
+    // the grant path: the owner hands the DEK out (here: opened from the owner envelope)
+    let dek = v1.body.env[0].open(&owner.sealing, &v1.body.fid.0).unwrap();
+
+    // Bob edits and reseals with his own signing key
+    let bob = zbacs_core::SigningKeys::generate();
+    let edited = dir.join("edited.txt");
+    std::fs::write(&edited, b"version two, by Bob").unwrap();
+    let v2 = zbacs_core::reseal_as_recipient_to_path(
+        &edited,
+        &sealed,
+        &dek,
+        &bob,
+        zbacs_core::Policy { default: zbacs_core::Permission::Edit, ..Default::default() },
+    )
+    .unwrap();
+    assert_eq!(v2.body.ver, 2);
+    assert_eq!(v2.body.prev, Some(v1_hash));
+    assert_eq!(v2.body.fid, v1.body.fid);
+    assert_eq!(v2.body.own, v1.body.own, "the owner account never changes");
+    assert_eq!(v2.body.opub, Some(opub));
+    assert_eq!(v2.sigk, bob.verifying_key().to_bytes().to_vec(), "signed by the recipient's device key");
+
+    // the owner opens v2 with nothing but their own keys
+    let out = dir.join("v2.txt");
+    let opened = zbacs_core::open(
+        std::fs::File::open(&sealed).unwrap(),
+        std::fs::File::create(&out).unwrap(),
+        &owner.sealing,
+    )
+    .unwrap();
+    assert_eq!(opened.file_name, "doc.txt", "the name survives the reseal");
+    assert_eq!(std::fs::read(&out).unwrap(), b"version two, by Bob");
+
+    // the old DEK no longer opens the file (T20)
+    let (h2, hh2, rest) = zbacs_core::read_header(std::fs::File::open(&sealed).unwrap()).unwrap();
+    assert!(zbacs_core::open_with_dek(h2.clone(), hh2, rest, std::io::sink(), &dek).is_err());
+
+    // and the chain v1 -> v2 is well formed (T19)
+    zbacs_core::verify_version_chain(&[(v1, v1_hash), (h2, hh2)]).unwrap();
+    std::fs::remove_dir_all(dir).ok();
+}
+
+/// A v1.0 container (no owner public key) cannot be resealed by a recipient, and says so.
+#[test]
+fn a_recipient_cannot_reseal_a_container_without_the_owner_key() {
+    let dir = std::env::temp_dir().join(format!("zbacs-recipient-old-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let old = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/v1.zbacs");
+    let (hdr, _) = zbacs_core::inspect(std::fs::File::open(&old).unwrap()).unwrap();
+    assert_eq!(hdr.body.opub, None, "the fixture predates opub");
+    let container = dir.join("old.zbacs");
+    std::fs::copy(&old, &container).unwrap();
+    let edited = dir.join("edited.txt");
+    std::fs::write(&edited, b"x").unwrap();
+    let dek = zbacs_core::Dek::generate();
+    let err = zbacs_core::reseal_as_recipient_to_path(
+        &edited,
+        &container,
+        &dek,
+        &zbacs_core::SigningKeys::generate(),
+        zbacs_core::Policy::default(),
+    )
+    .unwrap_err();
+    assert!(matches!(err, zbacs_core::Error::NoOwnerKey), "{err:?}");
+    std::fs::remove_dir_all(dir).ok();
 }

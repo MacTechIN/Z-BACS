@@ -42,7 +42,7 @@ Signed<T> {
   sig:     bstr(64)      // Ed25519("ZBACS-RLY-v1" ‖ kind ‖ ts ‖ nonce ‖ SHA-256(payload))
 }
 ```
-- `kind`는 메시지 종류 문자열(`"req"`, `"grant"`, `"revoke"`, `"announce"`, `"sub"`, `"ack"`)이며 서명 대상에 포함된다 — 한 메시지의 서명을 다른 종류로 재사용할 수 없다.
+- `kind`는 메시지 종류 문자열(`"req"`, `"grant"`, `"revoke"`, `"version"`, `"announce"`, `"sub"`, `"ack"`)이며 서명 대상에 포함된다 — 한 메시지의 서명을 다른 종류로 재사용할 수 없다.
 - Relay는 `kid`에 등록된 공개키로 검증한다. 미등록 `kid`는 `unknown_device`.
 - **Relay는 `payload` 내용을 해석하지 않아도 배달할 수 있어야 한다.** 라우팅에 필요한 필드만 읽는다.
 
@@ -97,6 +97,22 @@ Revoke { grant_id: bstr(32), fid: bstr(32), ts: uint }
 ```
 라우팅(2026-09-22): Relay는 `AccessRequest.fid`별로 요청한 기기를 기억해 두었다가(큐 TTL 동안) `Revoke.fid`를 요청했던 **모든 기기**의 받은편지함에 넣는다. 소유자 자신에게는 되돌리지 않는다. 수신자는 `grant_id`가 자기가 든 허락과 같을 때만 세션을 닫는다 — 위조된 revoke는 세션을 일찍 끝낼 뿐 아무것도 열지 못하고, 체인의 `Revoked` 이벤트가 최종 근거다(T20).
 수신자 Agent는 이를 받으면 즉시 세션을 종료한다. 받지 못해도 TTL과 주기적 `isValid()` 확인으로 닫힌다(T20).
+
+### 4.6 VersionMsg (Bob → Alice, 2026-09-25 ADR-0007)
+```
+VersionMsg {
+  fid:              bstr(32)
+  owner:            bstr        // 소유자 계정 식별자 — Relay는 이것으로 큐를 고른다
+  prev_header_hash: bstr(32)    // 출발한 버전
+  header_hash:      bstr(32)    // 새로 쓴 버전 (이후 허락은 이 값을 명시해야 한다, T19)
+  ver:              uint
+  grant_id:         bstr(32)    // 이 편집이 이루어진 허락의 EIP-712 struct hash
+  owner_envelope:   bstr        // 새 버전의 소유자 봉투 (zbacs_core::Envelope CBOR, DEK → opub, AAD = fid)
+  ed25519_pub:      bstr(32)    // 서명 기기 공개키 — SHA-256(·)[..16] == 봉투 kid (T05)
+  ts:               uint
+}
+```
+엔드포인트 `POST /v1/versions`. Relay는 `kid` 일치만 확인하고 `owner` 큐에 넣는다. 소유자 Agent의 수락 규칙: `grant_id`가 자기가 그 `fid`에 준 허락이고, `prev_header_hash`·`ver`가 자기 기록의 바로 다음일 때만 기록을 갱신한다(아니면 무시). 수락된 뒤에는 그 `header_hash`에 대한 요청만 허락할 수 있고, DEK는 실려 온 `owner_envelope`에서 얻는다 — 소유자는 그 파일을 가진 적이 없다.
 
 ### 4.5 Subscribe / Ack / Envelope
 ```

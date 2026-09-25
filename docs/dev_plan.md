@@ -104,7 +104,7 @@
 | Z-1.G.5 ◐ | 보호 작업공간: ACL 설정, 인덱싱·백업 제외 | ACL 검증 스크립트 (2026-09-19: `zbacs-session::Workspace` — 세션별 디렉터리, Unix 0700 검증 테스트, Windows는 `FILE_ATTRIBUTE_NOT_CONTENT_INDEXED|TEMPORARY`(크로스 컴파일 통과). 남은 것: Windows 상속 ACL 제거(설치 단계)와 실기 ACL 검증 스크립트) |
 | Z-1.G.6 ◐ | 열람 앱 실행 + PID 추적 + `notify` 저장 감지 | Word/메모장/PDF 3종 (2026-09-20: `zbacs-session::viewer` — 추적 실행(PID·생존 확인·정상 종료 요청은 SIGTERM/taskkill, 드롭 시 강제 종료)과 `SaveWatcher`(디렉터리 감시 + 디바운스: 평문 쓰기·**임시파일 rename**(Word 방식)·연속 쓰기 묶기·잠금파일 무시·삭제는 Vanished). 테스트 12종. **실제 3종 앱 확인은 Windows + Agent UI 이후** — `docs/windows_checklist.md` §4) |
 | Z-1.G.7 ✅ | ReadOnly 모드: 읽기전용 속성, 변경 폐기 | 테스트 (2026-09-19: `mark_read_only`/`clear_read_only` + 쓰기 거부 확인, 상태머신이 ReadOnly 저장을 `DiscardChanges`로 처리하고 버전을 만들지 않음) |
-| Z-1.G.8 ◐ | Edit 모드: 종료/TTL/revoke 시 재봉인, 안전 삭제 | 포렌식 스크립트 통과(T09) (2026-09-19: 상태머신의 Saved→Reseal→Resealed 흐름과 회수/만료 시 미봉인 변경 폐기, `Workspace::wipe`/`secure_delete`(0 덮어쓰기 후 삭제, 하드링크로 덮어쓰기 확인). Z-1.Q.2 디스크 포렌식 통과(2026-09-24). **남은 것(2026-09-24 E2E가 드러냄)**: 수신자 재봉인 — 수신자는 소유자 X25519 공개키가 없어 소유자 봉투를 다시 만들 수 없고(container_format §5의 `own_pub` v1.3 검토 항목), 새 버전을 소유자에게 알릴 메시지(Relay `version` 종류 또는 체인 `bumpVersion`)가 없다. 헤더 서명자가 수신자 기기키가 되는 것을 스펙에 명시해야 함) |
+| Z-1.G.8 ✅ | Edit 모드: 종료/TTL/revoke 시 재봉인, 안전 삭제 | 포렌식 스크립트 통과(T09) (2026-09-19: 상태머신·`Workspace::wipe`/`secure_delete`; 2026-09-24 Q.2 포렌식 통과; **2026-09-25 수신자 재봉인 완결(ADR-0007)**: 헤더 v1.1 `opub`, `zbacs_core::reseal_as_recipient_to_path`(수신자 기기키 서명, 소유자 봉투는 opub으로), `VersionMsg` + Relay `/v1/versions`, 소유자 기록이 통지로 버전·봉투를 갱신해 파일 없이 새 버전을 다시 허락, `open.rs::save`. e2e 시나리오 C 전체 통과, core 2 tests, relay 1) |
 | Z-1.G.9 ✅ | 승인 대기 UI, 거부/만료 처리 | UX 리뷰 (2026-09-21: `apps/agent` `request.rs` + S4 화면. 기기 등록→서명 요청→받은편지함 폴링→답 분류(파일·버전·기기·nonce 일치 검사, T05/T19)→세션 상태머신 구동. 120s 안내·300s 만료·취소·Relay 불통 처리. 실제 `zbacs-relay`를 띄운 통합 테스트 6종 + 단위 8종. 소유자 서명 검증은 `owner_signature_check` pending으로 표시 — Z-1.H.8/H.10) |
 | Z-1.G.10 ✅ | 데스크톱 승인 UI(소유자가 PC에서 승인) — 패스키 프롬프트 + EIP-712 내용 표시 | T06 체크 (2026-09-22: `apps/agent` `approve.rs` + `ledger.rs` + S5 화면. 소유자 받은편지함 감시(3s) → 요청자 서명을 요청이 담은 키로 직접 검증(T05) → **로컬 잠금 기록**으로 파일명·정책 표시, 기록 없음/다른 버전이면 허락 불가(T06/T19) → [읽기만 허락][편집도 허락][거절] → EIP-712 digest(Solidity 벡터 일치)를 기기 서명기로 서명(T23 확인 정책) → DEK를 요청 기기 키로 재봉인(aad=grantId) → GrantMsg. 시나리오 B 왕복 통합 테스트 3종(두 SetupHost + 실제 Relay: 허락→Bob이 DEK 열고 복호화·서명 검증, 거절, 모르는 파일 허락 불가) + 단위 9종. 체인 기록은 Z-1.H.8) |
 | Z-1.G.11 ✅ | 회수(Revoke) 기능 + 활성 세션 목록 | E2E (2026-09-22: 소유자 — 허락할 때 `sealed.json`에 기록, "내가 허락한 파일" 화면(남은 시간·[허락 거두기]) → Relay `Revoke` + 기록. Relay — revoke를 그 파일을 요청했던 모든 기기로 라우팅(이전엔 소유자 자신에게만 가던 버그 수정, T20 테스트). 수신자 — 허락 뒤에도 받은편지함을 계속 읽어 revoke면 `Revoked`, 만료면 `Closed`로 세션을 닫고 화면에 알림. 두 기기 통합 테스트: 회수 → 상대 세션 즉시 종료, 만료 자체 종료(T15). 체인 revoke는 Z-1.H.8) |
@@ -135,7 +135,7 @@
 ### 1.7 Security/QA (Q)
 | ID | 태스크 | DoD |
 |---|---|---|
-| Z-1.Q.1 ◐ | E2E 테스트 하네스: Windows VM 2대 + Anvil + Relay 도커 | 시나리오 A~E 자동화 (2026-09-24: `apps/agent/src-tauri/tests/e2e.rs` — 두 SetupHost(두 PC) + 실제 Relay, 헤드리스. **A 봉인·B 요청/승인·D 읽기전용 열람(작업공간·읽기전용·변경 폐기·wipe)·E 거절/회수(열람 중 즉시 wipe)/만료 통과**, T19·T23 포함 9 tests. **C는 절반**: 편집 열기→저장→`Reseal` 효과까지 검사, 실제 재봉인+새 버전 통지는 `#[ignore]`로 G.8 잔여를 가리킴. 새로 만든 `open.rs`가 열기 단계(G.7). Windows VM·Anvil은 각각 `windows_checklist.md`·H.8 뒤) |
+| Z-1.Q.1 ✅ | E2E 테스트 하네스: Windows VM 2대 + Anvil + Relay 도커 | 시나리오 A~E 자동화 (2026-09-24: `apps/agent/src-tauri/tests/e2e.rs` — 두 SetupHost(두 PC) + 실제 Relay, 헤드리스. **A 봉인·B 요청/승인·D 읽기전용 열람(작업공간·읽기전용·변경 폐기·wipe)·E 거절/회수(열람 중 즉시 wipe)/만료 통과**, T19·T23 포함 9 tests. **C 전체**(2026-09-25: 편집→저장→수신자 재봉인 v2→통지→Alice 기록 갱신→옛 DEK로 v2 열기 거부→v2 재요청·허락·열기). 새로 만든 `open.rs`가 열기 단계(G.7). Windows VM·Anvil은 각각 `windows_checklist.md`·H.8 뒤) |
 | Z-1.Q.2 ✅ | 평문 잔존 포렌식 스크립트(디스크 문자열 검색) | CI 야간 실행 (2026-09-24: `zbacs forensic-session`이 Agent와 같은 프리미티브로 Edit 세션 전체(봉인→원본 안전 삭제→작업공간 열기→임시파일·잠금파일 포함 편집→재봉인→wipe)를 N회 실행. `tools/forensic.sh image`가 ext4 루프 이미지에서 실행 후 **언마운트한 원시 이미지**(데이터 블록·빈 공간·저널)를 마커로 검색, `dir` 모드는 파일만. 음성 대조군(단순 삭제한 평문은 반드시 검출)으로 스캔 자체를 검증. `.github/workflows/forensic.yml` 야간 02:30 KST + 관련 파일 push 시) |
 | Z-1.Q.3 | 위협 T01~T20 대응 테스트 매핑 및 실행 | 100% 매핑 |
 | Z-1.Q.4 | 의존성 감사(`cargo audit`, `npm audit`), SBOM | CI |
@@ -165,7 +165,7 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | ~~7~~ ◐ | ~~`Z-1.U.5` 알림 액션 버튼~~ | 2026-09-23 코드 완료. Windows 토스트 버튼 실기 확인만 남음(§3.11) |
 | ~~8~~ ✅ | ~~`Z-1.R.4` Docker~~ | 2026-09-23 완료. 실제 호스팅(계정)은 사용자 차례 — `docs/relay_selfhost.md` §5 |
 | ~~9~~ ✅ | ~~`Z-1.Q.2` 포렌식 스크립트~~ | 2026-09-24 완료 |
-| ~~10~~ ◐ | ~~`Z-1.Q.1` E2E 하네스~~ | 2026-09-24 A·B·D·E + C 절반 자동화. C의 나머지 = G.8 잔여(아래) |
+| ~~10~~ ✅ | ~~`Z-1.Q.1` E2E 하네스~~ | 2026-09-25 A~E 전부 자동화(시나리오 10 tests) |
 
 **베타에 반드시 필요한 것 (사용자만 할 수 있는 일)**
 
@@ -252,7 +252,7 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | T16 Relay DoS | Z-1.R.1 (본문 상한·할당량 정의), Z-1.R.2 (서명·레이트리밋), Z-1.R.4 (셀프호스팅), Z-1.H.7 (체인 이벤트 폴백 — 구현됨), Z-2.R.1 | proto `oversized_bodies_are_refused_on_both_sides`; relay `t16_quota_stops_a_flood`, `an_oversized_body_is_refused` |
 | T17 스텁 위장 | Z-1.S.1/S.2 (코드 서명·해시 고정), Z-1.C.2 (Agent는 컨테이너만 파싱), Z-1.G.13 (서명된 업데이트) | tauri-assoc: 파일 인자를 경로로만 취급, `inspect`만 수행 |
 | T18 파서 취약점 | Z-1.C.2 (길이 상한·악성 입력 20종), Z-1.C.3 (cargo-fuzz) | core `tests/malicious.rs` 31종; 퍼징 24h 420,679,318회 무크래시 |
-| T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책), Z-1.C.4 (`verify_version_chain`), Z-1.H.2 (온체인 버전 바인딩) | core `t19_*`; reseal `t19_*` 3종; contracts `test_t19_grant_must_name_the_current_version`, agent `t19_a_grant_for_another_version_is_refused` |
+| T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책), Z-1.C.4 (`verify_version_chain`), Z-1.H.2 (온체인 버전 바인딩) | core `t19_*`; reseal `t19_*` 3종; contracts `test_t19_grant_must_name_the_current_version`, agent `t19_a_grant_for_another_version_is_refused`, core `a_recipient_reseals_and_the_owner_can_open_the_new_version`, ledger `t19_versions_advance_only_forward_from_the_known_one`, e2e `scenario_c_reseal_*` |
 | T20 회수 무시 | Z-1.C.4 (재봉인 시 새 DEK), Z-1.G.4 (TTL·주기 확인), Z-1.G.11 (revoke), Z-1.H.7 (이벤트 구독), Z-1.G.13 (코드 서명), Z-3.H.3 (어테스테이션) | contracts `test_t20_revoke_only_owner`; core `t20_each_version_*`; session `t20_revoke_*`; chain `t20_the_watcher_sees_a_revoke_without_the_relay`, `t20_a_revoked_grant_is_never_resurrected_by_the_cache`, relay `t20_revocations_reach_the_devices_that_asked`, agent `t20_*` 2종 + `scenario_e_alice_revokes_and_bobs_session_ends` |
 | T21 번들러·페이마스터 검열/지연 | Z-1.H.8 (다중 번들러 엔드포인트), Z-1.H.9 (페이마스터 폴백: 자체 예치), Z-1.G.4 (`strict_onchain` 아닌 경우 체인 확정 미대기), Z-1.R.5 (다중 Relay 장애 조치) | aa-passkey: EntryPoint 직접 `handleOps` + Pimlico 실제 제출; client `t21_a_dead_endpoint_falls_over_to_a_live_one` |
 | T22 동기화 패스키 복제 | Z-1.A.2 (BE/BS 플래그 기록·정책), Z-1.A.7 (기기 바운드 키 대안), Z-1.H.10 (등록·해지 온체인), Z-1.U.7 (선택 UI) | auth `t22_synced_passkey_flags_detected`; contracts `test_t22_keys_are_scoped_to_the_enrolling_account` |
