@@ -13,8 +13,9 @@ use alloy::primitives::{keccak256, Address, FixedBytes};
 use alloy::providers::{Provider, ProviderBuilder};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::SignerSync;
+use zbacs_chain::calls::GrantArgs;
 use zbacs_chain::contracts::{AccessGrantLib, AccessPolicy, AuditLog, ERC1967Proxy, FileRegistry};
-use zbacs_chain::{ChainClient, ChainEvent, Deployment, EventWatcher, Freshness};
+use zbacs_chain::{ChainClient, ChainEvent, ChainWriter, Deployment, DirectWriter, EventWatcher, Freshness};
 
 fn artifacts_present() -> bool {
     std::path::Path::new(concat!(
@@ -303,4 +304,130 @@ async fn a_grant_event_carries_what_a_session_needs() {
         "expected a Revoked, got {events:?}"
     );
     assert!(!f.client.is_grant_valid(granted.0).await.unwrap());
+}
+
+// ------------------------------------------------------------------ the writer (Z-1.H.8, ADR-0008)
+
+/// The direct path the Agent uses on Anvil: one funded key registers, grants **without a
+/// second signature** (it is the owner calling), revokes and bumps — and every write is
+/// visible to a reader and to the watcher.
+#[tokio::test]
+async fn the_direct_writer_registers_grants_revokes_and_bumps_as_the_owner() {
+    if !ready("the_direct_writer_registers_grants_revokes_and_bumps_as_the_owner") {
+        return;
+    }
+    let f = deploy().await;
+    let signer: PrivateKeySigner = f._anvil.keys()[0].clone().into();
+    let owner = signer.address();
+    let writer =
+        DirectWriter::new(ChainClient::connect_signed(&f.rpc, f.deployment, signer).await.unwrap(), owner);
+    assert_eq!(writer.owner(), owner);
+
+    let file = fid("written.docx");
+    let header = fid("header v1");
+    let start = f.client.block_number().await.unwrap() + 1;
+    let mut watcher =
+        EventWatcher::new(f.client.provider().clone(), f.deployment.policy, f.deployment.registry, start);
+
+    let tx = writer.register(file, header).await.unwrap();
+    assert_ne!(tx, [0u8; 32]);
+    assert_eq!(f.client.owner_of(file).await.unwrap(), Some(owner));
+
+    let now = f
+        .client
+        .provider()
+        .get_block(alloy::eips::BlockId::latest())
+        .await
+        .unwrap()
+        .unwrap()
+        .header
+        .timestamp;
+    let terms = GrantArgs {
+        file_id: file,
+        header_hash: header,
+        device_key_hash: fid("bob device"),
+        permission: 2,
+        not_before: now.saturating_sub(120),
+        expiry: now + 3600,
+        max_opens: 0,
+        request_nonce: [7u8; 16],
+        grant_nonce: 0,
+    };
+    writer.grant(&terms).await.unwrap();
+    let granted = watcher
+        .poll()
+        .await
+        .unwrap()
+        .into_iter()
+        .find_map(|e| match e {
+            ChainEvent::Granted { grant_id, file_id, permission, .. } if file_id == file => {
+                Some((grant_id, permission))
+            }
+            _ => None,
+        })
+        .expect("a Granted event");
+    assert_eq!(granted.1, 2, "Edit");
+    assert!(
+        f.client.is_grant_valid(granted.0).await.unwrap(),
+        "the grant is live without an owner signature"
+    );
+
+    // a second grant reuses nothing: the owner nonce moved on
+    let mut again = terms.clone();
+    again.request_nonce = [8u8; 16];
+    let err = writer.grant(&again).await.unwrap_err();
+    assert!(!err.is_unreachable(), "a stale nonce is a rejection, not an outage: {err}");
+
+    writer.revoke(file, granted.0).await.unwrap();
+    assert!(!f.client.is_grant_valid(granted.0).await.unwrap());
+
+    writer.bump_version(file, fid("header v2")).await.unwrap();
+    let (current, version, _) = f.client.current_version(file).await.unwrap();
+    assert_eq!((current, version), (fid("header v2"), 2));
+    let events = watcher.poll().await.unwrap();
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, ChainEvent::Revoked { grant_id, .. } if *grant_id == granted.0)));
+    assert!(events.iter().any(|e| matches!(e, ChainEvent::VersionBumped { version: 2, .. })));
+}
+
+/// T14: the shortcut belongs to the owner. Another funded key calling `grant` with no
+/// signature is refused.
+#[tokio::test]
+async fn t14_another_key_cannot_grant_without_the_owner_signature() {
+    if !ready("t14_another_key_cannot_grant_without_the_owner_signature") {
+        return;
+    }
+    let f = deploy().await;
+    let file = fid("someone-elses.docx");
+    f.client.register_file(file, fid("header v1")).await.unwrap();
+
+    let stranger: PrivateKeySigner = f._anvil.keys()[1].clone().into();
+    let address = stranger.address();
+    let writer = DirectWriter::new(
+        ChainClient::connect_signed(&f.rpc, f.deployment, stranger).await.unwrap(),
+        address,
+    );
+    let now = f
+        .client
+        .provider()
+        .get_block(alloy::eips::BlockId::latest())
+        .await
+        .unwrap()
+        .unwrap()
+        .header
+        .timestamp;
+    let terms = GrantArgs {
+        file_id: file,
+        header_hash: fid("header v1"),
+        device_key_hash: fid("bob device"),
+        permission: 1,
+        not_before: now.saturating_sub(120),
+        expiry: now + 3600,
+        max_opens: 1,
+        request_nonce: [9u8; 16],
+        grant_nonce: 0,
+    };
+    let err = writer.grant(&terms).await.unwrap_err();
+    assert!(matches!(err, zbacs_chain::ChainError::Rejected(_)), "{err}");
 }

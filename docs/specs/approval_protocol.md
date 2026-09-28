@@ -1,6 +1,6 @@
 # 스펙: 접근 요청·승인 프로토콜 v1
 
-| 상태 | Draft 1.2 (2026-09-19: §3 버전 바인딩·retire·consumeOpen 기기 바인딩 — Z-1.H.1/H.2) |
+| 상태 | Draft 1.3 (2026-09-28: §1.3 `tx_hash`, §2 규칙 4, §3 소유자 자기 제출 시 서명 생략 — ADR-0008, Z-1.H.8) |
 |---|---|
 | 구현 | `crates/zbacs-core/src/grant.rs`, `contracts/src/AccessPolicy.sol`, `apps/relay` |
 
@@ -44,6 +44,7 @@ GrantMsg { grant: AccessGrant, sig: bytes, envelope: { enc, ct } /* HPKE(DEK →
            owner_account: address, tx_hash: bytes32|null }
 ```
 - `permission == Deny` 이면 envelope 없음.
+- `tx_hash`: 소유자 Agent가 체인에 낸 `grant` 트랜잭션(ADR-0008). 체인 설정이 없는 기기(개발 모드)에서는 `null`. 스마트계정 경로에서는 `sig`가 비고 `tx_hash`가 승인의 증거다.
 
 ### 1.4 Revoke
 ```
@@ -67,7 +68,7 @@ DeviceRevoke { account, keyId, ts }                                             
 1. `grant.fileId/headerHash` == 로컬 컨테이너 값.
 2. `deviceKeyHash` == 자신의 키 해시.
 3. `requestNonce` == 자신이 보낸 nonce (1회 사용 후 폐기).
-4. 서명 검증: 소유자 계정이 EOA면 ECDSA, 스마트계정이면 ERC-1271 `isValidSignature` (체인 조회 또는 캐시).
+4. 소유자 승인 검증(ADR-0008): `tx_hash`가 있으면 체인의 `Granted(grantId)` 이벤트 / `isValid(grantId)`가 증거다. 체인 확정 전·`strict`가 아닌 파일은 봉투 바인딩(DEK 봉투 AAD = grantId — DEK를 가진 소유자만 만들 수 있다)으로 열고 뒤에 확인한다. `sig`가 있으면(직접 경로) 추가로 검증: 소유자 계정이 EOA면 ECDSA, 스마트계정이면 ERC-1271.
 5. 시간: `notBefore ≤ now ≤ expiry` (로컬 시계 ±5분 허용, `strict`면 체인 블록 시간 사용).
 6. 체인: `AccessPolicy.isValid(grantId)` (`strict`면 필수, 아니면 best-effort + 주기 확인).
 7. 봉투 개봉 성공 → 세션 시작. 실패 시 `Failed`.
@@ -83,10 +84,11 @@ function consumeOpen(bytes32 grantId, bytes calldata devicePubKeys) external; //
 //               currentVersion(fileId) -> (headerHash, version, retired)
 ```
 
-`grant()` 검증 순서(Z-1.H.2): 등록 여부 → **폐기(retire) 여부** → **`g.headerHash`가 레지스트리의 현재 헤더 해시와 일치**(T19: 재봉인 이후 옛 버전은 다시 승인될 수 없다) → 권한 값 → 시간창 → 만료 → 소유자 nonce → 요청 nonce → 서명(ERC-1271 포함).
+`grant()` 검증 순서(Z-1.H.2): 등록 여부 → **폐기(retire) 여부** → **`g.headerHash`가 레지스트리의 현재 헤더 해시와 일치**(T19: 재봉인 이후 옛 버전은 다시 승인될 수 없다) → 권한 값 → 시간창 → 만료 → 소유자 nonce → 요청 nonce → 서명. **서명은 호출자가 소유자 계정 자신이면 생략된다**(ADR-0008: 그 계정의 UserOp 서명/트랜잭션이 이미 승인이다 — 한 번의 탭에 한 번의 서명). 제3자가 제출하면 ECDSA 또는 ERC-1271로 검증한다.
 
 `consumeOpen(grantId, devicePubKeys)`은 `keccak256(devicePubKeys) == deviceKeyHash`를 요구해 카운터를 승인된 기기의 공개키를 아는 호출자에게 묶는다. 체인에 Ed25519 프리컴파일이 없어 **기기 자체의 서명 증명은 아니며**, 원격 어테스테이션은 `Z-3.H.3`이다. 카운터는 감사용이고 `maxOpens` 강제의 1차 책임은 수신자 Agent에 있다.
 - 가스는 소유자 스마트계정 + 페이마스터 대납. Bob은 트랜잭션을 보내지 않는다(`AuditLog.Opened`는 Relay 또는 Bob Agent가 선택적으로 기록).
+- 쓰기 경로는 `zbacs-chain::ChainWriter` 하나다: `SmartAccountWriter`(Kernel v3.1 UserOp, 프로덕션)와 `DirectWriter`(자금 있는 키의 일반 트랜잭션 — Anvil·셀프호스팅). 소유자 주소는 첫 실행에 정해져 `DeviceProfile.account`에 남고 컨테이너 `owner`·Relay 라우팅 키가 된다(ADR-0008).
 
 ## 4. 타임아웃과 상태
 | 상황 | 동작 |

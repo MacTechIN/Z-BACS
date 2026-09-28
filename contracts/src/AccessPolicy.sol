@@ -119,7 +119,10 @@ contract AccessPolicy is EIP712, Upgradeable {
 
     // ------------------------------------------------------------------ writes
 
-    /// @notice Submit an owner-signed grant. Returns grantId (= EIP-712 struct hash).
+    /// @notice Submit a grant. Returns grantId (= EIP-712 struct hash).
+    /// @param ownerSig The owner's signature over {digestOf}(g): ECDSA for an EOA owner, ERC-1271
+    ///        for a smart account. Ignored (may be empty) when the owner account itself is the
+    ///        caller — the account's own authorisation of this call stands in for it (ADR-0008).
     function grant(AccessGrantLib.AccessGrant calldata g, bytes calldata ownerSig)
         external
         returns (bytes32 grantId)
@@ -138,7 +141,13 @@ contract AccessPolicy is EIP712, Upgradeable {
 
         bytes32 structHash = g.hashStruct();
         bytes32 digest = _hashTypedDataV4(structHash);
-        if (!SignatureChecker.isValidSignatureNow(owner, digest, ownerSig)) revert InvalidSignature();
+        // The owner's own account calling grant() has already authorised this call — its user
+        // operation signature, or the funded key's transaction — so a second signature over the
+        // same terms would mean a second prompt for one tap (ADR-0008). Anyone else submitting
+        // on the owner's behalf (a relay, the recipient) must carry the owner's signature.
+        if (msg.sender != owner && !SignatureChecker.isValidSignatureNow(owner, digest, ownerSig)) {
+            revert InvalidSignature();
+        }
 
         nonces[owner] = g.grantNonce + 1;
         usedRequestNonce[g.requestNonce] = true;

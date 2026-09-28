@@ -2,11 +2,14 @@
 
 use std::time::Duration;
 
-use alloy::primitives::{Address, FixedBytes};
+use alloy::network::EthereumWallet;
+use alloy::primitives::{Address, Bytes, FixedBytes, U256};
 use alloy::providers::{DynProvider, Provider, ProviderBuilder};
+use alloy::signers::local::PrivateKeySigner;
 
 use crate::cache::{Cache, Cached, VersionRecord};
-use crate::contracts::{AccessPolicy, AuditLog, FileRegistry};
+use crate::calls::GrantArgs;
+use crate::contracts::{AccessGrantLib, AccessPolicy, AuditLog, FileRegistry};
 use crate::error::{ChainError, Result};
 
 /// Where the Z-BACS contracts live on one chain.
@@ -76,6 +79,25 @@ impl ChainClient {
     /// Connect over HTTP (or any URL alloy understands).
     pub async fn connect(rpc_url: &str, deployment: Deployment) -> Result<Self> {
         let provider = ProviderBuilder::new()
+            .connect(rpc_url)
+            .await
+            .map_err(|e| ChainError::Config(format!("connect {rpc_url}: {e}")))?;
+        Ok(Self { provider: provider.erased(), deployment, cache: Cache::new() })
+    }
+
+    /// Connect with a funded key that signs and pays for the writes itself: the direct path of
+    /// a self-hosted deployment or a developer box on Anvil (ADR-0008). Reads work the same as
+    /// with [`ChainClient::connect`].
+    pub async fn connect_signed(
+        rpc_url: &str,
+        deployment: Deployment,
+        signer: PrivateKeySigner,
+    ) -> Result<Self> {
+        let provider = ProviderBuilder::new()
+            // The Agent drives one key through several contract handles; a cached nonce would
+            // drift between them (the Anvil tests found this first).
+            .with_simple_nonce_management()
+            .wallet(EthereumWallet::from(signer))
             .connect(rpc_url)
             .await
             .map_err(|e| ChainError::Config(format!("connect {rpc_url}: {e}")))?;
@@ -190,6 +212,34 @@ impl ChainClient {
         let registry = FileRegistry::new(self.deployment.registry, &self.provider);
         let receipt = registry
             .retire(FixedBytes(file_id))
+            .send()
+            .await
+            .map_err(|e| ChainError::Rejected(e.to_string()))?
+            .get_receipt()
+            .await
+            .map_err(unreachable)?;
+        Ok(receipt.transaction_hash.0)
+    }
+
+    /// Submit a grant. `owner_sig` is the owner's signature over the EIP-712 digest, or empty
+    /// when the provider's signer *is* the owner (the contract takes the caller's own
+    /// authorisation instead — ADR-0008). Returns the transaction hash; the grant id is the
+    /// terms' struct hash, which the caller already has.
+    pub async fn grant(&self, g: &GrantArgs, owner_sig: &[u8]) -> Result<[u8; 32]> {
+        let policy = AccessPolicy::new(self.deployment.policy, &self.provider);
+        let terms = AccessGrantLib::AccessGrant {
+            fileId: FixedBytes(g.file_id),
+            headerHash: FixedBytes(g.header_hash),
+            deviceKeyHash: FixedBytes(g.device_key_hash),
+            permission: g.permission,
+            notBefore: g.not_before,
+            expiry: g.expiry,
+            maxOpens: g.max_opens,
+            requestNonce: FixedBytes(g.request_nonce),
+            grantNonce: U256::from(g.grant_nonce),
+        };
+        let receipt = policy
+            .grant(terms, Bytes::copy_from_slice(owner_sig))
             .send()
             .await
             .map_err(|e| ChainError::Rejected(e.to_string()))?

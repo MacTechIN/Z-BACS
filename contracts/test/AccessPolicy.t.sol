@@ -145,6 +145,46 @@ contract AccessPolicyTest is Test {
         assertFalse(policy.isValid(id));
     }
 
+    // ------------------------------------------------------------ ADR-0008 owner shortcut
+
+    /// The owner account submitting its own grant needs no second signature: one tap, one
+    /// signature (the one that authorised this very call).
+    function test_owner_account_submits_its_own_grant_without_a_signature() public {
+        AccessGrantLib.AccessGrant memory g = _grant(1, 0);
+        vm.expectEmit(true, true, true, true);
+        emit AccessPolicy.Granted(policy.hashGrant(g), FILE_ID, DEVICE, 1, g.expiry);
+        vm.prank(owner);
+        bytes32 id = policy.grant(g, "");
+        assertTrue(policy.isValid(id));
+        assertEq(policy.nonces(owner), 1, "the owner nonce still advances");
+    }
+
+    /// T14: the shortcut is the *owner's* — a relay or recipient with no signature is refused,
+    /// and so is one carrying somebody else's.
+    function test_t14_the_owner_shortcut_is_not_open_to_others() public {
+        AccessGrantLib.AccessGrant memory g = _grant(1, 0);
+        vm.prank(relayer);
+        vm.expectRevert(AccessPolicy.InvalidSignature.selector);
+        policy.grant(g, "");
+
+        bytes memory stranger = _sign(0xBAD, g);
+        vm.prank(relayer);
+        vm.expectRevert(AccessPolicy.InvalidSignature.selector);
+        policy.grant(g, stranger);
+    }
+
+    /// A smart-account owner (ERC-1271) gets the same shortcut when it is the caller.
+    function test_smart_account_owner_calling_itself_needs_no_signature() public {
+        ERC1271Mock account = new ERC1271Mock(vm.addr(0x5A17));
+        bytes32 fid = keccak256("fid-shortcut");
+        account.registerFile(registry, fid, HEADER);
+        AccessGrantLib.AccessGrant memory g = _grant(2, 0);
+        g.fileId = fid;
+        vm.prank(address(account));
+        bytes32 id = policy.grant(g, "");
+        assertTrue(policy.isValid(id));
+    }
+
     // ------------------------------------------------------------ T15 time, T20 revoke
 
     function test_t15_expiry_and_notBefore() public {

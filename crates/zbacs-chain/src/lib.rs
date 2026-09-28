@@ -10,9 +10,10 @@
 //!   with the time it was taken, and the caller decides what a stale answer is worth: a
 //!   `strict_onchain` file must not open on one, an ordinary file may (spec §2.6).
 //!
-//! Writes exist here for the owner's own agent and for tests. In production most writes travel
-//! as user operations through a bundler (Z-1.H.8) so the owner never needs gas; this crate is
-//! the direct path a self-hosted deployment or a test uses.
+//! Writes go through one trait, [`ChainWriter`] (Z-1.H.8, ADR-0008): in production they travel
+//! as user operations from the owner's smart account through a bundler so the owner never
+//! needs gas ([`SmartAccountWriter`]); on Anvil or a self-hosted deployment a funded key sends
+//! them as plain transactions ([`DirectWriter`]). The Agent does not care which.
 
 #![warn(missing_docs)]
 
@@ -24,6 +25,7 @@ pub mod client;
 pub mod contracts;
 pub mod error;
 pub mod watcher;
+pub mod writer;
 
 pub use aa::{KernelAccount, PackedUserOperation, RootValidator, ENTRY_POINT_V07};
 pub use bundler::{Bundler, JsonRpcBundler, RpcUserOperation, UserOpReceipt, UserOpSender};
@@ -31,3 +33,4 @@ pub use cache::{Cache, Cached, Freshness, VersionRecord};
 pub use client::{ChainClient, Deployment};
 pub use error::ChainError;
 pub use watcher::{ChainEvent, EventWatcher};
+pub use writer::{ChainWriter, DirectWriter, SmartAccountWriter, UserOpSigner, Write};

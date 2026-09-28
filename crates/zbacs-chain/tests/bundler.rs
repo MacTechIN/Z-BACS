@@ -6,11 +6,13 @@
 use std::sync::{Arc, Mutex};
 
 use alloy::primitives::{address, b256, Bytes, B256, U256};
+use alloy::providers::Provider;
 use axum::{routing::post, Json, Router};
 use serde_json::{json, Value};
 use zbacs_chain::aa::{KernelAccount, RootValidator};
 use zbacs_chain::bundler::{Bundler, JsonRpcBundler, RpcUserOperation, UserOpSender};
 use zbacs_chain::calls;
+use zbacs_chain::{ChainWriter, Deployment, SmartAccountWriter, UserOpSigner, Write};
 
 /// Records every request and answers like Pimlico would.
 #[derive(Clone, Default)]
@@ -63,6 +65,9 @@ async fn handle(state: axum::extract::State<FakeBundler>, Json(req): Json<Value>
             );
             json!("0x1111111111111111111111111111111111111111111111111111111111111111")
         }
+        // the node side, for the writer: an undeployed account with a fresh nonce
+        "eth_getCode" => json!("0x"),
+        "eth_call" => json!(format!("0x{}", hex(&account().nonce(0).to_be_bytes::<32>()))),
         "eth_getUserOperationReceipt" => json!({
             "success": true,
             "actualGasUsed": "0x66270",
@@ -85,6 +90,10 @@ async fn serve(fake: FakeBundler) -> String {
         let _ = axum::serve(listener, app).await;
     });
     format!("http://{addr}/")
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 fn account() -> KernelAccount {
@@ -213,4 +222,77 @@ fn dummy_op() -> RpcUserOperation {
         paymaster_data: None,
         signature: Bytes::new(),
     }
+}
+
+/// A signer that records what it was asked to sign and for what.
+struct RecordingSigner {
+    asked: Mutex<Vec<(B256, Write)>>,
+}
+
+impl UserOpSigner for RecordingSigner {
+    fn sign_user_op(&self, hash: B256, about: Write) -> zbacs_chain::error::Result<Bytes> {
+        self.asked.lock().unwrap().push((hash, about));
+        Ok(zbacs_chain::aa::p256_raw_signature([3; 32], [4; 32], [5; 32]))
+    }
+    fn stub_signature(&self) -> Bytes {
+        vec![0xAA; 96].into()
+    }
+}
+
+/// Z-1.H.8 b: the smart-account writer turns `grant` into one user operation from the owner
+/// account — deploying it on the way if needed — with the calldata the contract expects and
+/// **no owner signature inside** (ADR-0008); the only signature is the one over the operation.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_smart_account_writer_sends_one_signed_user_operation_per_write() {
+    let fake = FakeBundler::default();
+    let url = serve(fake.clone()).await;
+    let bundler = Arc::new(JsonRpcBundler::new(&url, true).unwrap());
+    let provider = alloy::providers::ProviderBuilder::new().connect(&url).await.unwrap().erased();
+    let signer = Arc::new(RecordingSigner { asked: Mutex::new(Vec::new()) });
+    let deployment = Deployment {
+        registry: address!("9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"),
+        policy: address!("Dc64a140Aa3E981100a9becA4E685f962f0cF6C9"),
+        audit: address!("5FC8d32690cc91D4c39d9d3abcBD16989F875707"),
+    };
+    let writer = SmartAccountWriter::new(account(), provider, bundler, signer.clone(), deployment, 84532);
+    assert_eq!(writer.owner(), account().address(), "the account is the owner on chain");
+
+    let terms = calls::GrantArgs {
+        file_id: [1; 32],
+        header_hash: [2; 32],
+        device_key_hash: [3; 32],
+        permission: 2,
+        not_before: 1,
+        expiry: 2,
+        max_opens: 0,
+        request_nonce: [4; 16],
+        grant_nonce: 0,
+    };
+    let tx = writer.grant(&terms).await.unwrap();
+    assert_eq!(tx, b256!("2222222222222222222222222222222222222222222222222222222222222222").0);
+
+    let sent = {
+        let seen = fake.seen.lock().unwrap();
+        seen.iter().find(|r| r["method"] == "eth_sendUserOperation").unwrap()["params"][0].clone()
+    };
+    let op: RpcUserOperation = serde_json::from_value(sent).unwrap();
+    assert_eq!(op.sender, account().address());
+    assert_eq!(op.nonce, account().nonce(0), "sequence 0 for a fresh account");
+    assert_eq!(
+        op.factory,
+        Some(zbacs_chain::aa::kernel_v31::META_FACTORY),
+        "undeployed: initCode goes along"
+    );
+    // execute(single) → AccessPolicy.grant(terms, "")
+    let expected = KernelAccount::execute_call(deployment.policy, U256::ZERO, &calls::grant(&terms, &[]));
+    assert_eq!(op.call_data, expected);
+    assert!(op.paymaster.is_some(), "sponsored");
+
+    // exactly one signature was asked for, over the hash of what was sent, and it said why
+    let asked = signer.asked.lock().unwrap();
+    assert_eq!(asked.len(), 1);
+    let mut unsigned = op.clone();
+    unsigned.signature = Bytes::new();
+    assert_eq!(asked[0].0, unsigned.hash(84532));
+    assert_eq!(asked[0].1, Write::Grant { file_id: [1; 32], permission: 2 });
 }
