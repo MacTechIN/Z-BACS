@@ -436,7 +436,14 @@ pub async fn answer(
     // answer — the envelope is what opens the file — but it is said in `pending`.
     let mut outstanding = Vec::new();
     let tx_hash = match on_chain {
-        Some((_, writer)) => match writer.grant(&grant_args(&terms)).await {
+        Some((chain, _)) => match chain
+            .write(
+                with.ledger,
+                zbacs_chain::Call::Grant(grant_args(&terms)),
+                zbacs_chain::Write::Grant { file_id: terms.file_id, permission: terms.permission },
+            )
+            .await
+        {
             Ok(tx) => Some(tx),
             Err(e) => {
                 log::warn!("the chain did not take the grant: {e}");
@@ -560,8 +567,15 @@ pub async fn revoke_now(
     // The chain copy is what a recipient the relay never reaches will see (T20). Only for a
     // grant that is on the chain: revoking one that never landed there would just revert.
     let mut revoke_tx = None;
-    if let (Some(writer), Some(_)) = (chain.and_then(|c| c.writer()), grant.tx_hash.as_ref()) {
-        match writer.revoke(fid, id).await {
+    if let (Some(link), Some(_)) = (chain.filter(|c| c.writer().is_some()), grant.tx_hash.as_ref()) {
+        match link
+            .write(
+                ledger,
+                zbacs_chain::Call::Revoke { file_id: fid, grant_id: id },
+                zbacs_chain::Write::Revoke { file_id: fid },
+            )
+            .await
+        {
             Ok(tx) => revoke_tx = Some(hex::encode(tx)),
             Err(e) => log::warn!("pulled back through the relay, but the chain did not take it: {e}"),
         }
@@ -635,9 +649,10 @@ pub async fn next_requests_on(
         match apply_version(ledger, &notice) {
             Ok(entry) => {
                 log::info!("a recipient wrote version {} of \"{}\"", entry.ver, entry.name);
-                if let Some(writer) = chain.and_then(|c| c.writer()) {
-                    match writer.bump_version(notice.fid, notice.header_hash).await {
-                        Ok(_) => log::info!("version {} is on the chain", entry.ver),
+                if let Some(link) = chain.filter(|c| c.writer().is_some()) {
+                    match link.bump_version(ledger, notice.fid, notice.header_hash).await {
+                        Ok(Some(_)) => log::info!("version {} is on the chain", entry.ver),
+                        Ok(None) => log::info!("version {} waits for the next tap (ADR-0008 §5)", entry.ver),
                         Err(e) => log::warn!("the chain did not take version {}: {e}", entry.ver),
                     }
                 }

@@ -266,12 +266,13 @@ pub async fn register_on_chain(
     ledger: &crate::ledger::Ledger,
     result: &mut SealResult,
 ) -> Result<(), &'static str> {
-    let writer = chain.writer().ok_or("failed")?;
+    chain.writer().ok_or("failed")?;
     let mut fid = [0u8; 32];
     let mut header = [0u8; 32];
     hex::decode_to_slice(&result.fid, &mut fid).map_err(|_| "failed")?;
     hex::decode_to_slice(&result.header_hash, &mut header).map_err(|_| "failed")?;
-    let tx = writer.register(fid, header).await.map_err(|e| {
+    let call = zbacs_chain::Call::Register { file_id: fid, header_hash: header };
+    let tx = chain.write(ledger, call, zbacs_chain::Write::Register { file_id: fid }).await.map_err(|e| {
         log::warn!("locked, but the chain did not take the registration: {e}");
         "failed"
     })?;

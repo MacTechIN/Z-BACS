@@ -34,9 +34,9 @@ pub use aa::{KernelAccount, PackedUserOperation, RootValidator, ENTRY_POINT_V07}
 pub use alloy::primitives::{Address, Bytes, B256};
 /// The provider trait, re-exported so a caller can use `ChainClient::provider()` methods.
 pub use alloy::providers::Provider;
-pub use bundler::{Bundler, JsonRpcBundler, RpcUserOperation, UserOpReceipt, UserOpSender};
+pub use bundler::{Bundler, Failover, JsonRpcBundler, RpcUserOperation, UserOpReceipt, UserOpSender};
 pub use cache::{Cache, Cached, Freshness, VersionRecord};
 pub use client::{ChainClient, Deployment};
 pub use error::ChainError;
 pub use watcher::{ChainEvent, EventWatcher};
-pub use writer::{ChainWriter, DirectWriter, SmartAccountWriter, UserOpSigner, Write};
+pub use writer::{Call, ChainWriter, DirectWriter, SmartAccountWriter, UserOpSigner, Write};

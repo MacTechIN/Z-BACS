@@ -341,3 +341,86 @@ impl UserOpSender<'_> {
         }
     }
 }
+
+/// Several bundler endpoints tried in order (T21): an endpoint that cannot be reached is
+/// skipped, an endpoint that *answers* — with a result or a refusal — is believed. Refusals
+/// are not retried elsewhere: a bundler that says "invalid nonce" is right, and the same
+/// operation sent twice would only be rejected twice.
+pub struct Failover {
+    endpoints: Vec<JsonRpcBundler>,
+}
+
+impl Failover {
+    /// In the order they should be tried. Empty is a configuration error.
+    pub fn new(endpoints: Vec<JsonRpcBundler>) -> Result<Self> {
+        if endpoints.is_empty() {
+            return Err(ChainError::Config("no bundler endpoint".into()));
+        }
+        Ok(Self { endpoints })
+    }
+
+    /// Parse a comma-separated list of URLs, all with the same paymaster setting and context.
+    pub fn from_urls(
+        list: &str,
+        with_paymaster: bool,
+        sponsor_context: Option<serde_json::Value>,
+    ) -> Result<Self> {
+        let mut endpoints = Vec::new();
+        for url in list.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            let mut b = JsonRpcBundler::new(url, with_paymaster)?;
+            if let Some(ctx) = &sponsor_context {
+                b = b.with_sponsor_context(ctx.clone());
+            }
+            endpoints.push(b);
+        }
+        Self::new(endpoints)
+    }
+
+    /// How many endpoints are configured.
+    pub fn len(&self) -> usize {
+        self.endpoints.len()
+    }
+
+    /// Never true after [`Failover::new`]; here for the clippy convention.
+    pub fn is_empty(&self) -> bool {
+        self.endpoints.is_empty()
+    }
+
+    async fn each<'a, T, F, Fut>(&'a self, f: F) -> Result<T>
+    where
+        F: Fn(&'a JsonRpcBundler) -> Fut,
+        Fut: std::future::Future<Output = Result<T>>,
+    {
+        let mut last = ChainError::Unreachable("no bundler endpoint".into());
+        for endpoint in &self.endpoints {
+            match f(endpoint).await {
+                Err(e) if e.is_unreachable() => last = e,
+                other => return other,
+            }
+        }
+        Err(last)
+    }
+}
+
+#[async_trait]
+impl Bundler for Failover {
+    async fn gas_price(&self) -> Result<GasPrice> {
+        self.each(|b| b.gas_price()).await
+    }
+
+    async fn estimate(&self, op: &RpcUserOperation) -> Result<GasEstimate> {
+        self.each(|b| b.estimate(op)).await
+    }
+
+    async fn sponsor(&self, op: &RpcUserOperation) -> Result<Option<Sponsorship>> {
+        self.each(|b| b.sponsor(op)).await
+    }
+
+    async fn send(&self, op: &RpcUserOperation) -> Result<B256> {
+        self.each(|b| b.send(op)).await
+    }
+
+    async fn receipt(&self, user_op_hash: B256) -> Result<Option<UserOpReceipt>> {
+        self.each(|b| b.receipt(user_op_hash)).await
+    }
+}

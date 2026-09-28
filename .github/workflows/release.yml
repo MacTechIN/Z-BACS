@@ -30,9 +30,25 @@ jobs:
       - uses: cargo-bins/cargo-binstall@main
       - run: cargo binstall -y tauri-cli --version "^2"
 
+      # Z-1.H.11: the installer carries the relay, the chain and the contract addresses so a
+      # tester never types a server. Repository variables (Settings → Variables) hold the
+      # public values; the bundler URL is a secret because Pimlico's key is part of it. Unset
+      # means "not embedded" and the Agent falls back to its developer defaults (README).
       - name: agent installer (NSIS, per-user install, .zbacs association)
         working-directory: apps/agent/src-tauri
-        run: cargo tauri build --bundles nsis
+        env:
+          ZBACS_BUILD_RELAY_URL: ${{ vars.ZBACS_RELAY_URL }}
+          ZBACS_BUILD_CHAIN_RPC: ${{ vars.ZBACS_CHAIN_RPC }}
+          ZBACS_BUILD_BUNDLER_URL: ${{ secrets.ZBACS_BUNDLER_URL }}
+          ZBACS_BUILD_PAYMASTER_POLICY: ${{ vars.ZBACS_PAYMASTER_POLICY }}
+          ZBACS_CHAIN_ID: ${{ vars.ZBACS_CHAIN_ID }}
+        shell: bash
+        run: |
+          if [ -n "$ZBACS_CHAIN_ID" ] && [ -f "../../../contracts/deployments/$ZBACS_CHAIN_ID.json" ]; then
+            export ZBACS_BUILD_DEPLOYMENT="$(pwd)/../../../contracts/deployments/$ZBACS_CHAIN_ID.json"
+            echo "embedding contracts/deployments/$ZBACS_CHAIN_ID.json"
+          fi
+          cargo tauri build --bundles nsis
 
       - name: zbacs-wincheck.exe (hardware self-test, docs/windows_checklist.md §1)
         run: cargo build --release -p zbacs-wincheck --locked

@@ -58,7 +58,10 @@ ZBACS_RELAY_URL=http://127.0.0.1:8787 cargo tauri dev
 | `ZBACS_CHAIN_RPC` | 노드 주소. 없으면 체인 없이 동작 |
 | `ZBACS_CHAIN_DEPLOYMENT` | `deployments/<chainId>.json` 경로(기본: 체크아웃의 `contracts/deployments/31337.json`) |
 | `ZBACS_CHAIN_KEY` | 개발용 자금 키(hex) → 일반 트랜잭션. 사람의 기기에는 절대 두지 않는다 |
-| `ZBACS_BUNDLER_URL` | 번들러(+페이마스터) → 소유자 스마트계정 UserOp |
+| `ZBACS_BUNDLER_URL` | 번들러(+페이마스터) → 소유자 스마트계정 UserOp. 쉼표로 여러 개, 순서대로(T21) |
+| `ZBACS_PAYMASTER_POLICY` | Pimlico 스폰서 정책 id |
+
+배포본에는 이 값들이 **빌드 때 내장**된다(Z-1.H.11): `ZBACS_BUILD_RELAY_URL`/`ZBACS_BUILD_CHAIN_RPC`/`ZBACS_BUILD_BUNDLER_URL`/`ZBACS_BUILD_PAYMASTER_POLICY`/`ZBACS_BUILD_DEPLOYMENT`(json 파일 경로)를 `build.rs`가 `ZBACS_EMBEDDED_*`로 굽고, 런타임 변수가 있으면 그것이 우선한다. 자금 키는 내장하지 않는다. 플랫폼 패스키 기기에서는 수신자 저장에 따른 `bumpVersion`이 다음 탭의 UserOp에 배치로 묶인다(ADR-0008 §5).
 
 ```
 anvil &  (cd ../../contracts && forge script script/Deploy.s.sol --rpc-url anvil --broadcast --private-key $PK)
@@ -68,7 +71,7 @@ cargo test --features demo-signer --test chain    # 헤드리스: Anvil을 스�
 
 ## 아직 하지 않는 일
 
-OS 기본 연결 프로그램으로 열면(`ZBACS_VIEWER` 없음) 프로세스를 추적할 수 없어 앱 종료를 알 수 없다 — 그때는 [지금 잠그기]·회수·만료가 세션을 끝낸다(Windows에서는 ShellExecuteEx 추적이 후속). 체인 설정이 없는 기기에서는 허락이 Relay로만 전달되고(`tx_hash` 없음) EIP-712 서명은 Anvil 배포(`Deployment::DEV`)에 묶이며, 수신자의 소유자 확인은 `owner_signature_check` pending으로 개발 패널에만 나온다. 스마트계정 경로(`ZBACS_BUNDLER_URL`)는 코드가 있지만 테스트넷 배포·주소 내장(Z-1.H.11)·번들러 키(Z-1.H.9)가 있어야 실제로 돈다; 플랫폼 패스키 기기의 `bumpVersion`은 다음 명시적 탭에 묶는 배치가 후속이다(ADR-0008 §5).
+OS 기본 연결 프로그램으로 열면(`ZBACS_VIEWER` 없음) 프로세스를 추적할 수 없어 앱 종료를 알 수 없다 — 그때는 [지금 잠그기]·회수·만료가 세션을 끝낸다(Windows에서는 ShellExecuteEx 추적이 후속). 체인 설정이 없는 기기에서는 허락이 Relay로만 전달되고(`tx_hash` 없음) EIP-712 서명은 Anvil 배포(`Deployment::DEV`)에 묶이며, 수신자의 소유자 확인은 `owner_signature_check` pending으로 개발 패널에만 나온다. 스마트계정 경로(`ZBACS_BUNDLER_URL`)는 코드가 있지만 테스트넷 배포와 그 값들(Relay 주소·Pimlico 키 — 사용자)이 있어야 실제로 돈다.
 
 파일을 체인에 등록하는 일(Z-1.H.4/H.8), 계정을 체인에 만드는 일(Z-1.H.8), 이 기기를 그 계정에 등록하는 일(Z-1.H.10)도 아직이다. 첫 실행은 이것을 `pending`으로 돌려주며, **사용자에게는 보여주지 않는다** — 우리가 끝낼 일이지 사용자가 알 일이 아니다(ux_principles §2). 개발용 정보 패널에는 그대로 나온다.
 

@@ -43,11 +43,13 @@ relay.example.com {
 
 ## 3. Agent 연결
 
-Agent에는 사용자 설정이 없다. 배포본은 Relay 주소를 **내장**한다(Z-1.H.11에서 호스팅된 주소로 교체). 그 전까지, 그리고 개발·자체 호스팅에서는 환경변수로 준다:
+Agent에는 사용자 설정이 없다. 배포본은 Relay 주소를 **내장**한다(Z-1.H.11): 저장소 변수 `ZBACS_RELAY_URL`을 두면 `release.yml`이 설치 파일에 굽는다(`ZBACS_BUILD_RELAY_URL` → `apps/agent/src-tauri/build.rs`). 같은 방법으로 체인 RPC(`ZBACS_CHAIN_RPC`), 체인 id(`ZBACS_CHAIN_ID` → `contracts/deployments/<id>.json` 통째), 번들러(시크릿 `ZBACS_BUNDLER_URL`), 스폰서 정책(`ZBACS_PAYMASTER_POLICY`)이 들어간다. 개발·자체 호스팅에서는 환경변수가 내장값보다 우선한다:
 
 ```
 ZBACS_RELAY_URL=https://relay.example.com,https://relay2.example.com   # 쉼표로 여러 개, 순서대로 시도
 ```
+
+호스팅 주소가 정해지면 할 일은 **저장소 변수 하나 넣고 `gh workflow run release.yml`** 이다 — 코드 변경 없음.
 
 ## 4. 운영 값
 

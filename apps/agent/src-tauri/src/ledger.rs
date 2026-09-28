@@ -128,6 +128,10 @@ struct File {
     /// Next block the record has not read chain events from (Z-1.G.12 / H.8).
     #[serde(default)]
     chain_cursor: Option<u64>,
+    /// Chain writes waiting for the next tap (ADR-0008 §5): `bumpVersion`s a passkey device
+    /// could not send silently. `(fid hex, header hash hex)`, oldest first.
+    #[serde(default)]
+    deferred_bumps: Vec<(String, String)>,
 }
 
 /// The ledger, with the lock that serialises its read-modify-write.
@@ -274,6 +278,30 @@ impl Ledger {
         let _held = self.lock.lock().expect("ledger mutex");
         let mut file = self.load()?;
         file.chain_cursor = Some(next_block);
+        self.store(&file)
+    }
+
+    /// Queue a `bumpVersion` for the next user operation the person authorises (ADR-0008 §5).
+    /// A later version of the same file replaces the queued one: only the newest needs to land.
+    pub fn defer_bump(&self, fid: &str, header_hash: &str) -> Result<(), String> {
+        let _held = self.lock.lock().expect("ledger mutex");
+        let mut file = self.load()?;
+        file.deferred_bumps.retain(|(f, _)| f != fid);
+        file.deferred_bumps.push((fid.to_string(), header_hash.to_string()));
+        self.store(&file)
+    }
+
+    /// The queued `bumpVersion`s, oldest first, without removing them.
+    pub fn deferred_bumps(&self) -> Vec<(String, String)> {
+        let _held = self.lock.lock().expect("ledger mutex");
+        self.load().map(|f| f.deferred_bumps).unwrap_or_default()
+    }
+
+    /// Forget queued `bumpVersion`s that landed.
+    pub fn clear_deferred_bumps(&self, landed: &[(String, String)]) -> Result<(), String> {
+        let _held = self.lock.lock().expect("ledger mutex");
+        let mut file = self.load()?;
+        file.deferred_bumps.retain(|b| !landed.contains(b));
         self.store(&file)
     }
 

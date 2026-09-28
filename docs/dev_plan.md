@@ -82,7 +82,8 @@
 | Z-1.H.6 | HF 감사 파이프라인(`tools/audit`): Qwen3-Coder-Audit 로컬/원격 추론 → PR 코멘트 | 샘플 PR 리포트 |
 | Z-1.H.7 ✅ | `zbacs-chain`(alloy): ABI 바인딩, 이벤트 구독, 오프라인 캐시 | 통합 테스트(Anvil) (2026-09-21: Foundry 아티팩트에서 바인딩 생성(ABI 드리프트 시 컴파일 실패), 읽기·쓰기·`AuditLog`, `EventWatcher`(폴링 — 프록시 뒤에서도 동작, 실패한 범위를 건너뛰지 않음), `Cache`(마지막 답과 나이를 함께 보관, **죽은 grant는 되살아나지 않음**, strict 파일은 stale 답으로 열리지 않음). Anvil 통합 7종 + 단위 3종, `tools/chain-it.sh`·CI 연결) |
 | Z-1.H.8 ◐ | ~~`packages/chain-ts`~~ → **Rust** 스마트계정 클라이언트(승인 앱 = Tauri Agent이므로 TS 대신): `zbacs-chain::aa` Kernel v3.1 계정, `calls`, `bundler`, **`writer`(`ChainWriter` = `SmartAccountWriter` UserOp / `DirectWriter` 자금 키, ADR-0008)** + Agent 배선(`apps/agent` `chain.rs`) | 승인 앱에서 사용 (2026-09-25 **a단계**: 스파이크 벡터와 바이트 일치 5종 + 모의 번들러 2종. 2026-09-28 **b단계 완료**: `AccessPolicy.grant`가 소유자 계정 자신의 호출이면 서명을 생략 — **한 탭 = 한 서명**(ADR-0008, 컨트랙트 테스트 3종). Agent: `ZBACS_CHAIN_RPC`(+`ZBACS_CHAIN_KEY` 직접 / `ZBACS_BUNDLER_URL` 스마트계정)로 연결, 첫 실행에 소유자 주소를 프로필에 확정(`account_on_chain` 해소), 잠글 때 `register`, 허락 시 `grant` → `GrantMsg.tx_hash`, 버전 통지 수락 시 `bumpVersion`, 회수 시 `revoke`; 수신자는 `tx_hash`가 오면 `isValid`로 소유자의 말을 체인에서 확인(§2 규칙 4)하고 체인의 revoke만으로도 세션을 끝낸다(T20); G.12 기록에 체인 이벤트 병합(`Source::Chain`, 커서 영속). 테스트: zbacs-chain Anvil 2종 + 모의 번들러 1종, **Agent Anvil E2E 2종**(`tests/chain.rs`: 잠금→허락→저장→회수가 공개 기록에 그대로, 체인 단독 revoke). **남은 것**: 테스트넷 배포(H.4 스크립트, 배포 키·faucet = 사용자) + H.11 주소 내장 + Pimlico 키(H.9)가 있어야 스마트계정 경로가 실제로 돈다; 패스키 기기의 `bumpVersion` 배치(ADR-0008 §5)) |
-| Z-1.H.9 | 페이마스터 설정(Pimlico 샌드박스) | 가스 0 UserOp |
+| Z-1.H.9 ◐ | 페이마스터 설정(Pimlico 샌드박스) | 가스 0 UserOp (2026-09-28 코드 완료: `JsonRpcBundler`가 같은 엔드포인트에 `pm_sponsorUserOperation`(스폰서 정책 id는 `ZBACS_PAYMASTER_POLICY`/빌드 내장), **T21 `Failover`** — 쉼표로 여러 번들러, 닿지 않는 것은 건너뛰고 답한 것은 믿는다(모의 서버 테스트 `t21_a_dead_bundler_falls_over_to_a_live_one`). 가스 0은 스파이크에서 실측(Z-0.H.2). **남은 것**: 사용자의 Pimlico 키(노출된 테스트 키 회전 포함)와 스폰서 정책(`AccessPolicy`/`FileRegistry` 호출만 허용) 설정 → `secrets.ZBACS_BUNDLER_URL`) |
+| Z-1.H.11 ◐ | **(신설, beta_test_automation L2)** 설치 파일에 Relay URL·체인 RPC·배포 주소·번들러 URL·스폰서 정책 내장 | 테스터가 서버 주소를 입력하지 않음 (2026-09-28 코드 완료: `apps/agent/src-tauri/build.rs`가 `ZBACS_BUILD_*`(+`ZBACS_BUILD_DEPLOYMENT` 파일 통째)를 `ZBACS_EMBEDDED_*`로 굽고, 런타임 `ZBACS_*`가 우선(`EnvConfig::resolve` 단위 테스트, `endpoints_from`). 자금 키는 절대 내장하지 않는다. `release.yml`이 저장소 변수 `ZBACS_RELAY_URL`/`ZBACS_CHAIN_RPC`/`ZBACS_CHAIN_ID`/`ZBACS_PAYMASTER_POLICY`와 시크릿 `ZBACS_BUNDLER_URL`을 넣고 `contracts/deployments/<chainId>.json`을 내장. **남은 것 = 값**: Relay 호스팅 주소(사용자, `relay_selfhost.md` §5)와 테스트넷 배포(`deployments/84532.json` 커밋)) |
 | Z-1.H.10 ✅ | `P256Validator`(ERC-7579): 계정당 키 집합 add/remove(= 기기 등록/해지 `DeviceEnroll/DeviceRevoke`), P256VERIFY + Daimo 폴백, low-s 강제; Kernel 설치·해지 스크립트 (ADR-0006) | 등록 기기 키로 UserOp 성공, 해지 후 AA24, T12/T22/T23 테스트 (2026-09-19: `contracts/src/P256Validator.sol` + 단위 16종, Base Sepolia 포크 통합 4종 — 실제 Kernel v3.1 팩토리로 계정 생성 후 기기 키 UserOp 성공 216,221 gas, 폰 등록→노트북 해지→해지 기기 AA24, 재전송 AA25) |
 
 ### 1.4 Relay (R)
@@ -184,7 +185,7 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | `Z-1.S.1` 자체실행 스텁 | U-2(수신자 무설치)는 공개 배포에 필요. 닫힌 베타는 참가자가 설치하면 된다 |
 | `Z-1.S.2` EV 코드 서명 | 조직 명의·비용이 필요. 개인 프로젝트 방침상 보류(SmartScreen 경고는 베타에서 감수) |
 | `Z-1.H.8` 스마트계정 경로 실전, `Z-1.P.1/P.2` 모바일 승인 | 데스크톱 승인(G.10)이 베타를 커버한다. H.8 코드는 완료(2026-09-28); Anvil·직접 키 경로로 베타 가능, 스마트계정 경로는 테스트넷 배포·H.11·H.9 뒤 |
-| `Z-1.H.9` 페이마스터 | 로컬 Anvil이나 테스트넷 faucet으로 베타 가능. "가스를 모르는 사용자" 목표에는 정식 출시 전 필요 |
+| `Z-1.H.9` 페이마스터 | 코드 완료(2026-09-28). 로컬 Anvil이나 테스트넷 faucet으로 베타 가능. "가스를 모르는 사용자" 목표에는 사용자의 Pimlico 키·정책만 남음 |
 | `Z-1.H.5/H.6` Slither·AI 감사, `Z-1.Q.3/Q.4` | 품질 게이트. 베타 참가자에게 보이지 않는다 |
 | `Z-1.U.6` 사용성 테스트 | 베타 그 자체가 이 테스트다 |
 | `Z-1.D.1/D.2` 문서 | 베타 직전에 |

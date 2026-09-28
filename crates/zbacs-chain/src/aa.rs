@@ -87,6 +87,16 @@ impl RootValidator {
     }
 }
 
+alloy::sol! {
+    /// ERC-7579 `Execution`, the element type of a batch's `executionCalldata`.
+    #[allow(missing_docs)]
+    struct Execution {
+        address target;
+        uint256 value;
+        bytes callData;
+    }
+}
+
 /// A Kernel v3.1 account for one owner key, before or after deployment.
 #[derive(Clone, Debug)]
 pub struct KernelAccount {
@@ -173,6 +183,22 @@ impl KernelAccount {
         n[..24].copy_from_slice(&key);
         n[24..].copy_from_slice(&sequence.to_be_bytes());
         U256::from_be_bytes(n)
+    }
+
+    /// `callData` for several calls in one user operation: ERC-7579 batch execution (call type
+    /// `0x01`, default exec type — the whole batch reverts if one call does), so a deferred
+    /// `bumpVersion` and the grant that needs it land under one signature (ADR-0008 §5).
+    pub fn execute_batch(calls: &[(Address, U256, Bytes)]) -> Bytes {
+        let executions: Vec<Execution> = calls
+            .iter()
+            .map(|(target, value, data)| Execution { target: *target, value: *value, callData: data.clone() })
+            .collect();
+        let mut mode = [0u8; 32];
+        mode[0] = 0x01; // CALLTYPE_BATCH
+        let args = (B256::from(mode), Bytes::from(executions.abi_encode())).abi_encode_params();
+        let mut out = EXECUTE_SELECTOR.to_vec();
+        out.extend_from_slice(&args);
+        out.into()
     }
 
     /// `callData` for one call from the account: ERC-7579 single execution, default exec type.
@@ -290,6 +316,32 @@ pub fn p256_raw_signature(key_id: [u8; 32], r: [u8; 32], s: [u8; 32]) -> Bytes {
 mod tests {
     use super::*;
     use alloy::primitives::hex;
+
+    /// A batch decodes, on the Solidity side, as `abi.decode(executionCalldata, (Execution[]))`
+    /// with the calls in order — checked here by decoding it back the same way. The mode word
+    /// is `CALLTYPE_BATCH` and nothing else.
+    #[test]
+    fn a_batch_is_an_erc7579_batch_execution_in_order() {
+        let calls = vec![
+            (Address::repeat_byte(0x11), U256::ZERO, Bytes::from(vec![1, 2, 3])),
+            (Address::repeat_byte(0x22), U256::from(7), Bytes::from(vec![9; 40])),
+        ];
+        let data = KernelAccount::execute_batch(&calls);
+        assert_eq!(&data[..4], &EXECUTE_SELECTOR);
+        let (mode, exec) = <(B256, Bytes)>::abi_decode_params(&data[4..]).unwrap();
+        let mut expected_mode = [0u8; 32];
+        expected_mode[0] = 0x01;
+        assert_eq!(mode, B256::from(expected_mode));
+        let decoded = Vec::<Execution>::abi_decode(&exec).unwrap();
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(decoded[0].target, calls[0].0);
+        assert_eq!(decoded[1].value, U256::from(7));
+        assert_eq!(decoded[1].callData, calls[1].2);
+        // and a single call is not silently a batch of one
+        let single = KernelAccount::execute_call(calls[0].0, U256::ZERO, &calls[0].2);
+        let (mode, _) = <(B256, Bytes)>::abi_decode_params(&single[4..]).unwrap();
+        assert_eq!(mode, B256::ZERO);
+    }
 
     /// The user operation permissionless.js built and Base Sepolia accepted (spike Z-0.H.2).
     fn vector() -> serde_json::Value {

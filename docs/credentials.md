@@ -75,7 +75,8 @@ ITU-T DFS Security Lab은 X.1284 같은 권고안을 만들고 **보안 평가·
 ### 3.1 Pimlico (번들러·페이마스터, Z-1.H.9)
 - dashboard.pimlico.io 가입 → API Keys → 생성. 테스트넷 무료.
 - 운영: 스폰서 한도·허용 컨트랙트 화이트리스트를 설정한다. **페이마스터 정책을 열어두면 남이 우리 돈으로 가스를 쓴다** — `AccessPolicy`/`P256Validator` 호출만 스폰서하도록 제한한다.
-- T21 대비: 번들러 엔드포인트를 **둘 이상** 설정하고, 실패 시 자체 예치 + EntryPoint 직접 호출로 폴백(Z-0.H.2에서 두 경로 모두 실측).
+- T21 대비: 번들러 엔드포인트를 **둘 이상** 설정하고, 실패 시 자체 예치 + EntryPoint 직접 호출로 폴백(Z-0.H.2에서 두 경로 모두 실측). Agent는 `ZBACS_BUNDLER_URL`을 쉼표로 여러 개 받아 순서대로 시도한다(`zbacs-chain::Failover`).
+- **어디에 넣나(Z-1.H.11)**: 키가 URL에 들어가므로(`https://api.pimlico.io/v2/<chain>/rpc?apikey=…`) GitHub **시크릿** `ZBACS_BUNDLER_URL`로 두고 `release.yml`이 설치 파일에 굽는다. 스폰서 정책 id는 공개 값이라 저장소 **변수** `ZBACS_PAYMASTER_POLICY`. 클라이언트 앱에 들어가는 키는 유출을 전제로 하므로 Pimlico 대시보드에서 **스폰서 정책을 우리 컨트랙트 호출로 제한하고 한도를 건다** — 그것이 방어선이고 키의 비밀성은 아니다. 대화에 노출된 테스트 키는 회전한다(2026-09-19).
 
 ### 3.2 RPC (Z-1.H.7)
 - 공개 RPC(`https://mainnet.base.org`)는 개발·폴백용. 운영은 Alchemy/QuickNode 등의 전용 엔드포인트(무료 티어로 시작 가능).

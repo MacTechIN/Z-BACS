@@ -1370,3 +1370,35 @@ Z-1.H.8 a단계 — Rust 스마트계정·번들러 클라이언트 완료, 커�
 ```
 나머지도 모두 진행
 ```
+
+### #53 [C] 2026-09-28
+```
+남은 코드 태스크를 전부 끝내고 3개 커밋으로 푸시했습니다. 코드로 할 일은 더 남아 있지 않고, 이제부터는 사용자만 할 수 있는 값·확인 차례입니다.
+
+**1. Z-1.H.8 b-1 — 컨트랙트 + `ChainWriter` (ADR-0008)**
+- 문제: 스펙대로면 허락 한 번에 기기 서명이 두 번(EIP-712 digest + UserOp 해시) 필요해서, Windows Hello 사용자는 한 번 허락에 Hello가 두 번 뜨게 됩니다.
+- 결정: `AccessPolicy.grant`는 호출자가 소유자 계정 자신이면 서명을 생략합니다(그 계정의 UserOp 서명이 이미 승인). 제3자 제출은 그대로 서명 검증. 컨트랙트 테스트 3종, 스펙 §1.3·§2·§3 갱신, ADR-0008.
+- `zbacs-chain::writer`: `ChainWriter` 트레이트 뒤에 `SmartAccountWriter`(Kernel UserOp, 프로덕션)와 `DirectWriter`(자금 키, Anvil·셀프호스팅). Anvil 테스트 2종 + 모의 번들러 1종.
+
+**2. Z-1.H.8 b-2 — Agent 배선 (`apps/agent/src-tauri/src/chain.rs`)**
+- `ZBACS_CHAIN_RPC`(+`ZBACS_CHAIN_KEY` 직접 / `ZBACS_BUNDLER_URL` 스마트계정)로 연결. 첫 실행에 소유자 주소가 프로필에 확정되어 `account_on_chain` pending이 풀립니다.
+- 잠그기 → `register`, 허락 → `grant`(`GrantMsg.tx_hash`), 수신자 저장 수락 → `bumpVersion`, 거두기 → `revoke`. 체인이 거부·불통이어도 잠금·허락은 그대로 되고 `pending`으로 말합니다.
+- 받는 쪽: `tx_hash`가 오면 `isValid`로 소유자의 말을 체인에서 확인하고(§2 규칙 4), 체인의 revoke만으로도 세션이 끝납니다(T20).
+- G.12 기록에 체인 이벤트를 `Source::Chain`으로 병합(커서 영속, 화면에 "· 확인됨").
+- Anvil E2E `tests/chain.rs`: 잠금→허락→저장→거두기가 공개 기록에 그대로 남는 것, 체인 단독 revoke. CI agent(ubuntu) 잡에 Foundry를 넣어 실제로 돕니다.
+
+**3. Z-1.H.11 · Z-1.H.9 · ADR-0008 §5**
+- H.11: `build.rs`가 `ZBACS_BUILD_*`(Relay URL·체인 RPC·번들러 URL·스폰서 정책·배포 json 통째)를 설치 파일에 굽고, 런타임 변수가 우선합니다. 자금 키는 절대 내장하지 않습니다. `release.yml`이 저장소 변수/시크릿에서 넣습니다.
+- H.9: 페이마스터 스폰서 정책 id, 번들러 쉼표 목록 장애 조치(`Failover`, T21 테스트).
+- 패스키 기기의 `bumpVersion`은 프롬프트 없이 큐에 두고 다음 탭의 UserOp에 배치(ERC-7579 batch)로 묶습니다. 배치 거부 시 큐 유지. 테스트 2종.
+
+검증: 루트 워크스페이스 fmt/clippy/doc, Agent clippy + 전체 테스트(Anvil E2E 포함), forge 69 tests, ux-lint 모두 통과. 앞선 두 커밋의 CI는 success, 마지막 커밋은 푸시 직후입니다.
+
+**사용자 차례(코드 아님)**
+1. Windows 실기 확인 — `docs/windows_checklist.md` §0-A 설치 파일 경로, §3.5 첫 실행, §3.6 잠그기 (◐ 8개를 한꺼번에 푸는 일)
+2. Relay 호스팅 계정 → 주소가 나오면 저장소 변수 `ZBACS_RELAY_URL` 하나 넣고 `gh workflow run release.yml` (`docs/relay_selfhost.md` §3·§5)
+3. Base Sepolia 배포(배포 키·faucet) → `contracts/deployments/84532.json` 커밋 + 변수 `ZBACS_CHAIN_ID=84532`, `ZBACS_CHAIN_RPC`
+4. Pimlico: 노출된 테스트 키 회전 → 스폰서 정책을 우리 컨트랙트 호출로 제한 → 시크릿 `ZBACS_BUNDLER_URL`, 변수 `ZBACS_PAYMASTER_POLICY` (`docs/credentials.md` §3.1)
+
+주의할 점 하나: 스마트계정 경로(Kernel UserOp·배치)는 로컬에 Kernel이 없어 모의 번들러와 스파이크 벡터로만 검증했습니다. 테스트넷 값이 들어오면 첫 실제 UserOp를 같이 확인해야 합니다.
+```

@@ -17,6 +17,7 @@ use tokio::net::TcpListener;
 use zbacs_agent_lib::approve::{answer, next_requests_on, revoke_now, Answering, DecisionArg};
 use zbacs_agent_lib::audit::{AuditLog, Kind, Source};
 use zbacs_agent_lib::chain::{ChainLink, Mode, WriterSetup};
+use zbacs_chain::{Call, ChainWriter, Write};
 use zbacs_agent_lib::ledger::{Entry, Ledger};
 use zbacs_agent_lib::open::{close, materialise, save};
 use zbacs_agent_lib::request::{
@@ -353,5 +354,91 @@ async fn t20_a_revoke_on_the_chain_alone_ends_the_session() {
     assert_eq!(end, GrantEnd::Revoked);
     assert_eq!(held.session.state(), State::Revoked);
     assert!(started.elapsed() < Duration::from_secs(10));
+    std::fs::remove_dir_all(dir).ok();
+}
+
+// ------------------------------------------------------------------ ADR-0008 §5: deferred writes
+
+/// A writer that only records what it was handed, and can be told to refuse.
+struct MockWriter {
+    batches: Mutex<Vec<(Vec<Call>, Write)>>,
+    refuse: std::sync::atomic::AtomicBool,
+}
+
+#[async_trait::async_trait]
+impl ChainWriter for MockWriter {
+    fn owner(&self) -> zbacs_chain::Address {
+        zbacs_chain::Address::repeat_byte(0xA1)
+    }
+    async fn register(&self, _: [u8; 32], _: [u8; 32]) -> zbacs_chain::error::Result<[u8; 32]> {
+        unreachable!("the link goes through submit")
+    }
+    async fn bump_version(&self, _: [u8; 32], _: [u8; 32]) -> zbacs_chain::error::Result<[u8; 32]> {
+        unreachable!("deferred on this device")
+    }
+    async fn grant(&self, _: &zbacs_chain::calls::GrantArgs) -> zbacs_chain::error::Result<[u8; 32]> {
+        unreachable!("the link goes through submit")
+    }
+    async fn revoke(&self, _: [u8; 32], _: [u8; 32]) -> zbacs_chain::error::Result<[u8; 32]> {
+        unreachable!("the link goes through submit")
+    }
+    async fn submit(&self, batch: &[Call], about: Write) -> zbacs_chain::error::Result<[u8; 32]> {
+        if self.refuse.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err(zbacs_chain::ChainError::Rejected("AA25".into()));
+        }
+        self.batches.lock().unwrap().push((batch.to_vec(), about));
+        Ok([0xCC; 32])
+    }
+}
+
+/// On a passkey device a recipient's save must not pop a Hello prompt: the `bumpVersion`
+/// waits in the ledger and rides along with the next tap, in front of it, in one batch. A
+/// batch the chain refuses leaves the queue as it was.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_passkey_device_queues_version_bumps_behind_the_next_tap() {
+    let dir = temp("deferred");
+    let ledger = Ledger::new(&dir);
+    let mock = Arc::new(MockWriter { batches: Mutex::new(Vec::new()), refuse: Default::default() });
+    let deployment = zbacs_chain::Deployment {
+        registry: zbacs_chain::Address::repeat_byte(1),
+        policy: zbacs_chain::Address::repeat_byte(2),
+        audit: zbacs_chain::Address::repeat_byte(3),
+        p256_validator: None,
+    };
+    let link = ChainLink::with_writer("http://127.0.0.1:1", deployment, mock.clone(), Mode::SmartAccount, true)
+        .await
+        .unwrap();
+    assert!(link.defers_silent_writes());
+
+    // two saves of the same file: only the newest version needs to land
+    assert_eq!(link.bump_version(&ledger, [7; 32], [2; 32]).await.unwrap(), None, "queued, not sent");
+    assert_eq!(link.bump_version(&ledger, [7; 32], [3; 32]).await.unwrap(), None);
+    assert_eq!(link.bump_version(&ledger, [8; 32], [9; 32]).await.unwrap(), None);
+    assert_eq!(ledger.deferred_bumps().len(), 2);
+    assert!(mock.batches.lock().unwrap().is_empty(), "nothing went to the chain without a tap");
+
+    // the chain refuses the first tap: the queue survives for the next one
+    mock.refuse.store(true, std::sync::atomic::Ordering::Relaxed);
+    let revoke = Call::Revoke { file_id: [7; 32], grant_id: [5; 32] };
+    assert!(link.write(&ledger, revoke.clone(), Write::Revoke { file_id: [7; 32] }).await.is_err());
+    assert_eq!(ledger.deferred_bumps().len(), 2, "still queued");
+
+    // the next tap carries them, oldest first, then itself — one submit
+    mock.refuse.store(false, std::sync::atomic::Ordering::Relaxed);
+    let tx = link.write(&ledger, revoke.clone(), Write::Revoke { file_id: [7; 32] }).await.unwrap();
+    assert_eq!(tx, [0xCC; 32]);
+    let batches = mock.batches.lock().unwrap();
+    assert_eq!(batches.len(), 1);
+    assert_eq!(
+        batches[0].0,
+        vec![
+            Call::BumpVersion { file_id: [7; 32], header_hash: [3; 32] },
+            Call::BumpVersion { file_id: [8; 32], header_hash: [9; 32] },
+            revoke,
+        ]
+    );
+    assert_eq!(batches[0].1, Write::Revoke { file_id: [7; 32] }, "the tap is what the signature is about");
+    drop(batches);
+    assert!(ledger.deferred_bumps().is_empty(), "landed, so cleared");
     std::fs::remove_dir_all(dir).ok();
 }

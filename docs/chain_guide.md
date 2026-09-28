@@ -115,7 +115,10 @@ Agent는 환경 변수로 체인에 연결된다(사용자 설정 없음 — 설
 | `ZBACS_CHAIN_RPC` | 노드 주소. 없으면 체인 없이 동작하고 `chain_*` pending으로 표시 |
 | `ZBACS_CHAIN_DEPLOYMENT` | `deployments/<chainId>.json` 경로(기본: 체크아웃의 Anvil 파일) |
 | `ZBACS_CHAIN_KEY` | **개발용** 자금 있는 키 → 일반 트랜잭션으로 쓴다(`DirectWriter`). 소유자 = 그 키 주소 |
-| `ZBACS_BUNDLER_URL` | 번들러(+페이마스터) → 소유자 스마트계정 UserOp(`SmartAccountWriter`). 소유자 = Kernel 계정 주소 |
+| `ZBACS_BUNDLER_URL` | 번들러(+페이마스터) → 소유자 스마트계정 UserOp(`SmartAccountWriter`). 소유자 = Kernel 계정 주소. 쉼표로 여러 개 → 순서대로 시도(T21) |
+| `ZBACS_PAYMASTER_POLICY` | Pimlico 스폰서 정책 id(있을 때만) |
+
+배포본은 이 값들을 **빌드 때 내장**한다(Z-1.H.11: `ZBACS_BUILD_*`, `release.yml`의 저장소 변수/시크릿). 자금 키(`ZBACS_CHAIN_KEY`)만은 절대 내장하지 않는다.
 
 ```
 anvil                                                                    # 터미널 1

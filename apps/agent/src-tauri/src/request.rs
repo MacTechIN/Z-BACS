@@ -57,8 +57,10 @@ pub const REQUEST_EVENT: &str = "zbacs://request";
 /// Agent ships with its relay built in (beta_test_automation L2), and this exists so a
 /// developer box can point at a local `zbacs-relay`.
 pub const RELAY_ENV: &str = "ZBACS_RELAY_URL";
-/// Where the Agent looks until a hosted relay exists (Z-1.H.11 will replace this constant).
+/// Where a developer build looks when nothing is embedded or set: a local `zbacs-relay`.
 pub const DEFAULT_RELAY: &str = "http://127.0.0.1:8787";
+/// The relay a release build carries (Z-1.H.11: `ZBACS_BUILD_RELAY_URL` at build time).
+pub const EMBEDDED_RELAY: Option<&str> = option_env!("ZBACS_EMBEDDED_RELAY_URL");
 
 /// How often the inbox is read, and when to nudge or stop (approval_protocol §4).
 #[derive(Clone, Copy, Debug)]
@@ -83,22 +85,30 @@ impl Default for Limits {
 
 /// Relay endpoints in the order to try: the developer override, else the built-in one.
 pub fn relay_endpoints() -> Vec<String> {
-    endpoints_from(std::env::var(RELAY_ENV).ok().as_deref())
+    endpoints_from(std::env::var(RELAY_ENV).ok().as_deref(), EMBEDDED_RELAY)
 }
 
-fn endpoints_from(configured: Option<&str>) -> Vec<String> {
-    let listed: Vec<String> = configured
+fn split_list(value: Option<&str>) -> Vec<String> {
+    value
         .unwrap_or_default()
         .split(',')
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_string)
-        .collect();
-    if listed.is_empty() {
-        vec![DEFAULT_RELAY.to_string()]
-    } else {
-        listed
+        .collect()
+}
+
+/// Runtime override, then what the build embedded, then the developer default.
+fn endpoints_from(configured: Option<&str>, embedded: Option<&str>) -> Vec<String> {
+    let listed = split_list(configured);
+    if !listed.is_empty() {
+        return listed;
     }
+    let built_in = split_list(embedded);
+    if !built_in.is_empty() {
+        return built_in;
+    }
+    vec![DEFAULT_RELAY.to_string()]
 }
 
 /// The permission the person asks for — the file's own default, never a free choice, so the
@@ -790,11 +800,20 @@ mod tests {
 
     #[test]
     fn the_relay_comes_from_the_override_or_the_built_in_default() {
-        assert_eq!(endpoints_from(None), vec![DEFAULT_RELAY.to_string()]);
-        assert_eq!(endpoints_from(Some("")), vec![DEFAULT_RELAY.to_string()]);
+        assert_eq!(endpoints_from(None, None), vec![DEFAULT_RELAY.to_string()]);
+        assert_eq!(endpoints_from(Some(""), None), vec![DEFAULT_RELAY.to_string()]);
         assert_eq!(
-            endpoints_from(Some(" http://a:1 , http://b:2,")),
+            endpoints_from(Some(" http://a:1 , http://b:2,"), None),
             vec!["http://a:1".to_string(), "http://b:2".to_string()]
+        );
+        // Z-1.H.11: a release build carries its relay; a developer's variable still wins
+        assert_eq!(
+            endpoints_from(None, Some("https://relay.example")),
+            vec!["https://relay.example".to_string()]
+        );
+        assert_eq!(
+            endpoints_from(Some("http://dev:1"), Some("https://relay.example")),
+            vec!["http://dev:1".to_string()]
         );
     }
 

@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 use zbacs_chain::aa::{KernelAccount, RootValidator};
 use zbacs_chain::bundler::{Bundler, JsonRpcBundler, RpcUserOperation, UserOpSender};
 use zbacs_chain::calls;
-use zbacs_chain::{ChainWriter, Deployment, SmartAccountWriter, UserOpSigner, Write};
+use zbacs_chain::{Call, ChainWriter, Deployment, Failover, SmartAccountWriter, UserOpSigner, Write};
 
 /// Records every request and answers like Pimlico would.
 #[derive(Clone, Default)]
@@ -296,4 +296,76 @@ async fn the_smart_account_writer_sends_one_signed_user_operation_per_write() {
     unsigned.signature = Bytes::new();
     assert_eq!(asked[0].0, unsigned.hash(84532));
     assert_eq!(asked[0].1, Write::Grant { file_id: [1; 32], permission: 2 });
+}
+
+fn deployment() -> Deployment {
+    Deployment {
+        registry: address!("9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"),
+        policy: address!("Dc64a140Aa3E981100a9becA4E685f962f0cF6C9"),
+        audit: address!("5FC8d32690cc91D4c39d9d3abcBD16989F875707"),
+        p256_validator: None,
+    }
+}
+
+/// ADR-0008 §5: a deferred `bumpVersion` and the grant that needs it go in **one** user
+/// operation — one signature, batch execution, in order.
+#[tokio::test(flavor = "multi_thread")]
+async fn queued_writes_go_out_as_one_batched_user_operation() {
+    let fake = FakeBundler::default();
+    let url = serve(fake.clone()).await;
+    let bundler = Arc::new(JsonRpcBundler::new(&url, true).unwrap());
+    let provider = alloy::providers::ProviderBuilder::new().connect(&url).await.unwrap().erased();
+    let signer = Arc::new(RecordingSigner { asked: Mutex::new(Vec::new()) });
+    let writer = SmartAccountWriter::new(account(), provider, bundler, signer.clone(), deployment(), 84532);
+
+    let terms = calls::GrantArgs {
+        file_id: [1; 32],
+        header_hash: [5; 32],
+        device_key_hash: [3; 32],
+        permission: 1,
+        not_before: 1,
+        expiry: 2,
+        max_opens: 0,
+        request_nonce: [4; 16],
+        grant_nonce: 3,
+    };
+    let batch = [Call::BumpVersion { file_id: [1; 32], header_hash: [5; 32] }, Call::Grant(terms.clone())];
+    writer.submit(&batch, Write::Grant { file_id: [1; 32], permission: 1 }).await.unwrap();
+
+    let sent = {
+        let seen = fake.seen.lock().unwrap();
+        seen.iter().find(|r| r["method"] == "eth_sendUserOperation").unwrap()["params"][0].clone()
+    };
+    let op: RpcUserOperation = serde_json::from_value(sent).unwrap();
+    let expected = KernelAccount::execute_batch(&[
+        (deployment().registry, U256::ZERO, calls::bump_version([1; 32], [5; 32])),
+        (deployment().policy, U256::ZERO, calls::grant(&terms, &[])),
+    ]);
+    assert_eq!(op.call_data, expected, "bumpVersion first, then the grant, one execute(batch)");
+    let asked = signer.asked.lock().unwrap();
+    assert_eq!(asked.len(), 1, "one signature for both");
+    assert_eq!(asked[0].1, Write::Grant { file_id: [1; 32], permission: 1 }, "the tap, not the queued write");
+}
+
+/// T21: a bundler that cannot be reached is skipped; the next one is used for the whole
+/// sequence. A refusal from a reachable bundler is final.
+#[tokio::test(flavor = "multi_thread")]
+async fn t21_a_dead_bundler_falls_over_to_a_live_one() {
+    let fake = FakeBundler::default();
+    let live = serve(fake.clone()).await;
+    let failover = Failover::from_urls(&format!("http://127.0.0.1:1/, {live}"), true, None).unwrap();
+    assert_eq!(failover.len(), 2);
+    let fees = failover.gas_price().await.unwrap();
+    assert_eq!(fees.max_fee_per_gas, U256::from(0x3b9aca00u64));
+    let hash = failover.send(&dummy_op()).await.unwrap();
+    assert_eq!(hash, b256!("1111111111111111111111111111111111111111111111111111111111111111"));
+    assert!(failover.receipt(hash).await.unwrap().is_some());
+
+    // every request went to the live one; the dead one was never "answered"
+    assert_eq!(fake.seen.lock().unwrap().len(), 3);
+
+    // all dead: unreachable, not a guess
+    let none = Failover::from_urls("http://127.0.0.1:1/,http://127.0.0.1:2/", false, None).unwrap();
+    assert!(matches!(none.gas_price().await, Err(zbacs_chain::ChainError::Unreachable(_))));
+    assert!(Failover::from_urls(" , ", false, None).is_err(), "no endpoints is a configuration error");
 }

@@ -63,5 +63,6 @@ tauri-winrt-notification = "0.8"
 zbacs-relay = { path = "../../../apps/relay" }
 # A throwaway Anvil with the contracts on it, for the chain E2E (skips without `anvil`).
 zbacs-chain = { path = "../../../crates/zbacs-chain", features = ["dev-chain"] }
+async-trait = "0.1"
 axum = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time"] }

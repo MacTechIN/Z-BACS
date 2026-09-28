@@ -51,7 +51,9 @@ Phase 1 완료: **Q.2 포렌식(원시 디스크 스캔, 야간 CI)**, **Q.1 E2E
 
 체인(H.8 b, 2026-09-28): Agent는 `ZBACS_CHAIN_RPC`(+`ZBACS_CHAIN_KEY` 직접 경로 / `ZBACS_BUNDLER_URL` 스마트계정 경로)로 연결한다(`apps/agent/src-tauri/src/chain.rs`, `docs/chain_guide.md` §4.5). `AccessPolicy.grant`는 소유자 계정 자신의 호출이면 서명을 생략한다(ADR-0008). 스마트계정 경로가 실제로 돌려면 테스트넷 배포(H.4 스크립트, 배포 키·faucet = 사용자) → `Z-1.H.11` 주소·Relay URL 내장 → Pimlico 키(H.9)가 필요하다.
 
-다음: `Z-1.H.11`(설치 파일에 Relay URL·배포 주소 내장 — 값은 사용자가 배포·호스팅한 뒤 나온다), `Z-1.H.9`(페이마스터 설정), ADR-0008 §5 패스키 기기의 `bumpVersion` 배치(ERC-7579 batch). Windows 실기 확인(`docs/windows_checklist.md` §0-A 설치 파일 경로, §1~§4, 특히 **§3.5 첫 실행 2탭**, **§3.6 잠그기**)과 Relay 호스팅(`docs/relay_selfhost.md` §5)은 사용자 차례.
+H.11·H.9 코드 완료(2026-09-28): `build.rs`가 `ZBACS_BUILD_*`(Relay URL·체인 RPC·번들러 URL·스폰서 정책·배포 json)를 내장하고 `release.yml`이 저장소 변수/시크릿에서 넣는다(값은 사용자 차례 — `docs/relay_selfhost.md` §3); 번들러는 쉼표 목록 장애 조치(T21); 패스키 기기의 `bumpVersion`은 다음 탭의 UserOp에 배치(ADR-0008 §5).
+
+다음: 코드로 할 일은 남아 있지 않다 — 사용자 차례: Windows 실기 확인(`docs/windows_checklist.md` §0-A 설치 파일 경로, §1~§4, 특히 **§3.5 첫 실행 2탭**, **§3.6 잠그기**)과 Relay 호스팅(`docs/relay_selfhost.md` §5)은 사용자 차례.
 
 ## 디렉터리
 `crates/zbacs-core`(컨테이너·암호) `crates/zbacs-auth`(승인 서명자) `crates/zbacs-proto`(Relay 프로토콜) `crates/zbacs-session`(세션·작업공간) `apps/relay`(Relay 서버) `apps/agent`(Tauri Agent, 루트 워크스페이스 제외) `crates/zbacs-relay-client`(Relay 클라이언트) `crates/zbacs-chain`(체인 클라이언트) `crates/zbacs-wincheck`(Windows 자가진단) `crates/zbacs-cli`(PoC CLI) `contracts/`(Foundry: FileRegistry, AccessPolicy, P256Validator) `packages/design-tokens/` `spikes/tauri-assoc/`(Tauri 스파이크) `spikes/aa-passkey/`(패스키 AA 스파이크, Node+Foundry; 스파이크는 루트 워크스페이스·CI 제외) `tools/`(셋업) `docs/` — 예정: `apps/`

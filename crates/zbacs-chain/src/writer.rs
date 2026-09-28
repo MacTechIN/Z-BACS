@@ -71,6 +71,50 @@ impl Write {
     }
 }
 
+/// One write, named so a caller can queue it and hand several over at once.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Call {
+    /// `FileRegistry.register`.
+    Register {
+        /// Container file id.
+        file_id: [u8; 32],
+        /// Header hash of the first version.
+        header_hash: [u8; 32],
+    },
+    /// `FileRegistry.bumpVersion`.
+    BumpVersion {
+        /// Container file id.
+        file_id: [u8; 32],
+        /// Header hash of the new version.
+        header_hash: [u8; 32],
+    },
+    /// `AccessPolicy.grant` from the owner account itself (no second signature, ADR-0008).
+    Grant(GrantArgs),
+    /// `AccessPolicy.revoke`.
+    Revoke {
+        /// Container file id.
+        file_id: [u8; 32],
+        /// EIP-712 struct hash of the grant.
+        grant_id: [u8; 32],
+    },
+}
+
+impl Call {
+    /// Which contract, and what calldata.
+    pub fn target_and_data(&self, deployment: &Deployment) -> (Address, Bytes) {
+        match self {
+            Self::Register { file_id, header_hash } => {
+                (deployment.registry, calls::register(*file_id, *header_hash))
+            }
+            Self::BumpVersion { file_id, header_hash } => {
+                (deployment.registry, calls::bump_version(*file_id, *header_hash))
+            }
+            Self::Grant(g) => (deployment.policy, calls::grant(g, &[])),
+            Self::Revoke { grant_id, .. } => (deployment.policy, calls::revoke(*grant_id)),
+        }
+    }
+}
+
 /// The owner's writes, whichever way they travel.
 #[async_trait]
 pub trait ChainWriter: Send + Sync {
@@ -84,6 +128,26 @@ pub trait ChainWriter: Send + Sync {
     async fn grant(&self, terms: &GrantArgs) -> Result<TxHash>;
     /// `AccessPolicy.revoke`.
     async fn revoke(&self, file_id: [u8; 32], grant_id: [u8; 32]) -> Result<TxHash>;
+
+    /// Several writes under one authorisation where the account can (a smart account puts
+    /// them in one user operation, in order, all or nothing), one after another where it
+    /// cannot. `about` is the write the person actually asked for; the others were queued
+    /// behind it (ADR-0008 §5). Returns the last transaction hash.
+    async fn submit(&self, batch: &[Call], about: Write) -> Result<TxHash> {
+        let _ = about;
+        let mut last = [0u8; 32];
+        for call in batch {
+            last = match call {
+                Call::Register { file_id, header_hash } => self.register(*file_id, *header_hash).await?,
+                Call::BumpVersion { file_id, header_hash } => {
+                    self.bump_version(*file_id, *header_hash).await?
+                }
+                Call::Grant(g) => self.grant(g).await?,
+                Call::Revoke { file_id, grant_id } => self.revoke(*file_id, *grant_id).await?,
+            };
+        }
+        Ok(last)
+    }
 }
 
 // ------------------------------------------------------------------ direct
@@ -219,6 +283,10 @@ impl SmartAccountWriter {
 
     /// One call from the account: assemble, sponsor, sign, send, wait.
     async fn send(&self, target: Address, data: Bytes, about: Write) -> Result<TxHash> {
+        self.send_call_data(KernelAccount::execute_call(target, U256::ZERO, &data), about).await
+    }
+
+    async fn send_call_data(&self, call_data: Bytes, about: Write) -> Result<TxHash> {
         let (factory, factory_data) = if self.is_deployed().await? {
             (None, None)
         } else {
@@ -229,7 +297,7 @@ impl SmartAccountWriter {
             nonce: self.next_nonce().await?,
             factory,
             factory_data,
-            call_data: KernelAccount::execute_call(target, U256::ZERO, &data),
+            call_data,
             call_gas_limit: U256::ZERO,
             verification_gas_limit: U256::ZERO,
             pre_verification_gas: U256::ZERO,
@@ -291,5 +359,26 @@ impl ChainWriter for SmartAccountWriter {
 
     async fn revoke(&self, file_id: [u8; 32], grant_id: [u8; 32]) -> Result<TxHash> {
         self.send(self.deployment.policy, calls::revoke(grant_id), Write::Revoke { file_id }).await
+    }
+
+    /// One user operation, one signature, every call in order (ERC-7579 batch).
+    async fn submit(&self, batch: &[Call], about: Write) -> Result<TxHash> {
+        match batch {
+            [] => Err(ChainError::Config("nothing to submit".into())),
+            [one] => {
+                let (target, data) = one.target_and_data(&self.deployment);
+                self.send(target, data, about).await
+            }
+            many => {
+                let calls: Vec<(Address, U256, Bytes)> = many
+                    .iter()
+                    .map(|c| {
+                        let (target, data) = c.target_and_data(&self.deployment);
+                        (target, U256::ZERO, data)
+                    })
+                    .collect();
+                self.send_call_data(KernelAccount::execute_batch(&calls), about).await
+            }
+        }
     }
 }
