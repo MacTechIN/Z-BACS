@@ -29,6 +29,7 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 
 pub mod approve;
 pub mod audit;
+pub mod chain;
 pub mod ledger;
 pub mod notify;
 pub mod open;
@@ -191,8 +192,13 @@ fn ui_problem(detail: String) {
 
 /// What the Agent can do so far, so the UI can be honest about the rest.
 #[tauri::command]
-fn capabilities() -> serde_json::Value {
+fn capabilities(app: AppHandle) -> serde_json::Value {
+    let chain = chain::current(&app);
     serde_json::json!({
+        // Z-1.H.8: how this machine talks to the chain (`direct` | `smart_account` |
+        // `read_only`), or null when no chain is configured.
+        "chain": chain.as_ref().map(|c| c.mode().word()),
+        "chainId": chain.as_ref().map(|c| c.chain_id()),
         "version": env!("CARGO_PKG_VERSION"),
         "readSealedFiles": true,
         "onboarding": true,    // Z-1.G.2
@@ -200,7 +206,7 @@ fn capabilities() -> serde_json::Value {
         "requestAccess": true, // Z-1.G.9
         "approve": true,       // Z-1.G.10
         "revoke": true,        // Z-1.G.11
-        "auditLog": true,      // Z-1.G.12 (local; chain_events pending Z-1.H.8)
+        "auditLog": true,      // Z-1.G.12 (local, plus chain events when linked — Z-1.H.8)
         "notifyButtons": cfg!(windows), // Z-1.U.5: toast buttons on Windows, plain elsewhere
         "openFile": true       // Z-1.G.7/G.8: S6 — open, viewer, save → reseal, wipe
     })
@@ -231,6 +237,7 @@ pub fn run() {
         .manage(request::Requests::default())
         .manage(approve::Approvals::default())
         .manage(session::Sessions::default())
+        .manage(chain::Chain::default())
         .invoke_handler(tauri::generate_handler![
             take_pending,
             inspect_path,
@@ -263,6 +270,7 @@ pub fn run() {
             handle.manage(audit::AuditLog::new(&config_dir));
             handle.manage(setup::SetupHost::new(config_dir));
             setup::restore(&handle);
+            chain::ensure(&handle);
             build_tray(&handle)?;
             if launch_files.is_empty() {
                 // Started by the person rather than by a file: show the window so they see

@@ -107,6 +107,27 @@ tools/chain-demo.sh --keep     # Anvil을 켜 둔 채 cast로 직접 조회
 ### 4.4 E2E (Phase 1, `Z-1.Q.1`)
 Windows VM 2대 + Anvil + Relay: 봉인 → 요청 → 승인 → 열람 → 재봉인 → 회수를 자동화.
 
+### 4.5 Agent와 함께 (Z-1.H.8) — 잠그기·허락·저장·회수가 공개 기록에 남는 것을 보기
+Agent는 환경 변수로 체인에 연결된다(사용자 설정 없음 — 설치 파일이 정하거나 개발자가 준다):
+
+| 변수 | 뜻 |
+|---|---|
+| `ZBACS_CHAIN_RPC` | 노드 주소. 없으면 체인 없이 동작하고 `chain_*` pending으로 표시 |
+| `ZBACS_CHAIN_DEPLOYMENT` | `deployments/<chainId>.json` 경로(기본: 체크아웃의 Anvil 파일) |
+| `ZBACS_CHAIN_KEY` | **개발용** 자금 있는 키 → 일반 트랜잭션으로 쓴다(`DirectWriter`). 소유자 = 그 키 주소 |
+| `ZBACS_BUNDLER_URL` | 번들러(+페이마스터) → 소유자 스마트계정 UserOp(`SmartAccountWriter`). 소유자 = Kernel 계정 주소 |
+
+```
+anvil                                                                    # 터미널 1
+cd contracts && forge script script/Deploy.s.sol --rpc-url anvil --broadcast --private-key $PK   # 터미널 2
+ZBACS_CHAIN_RPC=http://127.0.0.1:8545 \
+ZBACS_CHAIN_KEY=<anvil 키 중 하나> \
+ZBACS_RELAY_URL=http://127.0.0.1:8787 cargo tauri dev                     # apps/agent/src-tauri
+```
+그 뒤 잠그면 `Registered`, 허락하면 `Granted`(수신자 Agent는 `GrantMsg.tx_hash`로 `isValid`를 읽어 소유자의 말을 확인), 수신자가 저장하면 `VersionBumped`, 거두면 `Revoked`가 남고, 기록 화면(S10)에 "· 확인됨"으로 합쳐진다. 헤드리스로는 `cd apps/agent/src-tauri && cargo test --features demo-signer --test chain`이 같은 일을 Anvil을 스스로 띄워서 한다(`anvil`이 PATH에 있어야 하며 없으면 건너뛴다고 말한다).
+
+**한 탭 = 한 서명**(ADR-0008): 허락의 `grant()`는 소유자 계정 자신이 호출하므로 두 번째 서명(EIP-712 digest)을 요구하지 않는다. 스마트계정 경로에서 기기 서명기가 서명하는 것은 UserOp 해시 하나이고, 그것이 T23 확인 정책(편집·연속 승인은 OS 확인)의 대상이다.
+
 ## 5. 직접 만져 보기 (cast 치트시트)
 `tools/chain-demo.sh --keep` 후:
 ```

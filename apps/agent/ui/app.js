@@ -684,7 +684,9 @@ function renderLog() {
     const [word, cls] = LOG_TAGS[e.kind] ?? ["", ""];
     tag.textContent = word;
     if (cls) tag.classList.add(cls);
-    card.querySelector('[data-role="when"]').textContent = whenWords(e.at);
+    // An entry read back from the public record, not only written here (Z-1.H.8).
+    card.querySelector('[data-role="when"]').textContent =
+      e.source === "chain" ? `${whenWords(e.at)} · 확인됨` : whenWords(e.at);
     card.querySelector('[data-role="line"]').textContent = logSentence(e);
     list.append(card);
   }

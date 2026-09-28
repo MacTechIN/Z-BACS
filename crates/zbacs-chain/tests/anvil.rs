@@ -93,8 +93,12 @@ async fn deploy() -> Fixture {
     let policy = AccessPolicy::new(*policy_proxy.address(), &provider);
 
     let audit = AuditLog::deploy(&provider).await.expect("deploy audit");
-    let deployment =
-        Deployment { registry: *registry.address(), policy: *policy.address(), audit: *audit.address() };
+    let deployment = Deployment {
+        registry: *registry.address(),
+        policy: *policy.address(),
+        audit: *audit.address(),
+        p256_validator: None,
+    };
 
     let client = ChainClient::with_provider(provider.erased(), deployment);
     Fixture { _anvil: anvil, client, owner, deployment, rpc }
@@ -185,7 +189,12 @@ async fn an_unreachable_node_without_a_cache_is_an_error_not_a_guess() {
         eprintln!("skipping: anvil not on PATH");
         return;
     }
-    let deployment = Deployment { registry: Address::ZERO, policy: Address::ZERO, audit: Address::ZERO };
+    let deployment = Deployment {
+        registry: Address::ZERO,
+        policy: Address::ZERO,
+        audit: Address::ZERO,
+        p256_validator: None,
+    };
     if let Ok(client) = ChainClient::connect("http://127.0.0.1:1", deployment).await {
         let err = client.is_grant_valid_offline(fid("x"), Duration::from_secs(60)).await.unwrap_err();
         assert!(err.is_unreachable(), "{err}");

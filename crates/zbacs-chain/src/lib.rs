@@ -23,11 +23,17 @@ pub mod cache;
 pub mod calls;
 pub mod client;
 pub mod contracts;
+#[cfg(feature = "dev-chain")]
+pub mod dev;
 pub mod error;
 pub mod watcher;
 pub mod writer;
 
 pub use aa::{KernelAccount, PackedUserOperation, RootValidator, ENTRY_POINT_V07};
+/// Re-exported so callers can name addresses without depending on alloy themselves.
+pub use alloy::primitives::{Address, Bytes, B256};
+/// The provider trait, re-exported so a caller can use `ChainClient::provider()` methods.
+pub use alloy::providers::Provider;
 pub use bundler::{Bundler, JsonRpcBundler, RpcUserOperation, UserOpReceipt, UserOpSender};
 pub use cache::{Cache, Cached, Freshness, VersionRecord};
 pub use client::{ChainClient, Deployment};

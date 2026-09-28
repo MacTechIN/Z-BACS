@@ -21,6 +21,9 @@ pub struct Deployment {
     pub policy: Address,
     /// `AuditLog`.
     pub audit: Address,
+    /// `P256Validator` (Z-1.H.10), when the deployment has one: the root validator of an
+    /// owner's smart account whose approval key is a device key (ADR-0006 path B).
+    pub p256_validator: Option<Address>,
 }
 
 impl Deployment {
@@ -46,9 +49,16 @@ impl Deployment {
             registry: Address,
             policy: Address,
             audit: Address,
+            #[serde(default, rename = "p256Validator")]
+            p256_validator: Option<Address>,
         }
         let f: File = serde_json::from_str(json).map_err(|e| ChainError::Config(e.to_string()))?;
-        let me = Self { registry: f.registry, policy: f.policy, audit: f.audit };
+        let me = Self {
+            registry: f.registry,
+            policy: f.policy,
+            audit: f.audit,
+            p256_validator: f.p256_validator.filter(|a| !a.is_zero()),
+        };
 
         // A zero or repeated address means the deployment did not finish. Finding that out now
         // is cheaper than finding it out when someone cannot open their file.
@@ -145,6 +155,15 @@ impl ChainClient {
         let out = (v.headerHash.0, v.version, v.retired);
         self.cache.put_version(file_id, out.0, out.1, out.2);
         Ok(out)
+    }
+
+    /// The owner's next `grantNonce` as the contract will demand it (T03). The Agent reads it
+    /// here rather than counting locally, so a write that never landed cannot leave the local
+    /// count ahead of the chain for good.
+    pub async fn grant_nonce(&self, owner: Address) -> Result<u64> {
+        let policy = AccessPolicy::new(self.deployment.policy, &self.provider);
+        let n = policy.nonces(owner).call().await.map_err(unreachable)?;
+        u64::try_from(n).map_err(|_| ChainError::Malformed("grant nonce exceeds u64".into()))
     }
 
     /// Is this grant still good?
@@ -309,6 +328,10 @@ mod deployment_tests {
         assert_eq!(d.registry.to_string().to_lowercase(), "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0");
         assert_ne!(d.policy, d.registry);
         assert_ne!(d.audit, d.policy);
+        assert_eq!(
+            d.p256_validator.map(|a| a.to_string().to_lowercase()),
+            Some("0x0165878a594ca255338adfa4d48449f69242eb8f".into())
+        );
     }
 
     /// The addresses are read from the proxies, not the implementations: talking to an

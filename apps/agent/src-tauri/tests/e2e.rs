@@ -145,6 +145,7 @@ async fn alice_answers(alice: &Machine, decision: DecisionArg) -> zbacs_agent_li
         deployment: Deployment::DEV,
         policy: &ConfirmationPolicy::default(),
         recent: &[],
+        chain: None,
     };
     answer(&alice.client, request, decision, with).await.expect("answer")
 }
@@ -162,6 +163,7 @@ async fn bob_asks(bob: &Machine, received: &Path, requested: Permission) -> (Out
             our_key_hash: bob.key_hash,
             cancel: Arc::new(AtomicBool::new(false)),
             limits: quick(),
+            chain: None,
         },
         |_| {},
     )
@@ -394,7 +396,7 @@ async fn scenario_e_revoke_while_open_wipes_immediately() {
     let grant_hex = hex::encode(grant_id);
     let alice_revokes = async {
         tokio::time::sleep(Duration::from_millis(120)).await;
-        revoke_now(&alice.client, &alice.ledger, &grant_hex).await.expect("revoked")
+        revoke_now(&alice.client, &alice.ledger, &grant_hex, None).await.expect("revoked")
     };
     let bob_watches = async {
         let mut session = held.session.clone();
@@ -407,6 +409,7 @@ async fn scenario_e_revoke_while_open_wipes_immediately() {
                 expiry,
                 cancel: Arc::new(AtomicBool::new(false)),
                 poll: Duration::from_millis(40),
+                chain: None,
             },
             |_| {},
         )
@@ -501,6 +504,7 @@ async fn t23_a_device_without_os_confirmation_cannot_allow_editing() {
             deployment: Deployment::DEV,
             policy: &policy,
             recent,
+            chain: None,
         };
         let refused = answer(&alice.client, &request, DecisionArg::Edit, with(&[])).await;
         assert_eq!(refused.err(), Some("needs_os_confirm"));

@@ -81,7 +81,7 @@
 | Z-1.H.5 | Slither + Echidna 불변식 CI | CI 게이트 |
 | Z-1.H.6 | HF 감사 파이프라인(`tools/audit`): Qwen3-Coder-Audit 로컬/원격 추론 → PR 코멘트 | 샘플 PR 리포트 |
 | Z-1.H.7 ✅ | `zbacs-chain`(alloy): ABI 바인딩, 이벤트 구독, 오프라인 캐시 | 통합 테스트(Anvil) (2026-09-21: Foundry 아티팩트에서 바인딩 생성(ABI 드리프트 시 컴파일 실패), 읽기·쓰기·`AuditLog`, `EventWatcher`(폴링 — 프록시 뒤에서도 동작, 실패한 범위를 건너뛰지 않음), `Cache`(마지막 답과 나이를 함께 보관, **죽은 grant는 되살아나지 않음**, strict 파일은 stale 답으로 열리지 않음). Anvil 통합 7종 + 단위 3종, `tools/chain-it.sh`·CI 연결) |
-| Z-1.H.8 ◐ | ~~`packages/chain-ts`~~ → **Rust** 스마트계정 클라이언트(승인 앱 = Tauri Agent이므로 TS 대신): `zbacs-chain::aa` Kernel v3.1 계정(카운터팩추얼 주소·initCode·nonce 키·ERC-7579 단일 실행·UserOp v0.7 해시·WebAuthn/P256Validator 서명 인코딩), `calls`(register/bumpVersion/grant/revoke/log calldata, cast sig로 고정), `bundler`(Bundler 트레이트 + JSON-RPC: 가격·스폰서·추정·전송·영수증, `UserOpSender`) | 승인 앱에서 사용 (2026-09-25 **a단계 완료**: 스파이크가 Base Sepolia에서 통과시킨 벡터와 initCode·주소·nonce·callData·userOpHash·서명 인코딩 **바이트 일치** 테스트 5종 + 모의 번들러 통합 2종. **남은 b단계**: Agent 배선 — 소유자 계정 생성·기기 등록(H.10 설치), 허락 시 `grant` UserOp → `GrantMsg.tx_hash`, 잠글 때 `register`, 버전 통지 수락 시 `bumpVersion`, 회수 시 `revoke`, 기록에 체인 이벤트 병합(G.12). 테스트넷 배포(H.4 스크립트) + H.11 주소 내장 + Pimlico 키(H.9)가 있어야 실제로 돈다) |
+| Z-1.H.8 ◐ | ~~`packages/chain-ts`~~ → **Rust** 스마트계정 클라이언트(승인 앱 = Tauri Agent이므로 TS 대신): `zbacs-chain::aa` Kernel v3.1 계정, `calls`, `bundler`, **`writer`(`ChainWriter` = `SmartAccountWriter` UserOp / `DirectWriter` 자금 키, ADR-0008)** + Agent 배선(`apps/agent` `chain.rs`) | 승인 앱에서 사용 (2026-09-25 **a단계**: 스파이크 벡터와 바이트 일치 5종 + 모의 번들러 2종. 2026-09-28 **b단계 완료**: `AccessPolicy.grant`가 소유자 계정 자신의 호출이면 서명을 생략 — **한 탭 = 한 서명**(ADR-0008, 컨트랙트 테스트 3종). Agent: `ZBACS_CHAIN_RPC`(+`ZBACS_CHAIN_KEY` 직접 / `ZBACS_BUNDLER_URL` 스마트계정)로 연결, 첫 실행에 소유자 주소를 프로필에 확정(`account_on_chain` 해소), 잠글 때 `register`, 허락 시 `grant` → `GrantMsg.tx_hash`, 버전 통지 수락 시 `bumpVersion`, 회수 시 `revoke`; 수신자는 `tx_hash`가 오면 `isValid`로 소유자의 말을 체인에서 확인(§2 규칙 4)하고 체인의 revoke만으로도 세션을 끝낸다(T20); G.12 기록에 체인 이벤트 병합(`Source::Chain`, 커서 영속). 테스트: zbacs-chain Anvil 2종 + 모의 번들러 1종, **Agent Anvil E2E 2종**(`tests/chain.rs`: 잠금→허락→저장→회수가 공개 기록에 그대로, 체인 단독 revoke). **남은 것**: 테스트넷 배포(H.4 스크립트, 배포 키·faucet = 사용자) + H.11 주소 내장 + Pimlico 키(H.9)가 있어야 스마트계정 경로가 실제로 돈다; 패스키 기기의 `bumpVersion` 배치(ADR-0008 §5)) |
 | Z-1.H.9 | 페이마스터 설정(Pimlico 샌드박스) | 가스 0 UserOp |
 | Z-1.H.10 ✅ | `P256Validator`(ERC-7579): 계정당 키 집합 add/remove(= 기기 등록/해지 `DeviceEnroll/DeviceRevoke`), P256VERIFY + Daimo 폴백, low-s 강제; Kernel 설치·해지 스크립트 (ADR-0006) | 등록 기기 키로 UserOp 성공, 해지 후 AA24, T12/T22/T23 테스트 (2026-09-19: `contracts/src/P256Validator.sol` + 단위 16종, Base Sepolia 포크 통합 4종 — 실제 Kernel v3.1 팩토리로 계정 생성 후 기기 키 UserOp 성공 216,221 gas, 폰 등록→노트북 해지→해지 기기 AA24, 재전송 AA25) |
 
@@ -108,7 +108,7 @@
 | Z-1.G.9 ✅ | 승인 대기 UI, 거부/만료 처리 | UX 리뷰 (2026-09-21: `apps/agent` `request.rs` + S4 화면. 기기 등록→서명 요청→받은편지함 폴링→답 분류(파일·버전·기기·nonce 일치 검사, T05/T19)→세션 상태머신 구동. 120s 안내·300s 만료·취소·Relay 불통 처리. 실제 `zbacs-relay`를 띄운 통합 테스트 6종 + 단위 8종. 소유자 서명 검증은 `owner_signature_check` pending으로 표시 — Z-1.H.8/H.10) |
 | Z-1.G.10 ✅ | 데스크톱 승인 UI(소유자가 PC에서 승인) — 패스키 프롬프트 + EIP-712 내용 표시 | T06 체크 (2026-09-22: `apps/agent` `approve.rs` + `ledger.rs` + S5 화면. 소유자 받은편지함 감시(3s) → 요청자 서명을 요청이 담은 키로 직접 검증(T05) → **로컬 잠금 기록**으로 파일명·정책 표시, 기록 없음/다른 버전이면 허락 불가(T06/T19) → [읽기만 허락][편집도 허락][거절] → EIP-712 digest(Solidity 벡터 일치)를 기기 서명기로 서명(T23 확인 정책) → DEK를 요청 기기 키로 재봉인(aad=grantId) → GrantMsg. 시나리오 B 왕복 통합 테스트 3종(두 SetupHost + 실제 Relay: 허락→Bob이 DEK 열고 복호화·서명 검증, 거절, 모르는 파일 허락 불가) + 단위 9종. 체인 기록은 Z-1.H.8) |
 | Z-1.G.11 ✅ | 회수(Revoke) 기능 + 활성 세션 목록 | E2E (2026-09-22: 소유자 — 허락할 때 `sealed.json`에 기록, "내가 허락한 파일" 화면(남은 시간·[허락 거두기]) → Relay `Revoke` + 기록. Relay — revoke를 그 파일을 요청했던 모든 기기로 라우팅(이전엔 소유자 자신에게만 가던 버그 수정, T20 테스트). 수신자 — 허락 뒤에도 받은편지함을 계속 읽어 revoke면 `Revoked`, 만료면 `Closed`로 세션을 닫고 화면에 알림. 두 기기 통합 테스트: 회수 → 상대 세션 즉시 종료, 만료 자체 종료(T15). 체인 revoke는 Z-1.H.8) |
-| Z-1.G.12 ◐ | 감사 로그 뷰어(체인 이벤트 조회) | 이벤트 5종 표시 (2026-09-22: `apps/agent` `audit.rs` + S10 화면 — 잠금·요청·허락·거절·거둠(+열람·만료·문제)을 append-only `audit.jsonl`에 기록하고 칩 필터·시간순으로 문장 표시. 파일명은 로컬 기록에서만(T06). **체인 이벤트 소스는 Z-1.H.8이 체인에 쓰기 시작해야 읽을 것이 생김** — `Source::Chain` 자리만 있고 개발 패널에 `chain_events` pending. 단위 4종) |
+| Z-1.G.12 ✅ | 감사 로그 뷰어(체인 이벤트 조회) | 이벤트 5종 표시 (2026-09-22: `apps/agent` `audit.rs` + S10 화면 — 잠금·요청·허락·거절·거둠(+열람·만료·문제)을 append-only `audit.jsonl`에 기록하고 칩 필터·시간순으로 문장 표시. 파일명은 로컬 기록에서만(T06). 단위 4종. **2026-09-28 체인 병합**: 체인 링크가 있으면 `Granted`/`Revoked`/`VersionBumped`를 이 컴퓨터의 파일에 한해 `Source::Chain`으로 15초마다 덧붙인다(커서는 `sealed.json`에 영속 — 재시작에 중복·누락 없음). 화면은 그런 항목에 "· 확인됨"을 붙인다. Anvil E2E에서 허락·v2·거둠 3건 병합 확인) |
 | Z-1.G.13 | 자동 업데이트(tauri-plugin-updater) | 서명된 업데이트 |
 
 ### 1.6 Approve App (P) — MVP는 데스크톱 승인(G.10)으로 대체 가능, 모바일은 1단계 후반
@@ -160,7 +160,7 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | ~~2~~ ✅ | ~~`Z-1.G.9` 열람 요청 UI~~ | 2026-09-21 완료 |
 | ~~3~~ ✅ | ~~`Z-1.G.10` 데스크톱 승인 UI~~ | 2026-09-22 완료. 모바일 승인 앱(Z-1.P.2) 없이 베타 가능 |
 | ~~4~~ ✅ | ~~`Z-1.G.11` 회수 + 활성 세션~~ | 2026-09-22 완료 |
-| ~~5~~ ◐ | ~~`Z-1.G.12` 감사 로그 뷰어~~ | 2026-09-22 로컬 기록 완료. 체인 이벤트 병합은 Z-1.H.8 뒤 |
+| ~~5~~ ✅ | ~~`Z-1.G.12` 감사 로그 뷰어~~ | 2026-09-22 로컬 기록 완료. 2026-09-28 체인 이벤트 병합(H.8 b) |
 | ~~6~~ ✅ | ~~`Z-1.U.4` 오류 카탈로그~~ | 2026-09-23 완료 |
 | ~~7~~ ◐ | ~~`Z-1.U.5` 알림 액션 버튼~~ | 2026-09-23 코드 완료. Windows 토스트 버튼 실기 확인만 남음(§3.11) |
 | ~~8~~ ✅ | ~~`Z-1.R.4` Docker~~ | 2026-09-23 완료. 실제 호스팅(계정)은 사용자 차례 — `docs/relay_selfhost.md` §5 |
@@ -183,7 +183,7 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 |---|---|
 | `Z-1.S.1` 자체실행 스텁 | U-2(수신자 무설치)는 공개 배포에 필요. 닫힌 베타는 참가자가 설치하면 된다 |
 | `Z-1.S.2` EV 코드 서명 | 조직 명의·비용이 필요. 개인 프로젝트 방침상 보류(SmartScreen 경고는 베타에서 감수) |
-| `Z-1.H.8` chain-ts, `Z-1.P.1/P.2` 모바일 승인 | 데스크톱 승인(G.10)이 베타를 커버한다 |
+| `Z-1.H.8` 스마트계정 경로 실전, `Z-1.P.1/P.2` 모바일 승인 | 데스크톱 승인(G.10)이 베타를 커버한다. H.8 코드는 완료(2026-09-28); Anvil·직접 키 경로로 베타 가능, 스마트계정 경로는 테스트넷 배포·H.11·H.9 뒤 |
 | `Z-1.H.9` 페이마스터 | 로컬 Anvil이나 테스트넷 faucet으로 베타 가능. "가스를 모르는 사용자" 목표에는 정식 출시 전 필요 |
 | `Z-1.H.5/H.6` Slither·AI 감사, `Z-1.Q.3/Q.4` | 품질 게이트. 베타 참가자에게 보이지 않는다 |
 | `Z-1.U.6` 사용성 테스트 | 베타 그 자체가 이 테스트다 |
@@ -247,14 +247,14 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | T11 메모리 덤프 | Z-1.C.6 (zeroize·secrecy), Z-1.A.3 (DPAPI), Z-3.G.2 (TEE/VBS) | core `t11_key_types_zeroize_on_drop_and_redact_in_logs`; 감사 `research/key_hygiene_audit.md` |
 | T12 소유자 기기 분실 | Z-1.A.4 (암호화 백업·복구 코드), Z-1.H.10 (다른 기기에서 해지), Z-2.A.1 (다중 기기·소셜 복구), Z-2.U.1 (복구 UX) | contracts `test_t12_*` 3종; 포크 `test_t12_enroll_second_device_then_revoke_first`; core `backup.rs` 9종 |
 | T13 온체인 식별 | Z-1.C.5 (fileId 솔트, 파일명 길이 패딩), Z-1.H.9 (페이마스터), Z-3.Z.1/2 (ZK) | contracts fileId = H(hash‖salt); core `name_padding_hides_length_and_roundtrips` |
-| T14 컨트랙트 검증 우회 | Z-1.H.2 (EIP-712·ERC-1271·low-s), Z-1.H.5 (Slither/Echidna), Z-1.H.6 (HF 감사), Z-1.H.8 (WebAuthn 서명 인코딩) | contracts `test_t14_*` 3종, aa-passkey `test_t14_tampered_signature_rejected`, proto `t14_struct_hash_matches_the_solidity_vector` |
+| T14 컨트랙트 검증 우회 | Z-1.H.2 (EIP-712·ERC-1271·low-s), Z-1.H.5 (Slither/Echidna), Z-1.H.6 (HF 감사), Z-1.H.8 (WebAuthn 서명 인코딩, ADR-0008 소유자 자기 호출 한정) | contracts `test_t14_*` 4종(+`test_t14_the_owner_shortcut_is_not_open_to_others`), chain `t14_another_key_cannot_grant_without_the_owner_signature`, aa-passkey `test_t14_tampered_signature_rejected`, proto `t14_struct_hash_matches_the_solidity_vector` |
 | T15 만료 우회 | Z-1.H.2 (체인 시간), Z-1.G.4 (로컬 시계 병행) | contracts `test_t15_*` 2종, agent `t15_an_expired_grant_closes_the_session_on_its_own` |
 | T16 Relay DoS | Z-1.R.1 (본문 상한·할당량 정의), Z-1.R.2 (서명·레이트리밋), Z-1.R.4 (셀프호스팅), Z-1.H.7 (체인 이벤트 폴백 — 구현됨), Z-2.R.1 | proto `oversized_bodies_are_refused_on_both_sides`; relay `t16_quota_stops_a_flood`, `an_oversized_body_is_refused` |
 | T17 스텁 위장 | Z-1.S.1/S.2 (코드 서명·해시 고정), Z-1.C.2 (Agent는 컨테이너만 파싱), Z-1.G.13 (서명된 업데이트) | tauri-assoc: 파일 인자를 경로로만 취급, `inspect`만 수행 |
 | T18 파서 취약점 | Z-1.C.2 (길이 상한·악성 입력 20종), Z-1.C.3 (cargo-fuzz) | core `tests/malicious.rs` 31종; 퍼징 24h 420,679,318회 무크래시 |
 | T19 다운그레이드 | Z-1.C.2 (버전 검사·최소 버전 정책), Z-1.C.4 (`verify_version_chain`), Z-1.H.2 (온체인 버전 바인딩) | core `t19_*`; reseal `t19_*` 3종; contracts `test_t19_grant_must_name_the_current_version`, agent `t19_a_grant_for_another_version_is_refused`, core `a_recipient_reseals_and_the_owner_can_open_the_new_version`, ledger `t19_versions_advance_only_forward_from_the_known_one`, e2e `scenario_c_reseal_*` |
 | T20 회수 무시 | Z-1.C.4 (재봉인 시 새 DEK), Z-1.G.4 (TTL·주기 확인), Z-1.G.11 (revoke), Z-1.H.7 (이벤트 구독), Z-1.G.13 (코드 서명), Z-3.H.3 (어테스테이션) | contracts `test_t20_revoke_only_owner`; core `t20_each_version_*`; session `t20_revoke_*`; chain `t20_the_watcher_sees_a_revoke_without_the_relay`, `t20_a_revoked_grant_is_never_resurrected_by_the_cache`, relay `t20_revocations_reach_the_devices_that_asked`, agent `t20_*` 2종 + `scenario_e_alice_revokes_and_bobs_session_ends` |
-| T21 번들러·페이마스터 검열/지연 | Z-1.H.8 (다중 번들러 엔드포인트), Z-1.H.9 (페이마스터 폴백: 자체 예치), Z-1.G.4 (`strict_onchain` 아닌 경우 체인 확정 미대기), Z-1.R.5 (다중 Relay 장애 조치) | aa-passkey: EntryPoint 직접 `handleOps` + Pimlico 실제 제출; client `t21_a_dead_endpoint_falls_over_to_a_live_one` |
+| T21 번들러·페이마스터 검열/지연 | Z-1.H.8 (다중 번들러 엔드포인트; 체인 실패는 `pending`으로 보고, 허락 자체는 봉투로 전달), Z-1.H.9 (페이마스터 폴백: 자체 예치), Z-1.G.4 (`strict_onchain` 아닌 경우 체인 확정 미대기), Z-1.R.5 (다중 Relay 장애 조치) | aa-passkey: EntryPoint 직접 `handleOps` + Pimlico 실제 제출; client `t21_a_dead_endpoint_falls_over_to_a_live_one`; agent `chain.rs` T20 E2E `t20_a_revoke_on_the_chain_alone_ends_the_session` |
 | T22 동기화 패스키 복제 | Z-1.A.2 (BE/BS 플래그 기록·정책), Z-1.A.7 (기기 바운드 키 대안), Z-1.H.10 (등록·해지 온체인), Z-1.U.7 (선택 UI) | auth `t22_synced_passkey_flags_detected`; contracts `test_t22_keys_are_scoped_to_the_enrolling_account` |
 | T23 무프롬프트 기기 키 남용 | Z-1.A.7 (OS 확인 옵션·속도 제한), Z-1.G.10 (명시적 탭에만 키 사용), Z-1.H.10 (즉시 해지), Z-3.G.2 (VBS) | auth `t23_*` 2종; contracts `requireOsConfirm` 온체인 기록, agent `approve::answer`가 `ConfirmationPolicy::required` 적용, e2e `t23_a_device_without_os_confirmation_cannot_allow_editing`, notify `t23_*` |
 

@@ -8,10 +8,11 @@
 //!
 //! What it checks before calling an answer "allowed" (approval_protocol §2 rules 1–3): the
 //! grant names *this* file, *this* version, *this* device and *this* request. An answer for
-//! anything else is not "wrong", it is a swap, and it is refused (T05, T19). What it does not
-//! check yet: the owner's own signature on the terms, which needs the owner's approval key from
-//! the chain (Z-1.H.8/H.10). That is reported as `owner_signature_check` in `pending`, shown
-//! in the developer panel and never to the person as a done thing.
+//! anything else is not "wrong", it is a swap, and it is refused (T05, T19). The owner's own
+//! word is checked on the public record when this machine has a chain link and the answer
+//! names a transaction (approval_protocol §2 rule 4, ADR-0008): a grant the chain does not
+//! hold is refused. Without a link, that check is reported as `owner_signature_check` in
+//! `pending`, shown in the developer panel and never to the person as a done thing.
 //!
 //! Opening the file after an approval is Z-1.G.7/G.8; this module stops at "허락받았어요" and
 //! keeps the [`Session`] and the envelope for that step.
@@ -188,6 +189,8 @@ pub enum Answer {
         terms: AccessGrantTerms,
         /// HPKE envelope with the DEK, for Z-1.G.7/G.8.
         envelope: Option<Vec<u8>>,
+        /// The owner's on-chain grant transaction, when the answer names one (Z-1.H.8).
+        tx_hash: Option<[u8; 32]>,
     },
     /// A grant with our nonce whose terms name something else. Refused, and said so.
     Mismatch(&'static str),
@@ -242,7 +245,7 @@ pub fn classify(envelope: &Envelope, nonce: &[u8; 16], target: &Target, our_key_
     if terms.permission != permission as u8 {
         return Answer::Mismatch("permission");
     }
-    Answer::Granted { permission, terms, envelope: grant.envelope }
+    Answer::Granted { permission, terms, envelope: grant.envelope, tx_hash: grant.tx_hash }
 }
 
 /// How a request ended.
@@ -332,6 +335,8 @@ pub struct Asking<'a> {
     pub cancel: Arc<AtomicBool>,
     /// Poll, nudge and give-up timings.
     pub limits: Limits,
+    /// The chain, to check the owner's word on the public record (Z-1.H.8).
+    pub chain: Option<&'a crate::chain::ChainLink>,
 }
 
 /// Ask, then wait. Separate from the command so the whole path runs against a real relay in
@@ -343,7 +348,7 @@ pub async fn ask(
     asking: Asking<'_>,
     mut on_update: impl FnMut(Update),
 ) -> (Outcome, Held) {
-    let Asking { path, target, requested, our_key_hash, cancel, limits } = asking;
+    let Asking { path, target, requested, our_key_hash, cancel, limits, chain } = asking;
     let mut session = Session::new();
     let mut held = Held { session: session.clone(), terms: None, envelope: None };
     let fail = |reason: &'static str, session: &mut Session, on_update: &mut dyn FnMut(Update)| {
@@ -421,7 +426,31 @@ pub async fn ask(
                     held.session = session;
                     return (Outcome::Failed("mismatch"), held);
                 }
-                Answer::Granted { permission, terms, envelope } => {
+                Answer::Granted { permission, terms, envelope, tx_hash } => {
+                    // The owner's word, on the public record (approval_protocol §2 rule 4).
+                    // A chain that cannot be reached leaves the check pending; a chain that
+                    // answers "no such grant" makes this a swap, not an approval.
+                    let mut outstanding = vec!["open_file"];
+                    match (chain, tx_hash) {
+                        (Some(link), Some(_)) => {
+                            match link.reader().is_grant_valid(terms.struct_hash()).await {
+                                Ok(true) => log::info!("the chain confirms the grant"),
+                                Ok(false) => {
+                                    log::warn!(
+                                        "the answer names a transaction but the chain holds no such grant"
+                                    );
+                                    fail("mismatch", &mut session, &mut on_update);
+                                    held.session = session;
+                                    return (Outcome::Failed("mismatch"), held);
+                                }
+                                Err(e) => {
+                                    log::warn!("cannot check the grant on the chain now: {e}");
+                                    outstanding.push("owner_signature_check");
+                                }
+                            }
+                        }
+                        _ => outstanding.push("owner_signature_check"),
+                    }
                     let event = Event::Granted {
                         permission,
                         not_before: terms.not_before,
@@ -440,7 +469,7 @@ pub async fn ask(
                     let mut u = Update::new(path, "granted");
                     u.decision = Some(decision_word(permission));
                     u.expiry = Some(terms.expiry);
-                    u.pending = vec!["owner_signature_check", "open_file"];
+                    u.pending = outstanding;
                     on_update(u);
                     let expiry = terms.expiry;
                     held = Held { session, terms: Some(terms), envelope };
@@ -496,6 +525,9 @@ pub struct Guarding<'a> {
     pub cancel: Arc<AtomicBool>,
     /// Delay between inbox reads.
     pub poll: Duration,
+    /// The chain: a revoke reaches this machine through it even when the relay never delivers
+    /// one (T20, Z-1.H.8).
+    pub chain: Option<&'a crate::chain::ChainLink>,
 }
 
 /// Keep watching a granted session: a revoke from the owner or the expiry ends it (T20, T15).
@@ -505,7 +537,7 @@ pub async fn watch_grant(
     guarding: Guarding<'_>,
     mut on_update: impl FnMut(Update),
 ) -> GrantEnd {
-    let Guarding { path, session, grant_id, expiry, cancel, poll } = guarding;
+    let Guarding { path, session, grant_id, expiry, cancel, poll, chain } = guarding;
     loop {
         if cancel.load(Ordering::Relaxed) {
             return GrantEnd::Cancelled;
@@ -514,6 +546,16 @@ pub async fn watch_grant(
             let _ = session.apply(Event::Expired, now());
             on_update(Update::new(path, "expired_grant"));
             return GrantEnd::Expired;
+        }
+        // The chain's `Revoked` is the authoritative copy (T20); the relay is only faster.
+        let revoked_on_chain = match chain {
+            Some(link) => matches!(link.reader().is_grant_valid(grant_id).await, Ok(false)),
+            None => false,
+        };
+        if revoked_on_chain {
+            let _ = session.apply(Event::Revoked, now());
+            on_update(Update::new(path, "revoked"));
+            return GrantEnd::Revoked;
         }
         if let Ok(envelopes) = client.inbox_for_device().await {
             if envelopes.iter().any(|e| is_revoke_for(e, &grant_id)) {
@@ -606,6 +648,7 @@ pub async fn request_access(app: AppHandle, path: String, requested: RequestedAr
                 log::warn!("cannot report request progress: {e}");
             }
         };
+        let chain = crate::chain::current(&handle);
         let (outcome, mut held) = ask(
             &client,
             Asking {
@@ -615,6 +658,7 @@ pub async fn request_access(app: AppHandle, path: String, requested: RequestedAr
                 our_key_hash,
                 cancel,
                 limits: Limits::default(),
+                chain: chain.as_deref(),
             },
             emit.clone(),
         )
@@ -655,6 +699,7 @@ pub async fn request_access(app: AppHandle, path: String, requested: RequestedAr
                 expiry: *expiry,
                 cancel: cancel_for_watch,
                 poll: Limits::default().poll,
+                chain: chain.as_deref(),
             };
             let end = watch_grant(&client, guarding, emit).await;
             log::info!("grant ended: {end:?}");

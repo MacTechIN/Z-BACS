@@ -318,6 +318,31 @@ impl Setup {
         Ok(Prepared { profile, signer: created.provider, pending })
     }
 
+    /// Record the owner's on-chain address, once the Agent knows it (Z-1.H.8, ADR-0008 §4): the
+    /// smart account computed from this device's approval key, or the funded key's address on a
+    /// developer box. From then on it is the `owner` every container carries and the key the
+    /// relay routes requests by.
+    ///
+    /// A profile that already names a *different* account is left alone and the call fails:
+    /// changing it would strand every file locked so far, whose requests would then be routed
+    /// to an owner this machine no longer answers for. Same address again is a no-op.
+    pub fn adopt_account(&self, account: [u8; 20]) -> Result<Vec<Pending>> {
+        let mut profile = self
+            .profile()?
+            .ok_or_else(|| AuthError::Hardware("this device has not been set up yet".into()))?;
+        match profile.account {
+            Some(existing) if existing != account => {
+                return Err(AuthError::Malformed("this device already belongs to another owner account"));
+            }
+            Some(_) => {}
+            None => {
+                profile.account = Some(account);
+                self.write_profile(&profile)?;
+            }
+        }
+        Ok(self.pending_for(&profile))
+    }
+
     /// The owner's sealing and header-signing keys, for sealing a file on this device.
     ///
     /// Loads from the key store rather than keeping them in memory: they are needed for a few

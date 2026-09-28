@@ -120,6 +120,7 @@ async fn granted(tag: &str) -> (PathBuf, Machine, Machine, PathBuf, Held) {
             deployment: Deployment::DEV,
             policy: &ConfirmationPolicy::default(),
             recent: &[],
+            chain: None,
         };
         answer(&a.client, pending.first().unwrap(), DecisionArg::Edit, with).await.unwrap();
         a
@@ -139,6 +140,7 @@ async fn granted(tag: &str) -> (PathBuf, Machine, Machine, PathBuf, Held) {
                 nudge_after: Duration::from_secs(60),
                 give_up_after: Duration::from_secs(10),
             },
+            chain: None,
         },
         |_| {},
     )

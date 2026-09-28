@@ -5,11 +5,10 @@
 //! The screen shows it newest first with a chip filter, in sentences, with the file's name
 //! from this machine's own record (never from a message — T06 applies to history too).
 //!
-//! This is the *local* half of the audit trail. The chain half — `AuditLog.Logged`,
-//! `AccessPolicy.Granted/Revoked` — exists (Z-1.H.3/H.7) but nothing on this machine writes
-//! to the chain yet (Z-1.H.8), so there is nothing there to read back. [`Source`] marks each
-//! entry so the two can be merged when that lands, and the developer panel says `chain_events`
-//! is pending rather than the screen pretending the public record is being shown.
+//! This is the *local* half of the audit trail. The chain half — `AccessPolicy.Granted/Revoked`,
+//! `FileRegistry.VersionBumped` — is merged in by [`crate::chain`] when this machine has a
+//! chain link (Z-1.H.8), each entry marked [`Source::Chain`] so the screen can say what the
+//! public record confirmed and not only what this machine believes it did.
 //!
 //! One append-only JSON-lines file beside the profile. It carries file ids and names, never
 //! keys, never content, never the other party's identity beyond "someone".
@@ -65,7 +64,8 @@ pub enum Role {
 pub enum Source {
     /// Written by this Agent as it acted.
     Local,
-    /// Read back from the chain (Z-1.H.8 — not produced yet).
+    /// Read back from the chain (Z-1.H.8: `Granted` / `Revoked` / `VersionBumped` for this
+    /// machine's files, merged by `chain::ChainLink::merge_events`).
     Chain,
 }
 
@@ -125,6 +125,29 @@ impl AuditLog {
         if let Err(e) = self.append(&entry) {
             // The action already happened; a record that could not be written is a warning for
             // us, not a failure for the person.
+            log::warn!("cannot write the record: {e}");
+        }
+    }
+
+    /// Append what the chain confirmed (Z-1.G.12 chain half). Same shape, `Source::Chain`.
+    pub fn record_from_chain(
+        &self,
+        kind: Kind,
+        role: Role,
+        fid: &[u8; 32],
+        file_name: Option<&str>,
+        detail: Option<&str>,
+    ) {
+        let entry = Entry {
+            at: now(),
+            kind,
+            role,
+            source: Source::Chain,
+            fid: hex::encode(fid),
+            file_name: file_name.map(str::to_string),
+            detail: detail.map(str::to_string),
+        };
+        if let Err(e) = self.append(&entry) {
             log::warn!("cannot write the record: {e}");
         }
     }

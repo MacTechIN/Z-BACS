@@ -6,6 +6,11 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+# A throwaway Anvil with the whole system deployed (`dev::DevChain`), for the Agent's E2E
+# tests and demos. Off by default: production code never spawns a chain.
+dev-chain = []
+
 [dependencies]
 alloy = { version = "2", features = ["full", "node-bindings", "json-rpc"] }
 async-trait = "0.1"

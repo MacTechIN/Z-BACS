@@ -46,6 +46,8 @@ zbacs-auth = { path = "../../../crates/zbacs-auth", default-features = false }
 # Asking the owner (Z-1.G.9): the wire types and the relay client that retries for us.
 zbacs-proto = { path = "../../../crates/zbacs-proto" }
 zbacs-relay-client = { path = "../../../crates/zbacs-relay-client" }
+# The chain (Z-1.H.8): register / grant / bumpVersion / revoke behind ChainWriter, reads and events.
+zbacs-chain = { path = "../../../crates/zbacs-chain" }
 tokio = { version = "1", features = ["time"] }
 rand = "0.8"
 ciborium = "0.2"
@@ -59,5 +61,7 @@ tauri-winrt-notification = "0.8"
 [dev-dependencies]
 # A real relay for the request test: the same server the beta will run.
 zbacs-relay = { path = "../../../apps/relay" }
+# A throwaway Anvil with the contracts on it, for the chain E2E (skips without `anvil`).
+zbacs-chain = { path = "../../../crates/zbacs-chain", features = ["dev-chain"] }
 axum = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time"] }

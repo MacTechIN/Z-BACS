@@ -46,6 +46,9 @@ pub struct Entry {
     /// the version notice carried (Z-1.G.8). `None` while the version on disk is current.
     #[serde(default)]
     pub owner_envelope: Option<Vec<u8>>,
+    /// Transaction that registered the file on chain (Z-1.H.8), hex, once it landed.
+    #[serde(default)]
+    pub registered_tx: Option<String>,
 }
 
 fn one() -> u32 {
@@ -74,6 +77,7 @@ impl Entry {
             sealed_at: now(),
             ver: 1,
             owner_envelope: None,
+            registered_tx: None,
         }
     }
 }
@@ -96,6 +100,12 @@ pub struct Grant {
     pub granted_at: u64,
     /// Unix seconds it was pulled back, if it was.
     pub revoked_at: Option<u64>,
+    /// The on-chain grant transaction, hex (Z-1.H.8).
+    #[serde(default)]
+    pub tx_hash: Option<String>,
+    /// The on-chain revoke transaction, hex.
+    #[serde(default)]
+    pub revoke_tx: Option<String>,
 }
 
 impl Grant {
@@ -115,6 +125,9 @@ struct File {
     /// Approvals given, by grant id.
     #[serde(default)]
     grants: BTreeMap<String, Grant>,
+    /// Next block the record has not read chain events from (Z-1.G.12 / H.8).
+    #[serde(default)]
+    chain_cursor: Option<u64>,
 }
 
 /// The ledger, with the lock that serialises its read-modify-write.
@@ -224,17 +237,44 @@ impl Ledger {
         self.load().ok()?.grants.get(grant_id).cloned()
     }
 
-    /// Mark an approval as pulled back. Idempotent.
-    pub fn mark_revoked(&self, grant_id: &str, now: u64) -> Result<Grant, String> {
+    /// Mark an approval as pulled back, with the chain transaction when there was one.
+    /// Idempotent.
+    pub fn mark_revoked(&self, grant_id: &str, now: u64, revoke_tx: Option<String>) -> Result<Grant, String> {
         let _held = self.lock.lock().expect("ledger mutex");
         let mut file = self.load()?;
         let grant = file.grants.get_mut(grant_id).ok_or_else(|| "unknown grant".to_string())?;
         if grant.revoked_at.is_none() {
             grant.revoked_at = Some(now);
         }
+        if revoke_tx.is_some() {
+            grant.revoke_tx = revoke_tx;
+        }
         let out = grant.clone();
         self.store(&file)?;
         Ok(out)
+    }
+
+    /// The file landed on chain: keep the transaction beside the record.
+    pub fn set_registered_tx(&self, fid: &str, tx: &str) -> Result<(), String> {
+        let _held = self.lock.lock().expect("ledger mutex");
+        let mut file = self.load()?;
+        let entry = file.files.get_mut(fid).ok_or_else(|| "unknown file".to_string())?;
+        entry.registered_tx = Some(tx.to_string());
+        self.store(&file)
+    }
+
+    /// Next block chain events have not been merged from (Z-1.G.12).
+    pub fn chain_cursor(&self) -> Option<u64> {
+        let _held = self.lock.lock().expect("ledger mutex");
+        self.load().ok().and_then(|f| f.chain_cursor)
+    }
+
+    /// Remember how far chain events were merged.
+    pub fn set_chain_cursor(&self, next_block: u64) -> Result<(), String> {
+        let _held = self.lock.lock().expect("ledger mutex");
+        let mut file = self.load()?;
+        file.chain_cursor = Some(next_block);
+        self.store(&file)
     }
 
     /// Take the next approval nonce. Persisted before it is returned, so a crash after signing
@@ -265,6 +305,7 @@ mod tests {
             sealed_at: at,
             ver: 1,
             owner_envelope: None,
+            registered_tx: None,
         }
     }
 
@@ -310,6 +351,8 @@ mod tests {
             expiry,
             granted_at: 100 + id as u64,
             revoked_at: None,
+            tx_hash: None,
+            revoke_tx: None,
         };
         ledger.record_grant(&g(1, 1000)).unwrap();
         ledger.record_grant(&g(2, 1000)).unwrap();
@@ -322,15 +365,15 @@ mod tests {
         );
         assert_eq!(ledger.grants(false, 200).len(), 3);
 
-        let revoked = ledger.mark_revoked(&hex::encode([2; 32]), 300).unwrap();
+        let revoked = ledger.mark_revoked(&hex::encode([2; 32]), 300, None).unwrap();
         assert_eq!(revoked.revoked_at, Some(300));
         assert_eq!(
-            ledger.mark_revoked(&hex::encode([2; 32]), 999).unwrap().revoked_at,
+            ledger.mark_revoked(&hex::encode([2; 32]), 999, None).unwrap().revoked_at,
             Some(300),
             "first revoke time stays"
         );
         assert_eq!(ledger.grants(true, 400).len(), 1);
-        assert!(ledger.mark_revoked("nope", 1).is_err());
+        assert!(ledger.mark_revoked("nope", 1, None).is_err());
         assert_eq!(Ledger::new(&dir).grant(&hex::encode([2; 32])).unwrap().revoked_at, Some(300), "on disk");
         std::fs::remove_dir_all(dir).ok();
     }

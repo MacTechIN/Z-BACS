@@ -134,6 +134,14 @@ impl SetupHost {
             .device_keys()
     }
 
+    /// Record the owner's on-chain address in the profile (Z-1.H.8, ADR-0008 §4).
+    pub fn adopt_account(&self, account: [u8; 20]) -> Result<Vec<Pending>, zbacs_auth::AuthError> {
+        self.setup
+            .as_ref()
+            .ok_or_else(|| zbacs_auth::AuthError::Hardware("this build has no signer".into()))?
+            .adopt_account(account)
+    }
+
     /// Finish setup with the chosen style. For tests and for the command path.
     pub fn complete(&self, style: ApprovalStyle, now: u64) -> Result<Prepared, zbacs_auth::AuthError> {
         self.setup
@@ -264,6 +272,8 @@ pub async fn complete_setup(app: AppHandle, style: StyleArg) -> Result<SetupStat
 
         let status = host.status(Some(&prepared));
         *app.state::<Identity>().0.lock().expect("identity mutex") = Some(prepared);
+        // The owner account can be fixed now that this device has its approval key.
+        crate::chain::ensure(&app);
         Ok(status)
     })
     .await

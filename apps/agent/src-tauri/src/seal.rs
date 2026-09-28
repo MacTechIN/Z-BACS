@@ -128,6 +128,8 @@ pub struct SealResult {
     pub fid: String,
     /// Header hash of the version just written, hex.
     pub header_hash: String,
+    /// The transaction that registered the file on chain, hex, once it landed (Z-1.H.8).
+    pub tx_hash: Option<String>,
 }
 
 /// A file the person dropped or picked, checked before anything is offered.
@@ -248,18 +250,48 @@ pub fn seal_now(
         output_name: output.file_name().unwrap_or_default().to_string_lossy().into_owned(),
         original: source.display().to_string(),
         size,
-        // Registering the file on chain is Z-1.H.4/H.8; the file is complete without it, and
-        // the UI does not pretend otherwise.
+        // Registered on chain by [`register_on_chain`] when this machine has a link (Z-1.H.8);
+        // the file is complete without it, and the UI does not pretend otherwise.
         pending: vec!["chain_registration"],
         fid: hex::encode(header.body.fid.0),
         header_hash: hex::encode(header_hash.0),
+        tx_hash: None,
     })
+}
+
+/// Z-1.H.8: put the file on the public record. Failure is reported, never hidden, and never
+/// undoes the lock — the file is sealed either way; the chain is the audit trail.
+pub async fn register_on_chain(
+    chain: &crate::chain::ChainLink,
+    ledger: &crate::ledger::Ledger,
+    result: &mut SealResult,
+) -> Result<(), &'static str> {
+    let writer = chain.writer().ok_or("failed")?;
+    let mut fid = [0u8; 32];
+    let mut header = [0u8; 32];
+    hex::decode_to_slice(&result.fid, &mut fid).map_err(|_| "failed")?;
+    hex::decode_to_slice(&result.header_hash, &mut header).map_err(|_| "failed")?;
+    let tx = writer.register(fid, header).await.map_err(|e| {
+        log::warn!("locked, but the chain did not take the registration: {e}");
+        "failed"
+    })?;
+    let tx_hex = hex::encode(tx);
+    if let Err(e) = ledger.set_registered_tx(&result.fid, &tx_hex) {
+        log::warn!("registered, but could not note the transaction: {e}");
+    }
+    result.pending.retain(|p| *p != "chain_registration");
+    result.tx_hash = Some(tx_hex);
+    log::info!("registered on chain");
+    Ok(())
 }
 
 /// Lock a file. Off the UI thread: a large file takes real time.
 #[tauri::command]
 pub async fn seal_file(app: AppHandle, request: SealRequest) -> Result<SealResult, String> {
-    tauri::async_runtime::spawn_blocking(move || {
+    let chain = crate::chain::current(&app);
+    let sealed_app = app.clone();
+    let mut result = tauri::async_runtime::spawn_blocking(move || {
+        let app = sealed_app;
         let identity = app.state::<Identity>();
         let profile = identity
             .0
@@ -290,10 +322,16 @@ pub async fn seal_file(app: AppHandle, request: SealRequest) -> Result<SealResul
                 Some(&entry.permission),
             );
         }
-        Ok(result)
+        Ok::<SealResult, String>(result)
     })
     .await
-    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| format!("join: {e}"))??;
+    if let Some(chain) = chain.filter(|c| c.writer().is_some()) {
+        let ledger = app.state::<crate::ledger::Ledger>();
+        // Reported through `pending`, not as an error: the lock succeeded.
+        let _ = register_on_chain(&chain, &ledger, &mut result).await;
+    }
+    Ok(result)
 }
 
 /// Check a path the person dropped or picked.

@@ -157,6 +157,7 @@ async fn the_owner_allows_and_the_session_is_granted() {
             our_key_hash: r.key_hash,
             cancel: Arc::new(AtomicBool::new(false)),
             limits: quick(),
+            chain: None,
         },
         sink,
     )
@@ -188,6 +189,7 @@ async fn the_owner_refuses_and_the_session_is_denied() {
             our_key_hash: r.key_hash,
             cancel: Arc::new(AtomicBool::new(false)),
             limits: quick(),
+            chain: None,
         },
         sink,
     )
@@ -218,6 +220,7 @@ async fn t05_a_grant_aimed_at_another_device_is_refused() {
             our_key_hash: r.key_hash,
             cancel: Arc::new(AtomicBool::new(false)),
             limits: quick(),
+            chain: None,
         },
         sink,
     )
@@ -251,6 +254,7 @@ async fn no_answer_nudges_then_gives_up() {
             our_key_hash: r.key_hash,
             cancel: Arc::new(AtomicBool::new(false)),
             limits,
+            chain: None,
         },
         sink,
     )
@@ -284,6 +288,7 @@ async fn the_person_can_stop_waiting() {
             our_key_hash: r.key_hash,
             cancel,
             limits: quick(),
+            chain: None,
         },
         sink,
     )
@@ -312,6 +317,7 @@ async fn no_relay_is_reported_not_hung() {
             our_key_hash: r.key_hash,
             cancel: Arc::new(AtomicBool::new(false)),
             limits: quick(),
+            chain: None,
         },
         sink,
     )

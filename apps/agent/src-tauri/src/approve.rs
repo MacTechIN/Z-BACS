@@ -13,8 +13,10 @@
 //! the asking device, and the answer goes back through the relay. Behind a refusal: just the
 //! refusal.
 //!
-//! The chain is not written yet (that is the smart-account path, Z-1.H.8); `tx_hash` is empty
-//! and the recipient's agent treats the grant as relay-only until then.
+//! With a chain link (Z-1.H.8, ADR-0008) the allow is also written to the chain by the owner
+//! account itself — one tap, one signature — and `GrantMsg.tx_hash` carries the transaction so
+//! the recipient can check the public record. Without one, `tx_hash` is empty and the
+//! recipient's agent treats the grant as relay-only, which `pending` says out loud.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -194,6 +196,8 @@ pub struct Answered {
     pub expiry: Option<u64>,
     /// Whether the OS asked the person to confirm.
     pub confirmed_by_os: bool,
+    /// The on-chain grant transaction, hex, when one landed (Z-1.H.8).
+    pub tx_hash: Option<String>,
     /// What is still outstanding, as machine values.
     pub pending: Vec<&'static str>,
 }
@@ -315,6 +319,23 @@ pub struct Answering<'a> {
     pub policy: &'a ConfirmationPolicy,
     /// Unix timestamps of this device's recent approvals, for the burst rule.
     pub recent: &'a [u64],
+    /// The chain, when this machine has one (Z-1.H.8).
+    pub chain: Option<&'a crate::chain::ChainLink>,
+}
+
+/// The terms as the contract takes them.
+pub fn grant_args(terms: &AccessGrantTerms) -> zbacs_chain::calls::GrantArgs {
+    zbacs_chain::calls::GrantArgs {
+        file_id: terms.file_id,
+        header_hash: terms.header_hash,
+        device_key_hash: terms.device_key_hash,
+        permission: terms.permission,
+        not_before: terms.not_before,
+        expiry: terms.expiry,
+        max_opens: terms.max_opens,
+        request_nonce: terms.request_nonce,
+        grant_nonce: terms.grant_nonce,
+    }
 }
 
 /// Answer one request: sign, re-wrap, send. Separate from the command so the whole path runs
@@ -348,6 +369,7 @@ pub async fn answer(
             grant_id: None,
             expiry: None,
             confirmed_by_os: false,
+            tx_hash: None,
             pending: vec![],
         });
     }
@@ -357,10 +379,22 @@ pub async fn answer(
         return Err("version");
     }
     let permission = decision.permission();
-    let grant_nonce = with.ledger.next_grant_nonce().map_err(|e| {
-        log::warn!("cannot take a grant nonce: {e}");
-        "failed"
-    })?;
+    // The nonce the contract will demand, when there is a contract to ask (T03); the local
+    // count otherwise. A chain write that never lands must not leave the count ahead for good.
+    let on_chain = with.chain.and_then(|c| c.writer().map(|w| (c, w)));
+    let grant_nonce = match on_chain {
+        Some((chain, writer)) => match chain.reader().grant_nonce(writer.owner()).await {
+            Ok(n) => n,
+            Err(e) => {
+                log::warn!("cannot read the grant nonce from the chain: {e}");
+                with.ledger.next_grant_nonce().map_err(|_| "failed")?
+            }
+        },
+        None => with.ledger.next_grant_nonce().map_err(|e| {
+            log::warn!("cannot take a grant nonce: {e}");
+            "failed"
+        })?,
+    };
     let terms = terms_for(&pending.request, entry, permission, grant_nonce, now);
     let grant_id = terms.struct_hash();
     let digest = terms.digest(with.deployment.chain_id, &with.deployment.policy);
@@ -369,7 +403,7 @@ pub async fn answer(
     // is never weaker than what they chose at setup.
     let context = ApprovalContext { permission, file_id: terms.file_id };
     let confirmation = with.policy.required(&context, with.device_setting, with.recent, now);
-    let assertion = with.signer.sign(&ApprovalChallenge { digest, context }, confirmation).map_err(|e| {
+    let signing_problem = |e: zbacs_auth::AuthError| {
         log::warn!("approval signature failed: {e}");
         match e {
             zbacs_auth::AuthError::Cancelled => "cancelled",
@@ -378,18 +412,60 @@ pub async fn answer(
             zbacs_auth::AuthError::ConfirmationUnavailable(_, _) => "needs_os_confirm",
             _ => "failed",
         }
-    })?;
-    let mut owner_sig = Vec::new();
-    ciborium::into_writer(&assertion, &mut owner_sig).map_err(|_| "failed")?;
+    };
+    // One tap, one signature (ADR-0008): when the owner's smart account will carry the grant,
+    // the user operation signature *is* the approval and the message carries no second one.
+    // On the direct path (a funded key) and without a chain, the device signs the terms.
+    let smart = with.chain.is_some_and(|c| c.mode() == crate::chain::Mode::SmartAccount);
+    let owner_sig = if smart {
+        None
+    } else {
+        let assertion = with
+            .signer
+            .sign(&ApprovalChallenge { digest, context }, confirmation)
+            .map_err(signing_problem)?;
+        let mut bytes = Vec::new();
+        ciborium::into_writer(&assertion, &mut bytes).map_err(|_| "failed")?;
+        Some(bytes)
+    };
 
     let envelope = envelope_for(entry, &pending.request, with.owner, &grant_id)?;
+
+    // The public record, before the answer goes out: a recipient who checks the chain must
+    // find the grant there. A chain that refuses or cannot be reached does not withhold the
+    // answer — the envelope is what opens the file — but it is said in `pending`.
+    let mut outstanding = Vec::new();
+    let tx_hash = match on_chain {
+        Some((_, writer)) => match writer.grant(&grant_args(&terms)).await {
+            Ok(tx) => Some(tx),
+            Err(e) => {
+                log::warn!("the chain did not take the grant: {e}");
+                if smart {
+                    // No signature was made at all, so there is no approval to send.
+                    return Err(match e {
+                        zbacs_chain::ChainError::Config(ref why) if why.contains("ancel") => "cancelled",
+                        zbacs_chain::ChainError::Config(ref why) if why.contains("onfirm") => {
+                            "needs_os_confirm"
+                        }
+                        _ => "failed",
+                    });
+                }
+                outstanding.push("chain_grant");
+                None
+            }
+        },
+        None => {
+            outstanding.push("chain_grant");
+            None
+        }
+    };
 
     let grant = GrantMsg {
         request_nonce: pending.request.nonce,
         grant: Some(terms.to_cbor().map_err(|_| "failed")?),
-        owner_sig: Some(owner_sig),
+        owner_sig,
         envelope: Some(envelope),
-        tx_hash: None,
+        tx_hash,
         decision: permission as u8,
         ts: now,
     };
@@ -412,6 +488,8 @@ pub async fn answer(
         expiry: terms.expiry,
         granted_at: now,
         revoked_at: None,
+        tx_hash: tx_hash.map(hex::encode),
+        revoke_tx: None,
     }) {
         log::warn!("allowed, but could not record the approval for the list: {e}");
     }
@@ -421,7 +499,8 @@ pub async fn answer(
         grant_id: Some(hex::encode(grant_id)),
         expiry: Some(terms.expiry),
         confirmed_by_os: confirmation == Confirmation::OsUserVerification,
-        pending: vec!["chain_grant"],
+        tx_hash: tx_hash.map(hex::encode),
+        pending: outstanding,
     })
 }
 
@@ -460,12 +539,13 @@ impl From<Grant> for Given {
 }
 
 /// Pull an approval back: tell the relay (which fans it out to every device that asked about
-/// the file, T20) and mark it here. The chain revoke is Z-1.H.8. Separate from the command so
-/// the two-machine test can drive it.
+/// the file, T20), tell the chain when the grant is there (Z-1.H.8), and mark it here.
+/// Separate from the command so the two-machine test can drive it.
 pub async fn revoke_now(
     client: &RelayClient,
     ledger: &Ledger,
     grant_id: &str,
+    chain: Option<&crate::chain::ChainLink>,
 ) -> Result<Given, &'static str> {
     let grant = ledger.grant(grant_id).ok_or("unknown_grant")?;
     let mut id = [0u8; 32];
@@ -477,7 +557,16 @@ pub async fn revoke_now(
         log::warn!("cannot send the revoke: {e}");
         "relay_unreachable"
     })?;
-    let marked = ledger.mark_revoked(grant_id, now).map_err(|_| "unknown_grant")?;
+    // The chain copy is what a recipient the relay never reaches will see (T20). Only for a
+    // grant that is on the chain: revoking one that never landed there would just revert.
+    let mut revoke_tx = None;
+    if let (Some(writer), Some(_)) = (chain.and_then(|c| c.writer()), grant.tx_hash.as_ref()) {
+        match writer.revoke(fid, id).await {
+            Ok(tx) => revoke_tx = Some(hex::encode(tx)),
+            Err(e) => log::warn!("pulled back through the relay, but the chain did not take it: {e}"),
+        }
+    }
+    let marked = ledger.mark_revoked(grant_id, now, revoke_tx).map_err(|_| "unknown_grant")?;
     log::info!("revoked an approval given {}s ago", now.saturating_sub(marked.granted_at));
     Ok(marked.into())
 }
@@ -527,13 +616,32 @@ pub fn apply_version(ledger: &Ledger, notice: &VersionMsg) -> Result<Entry, &'st
 /// Read the owner inbox once: version notices go into the record on the spot (Z-1.G.8),
 /// requests come back for the person.
 pub async fn next_requests(client: &RelayClient, owner: &[u8], ledger: &Ledger) -> Vec<PendingRequest> {
+    next_requests_on(client, owner, ledger, None).await
+}
+
+/// Same, with a chain link: an accepted version notice is also anchored with `bumpVersion`
+/// (ADR-0007 §4, Z-1.H.8), so the old version can no longer be granted on chain either (T19).
+pub async fn next_requests_on(
+    client: &RelayClient,
+    owner: &[u8],
+    ledger: &Ledger,
+    chain: Option<&crate::chain::ChainLink>,
+) -> Vec<PendingRequest> {
     let Ok(envelopes) = client.inbox_for_owner(owner).await else {
         return Vec::new();
     };
     let now = now();
     for notice in envelopes.iter().filter_map(|e| accept_version(e, owner, now)) {
         match apply_version(ledger, &notice) {
-            Ok(entry) => log::info!("a recipient wrote version {} of \"{}\"", entry.ver, entry.name),
+            Ok(entry) => {
+                log::info!("a recipient wrote version {} of \"{}\"", entry.ver, entry.name);
+                if let Some(writer) = chain.and_then(|c| c.writer()) {
+                    match writer.bump_version(notice.fid, notice.header_hash).await {
+                        Ok(_) => log::info!("version {} is on the chain", entry.ver),
+                        Err(e) => log::warn!("the chain did not take version {}: {e}", entry.ver),
+                    }
+                }
+            }
             Err(e) => log::warn!("ignored a version notice: {e}"),
         }
     }
@@ -613,7 +721,8 @@ pub fn ensure_watching(app: AppHandle) -> Result<(), String> {
         }
         loop {
             let ledger = handle.state::<Ledger>();
-            let fresh = next_requests(&client, &owner, &ledger).await;
+            let chain = crate::chain::current(&handle);
+            let fresh = next_requests_on(&client, &owner, &ledger, chain.as_deref()).await;
             if !fresh.is_empty() {
                 let mut arrived = Vec::new();
                 {
@@ -676,7 +785,8 @@ pub fn given_grants(app: AppHandle) -> Vec<Given> {
 pub async fn revoke_grant(app: AppHandle, grant_id: String) -> Result<Given, String> {
     let (client, _owner) = client_for(&app).map_err(str::to_string)?;
     let ledger = app.state::<Ledger>();
-    let given = revoke_now(&client, &ledger, &grant_id).await.map_err(str::to_string)?;
+    let chain = crate::chain::current(&app);
+    let given = revoke_now(&client, &ledger, &grant_id, chain.as_deref()).await.map_err(str::to_string)?;
     if let Some(grant) = ledger.grant(&grant_id) {
         if let Ok(fid) = <[u8; 32]>::try_from(hex::decode(&grant.fid).unwrap_or_default()) {
             app.state::<crate::audit::AuditLog>().record(
@@ -715,6 +825,7 @@ pub async fn decide(app: AppHandle, id: String, decision: DecisionArg) -> Result
     let recent: Vec<u64> = app.state::<Approvals>().recent.lock().expect("approvals mutex").clone();
     let policy = ConfirmationPolicy::default();
 
+    let chain = crate::chain::current(&app);
     let answered = {
         let ledger = app.state::<Ledger>();
         let with = Answering {
@@ -722,9 +833,11 @@ pub async fn decide(app: AppHandle, id: String, decision: DecisionArg) -> Result
             device_setting,
             owner: &owner,
             ledger: &ledger,
-            deployment: Deployment::DEV,
+            // Bound to the chain this machine actually talks to; the Anvil constants otherwise.
+            deployment: chain.as_ref().map(|c| c.approval_deployment()).unwrap_or(Deployment::DEV),
             policy: &policy,
             recent: &recent,
+            chain: chain.as_deref(),
         };
         answer(&client, &pending, decision, with).await.map_err(str::to_string)?
     };
@@ -780,6 +893,7 @@ mod tests {
             sealed_at: 1_700_000_000,
             ver: 1,
             owner_envelope: None,
+            registered_tx: None,
         }
     }
 

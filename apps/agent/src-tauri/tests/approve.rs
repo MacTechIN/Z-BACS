@@ -128,6 +128,7 @@ async fn alice_answers(
         deployment: Deployment::DEV,
         policy: &ConfirmationPolicy::default(),
         recent: &[],
+        chain: None,
     };
     answer(&alice.client, request, decision, with).await
 }
@@ -161,6 +162,7 @@ async fn scenario_b_alice_allows_and_bob_can_open_the_key_and_check_her_signatur
             our_key_hash: bob.key_hash,
             cancel: Arc::new(AtomicBool::new(false)),
             limits: quick(),
+            chain: None,
         },
         move |u| sink.lock().unwrap().push(u.phase),
     )
@@ -236,6 +238,7 @@ async fn scenario_e_alice_refuses_and_bob_is_told() {
             our_key_hash: bob.key_hash,
             cancel: Arc::new(AtomicBool::new(false)),
             limits: quick(),
+            chain: None,
         },
         |_| {},
     )
@@ -294,6 +297,7 @@ async fn t06_a_file_this_machine_did_not_lock_cannot_be_allowed() {
             deployment: Deployment::DEV,
             policy: &ConfirmationPolicy::default(),
             recent: &[],
+            chain: None,
         };
         let refused = answer(&alice.client, &request, DecisionArg::ReadOnly, with).await;
         assert_eq!(refused.err(), Some("unknown_file"));
@@ -306,6 +310,7 @@ async fn t06_a_file_this_machine_did_not_lock_cannot_be_allowed() {
             deployment: Deployment::DEV,
             policy: &ConfirmationPolicy::default(),
             recent: &[],
+            chain: None,
         };
         answer(&alice.client, &request, DecisionArg::Deny, with).await.unwrap()
     });
@@ -318,6 +323,7 @@ async fn t06_a_file_this_machine_did_not_lock_cannot_be_allowed() {
             our_key_hash: bob.key_hash,
             cancel: Arc::new(AtomicBool::new(false)),
             limits: quick(),
+            chain: None,
         },
         |_| {},
     )
@@ -353,6 +359,7 @@ async fn scenario_e_alice_revokes_and_bobs_session_ends() {
             our_key_hash: bob.key_hash,
             cancel: Arc::new(AtomicBool::new(false)),
             limits: quick(),
+            chain: None,
         },
         |_| {},
     )
@@ -383,6 +390,7 @@ async fn scenario_e_alice_revokes_and_bobs_session_ends() {
                     expiry,
                     cancel: Arc::new(AtomicBool::new(false)),
                     poll: Duration::from_millis(40),
+                    chain: None,
                 },
                 move |u| sink.lock().unwrap().push(u.phase),
             )
@@ -392,7 +400,7 @@ async fn scenario_e_alice_revokes_and_bobs_session_ends() {
     };
     let revoke = async {
         tokio::time::sleep(Duration::from_millis(150)).await;
-        revoke_now(&alice.client, &alice.ledger, &grant_id_hex).await.expect("revoked")
+        revoke_now(&alice.client, &alice.ledger, &grant_id_hex, None).await.expect("revoked")
     };
     let ((end, phases), given) = tokio::join!(bob_watch, revoke);
 
@@ -401,7 +409,7 @@ async fn scenario_e_alice_revokes_and_bobs_session_ends() {
     assert_eq!(*phases.lock().unwrap(), vec!["revoked"]);
     assert!(given.revoked && !given.active);
     assert!(alice.ledger.grants(true, now()).is_empty(), "gone from Alice's active list");
-    assert_eq!(revoke_now(&alice.client, &alice.ledger, "00").await.err(), Some("unknown_grant"));
+    assert_eq!(revoke_now(&alice.client, &alice.ledger, "00", None).await.err(), Some("unknown_grant"));
     std::fs::remove_dir_all(dir).ok();
 }
 
@@ -421,6 +429,7 @@ async fn t15_an_expired_grant_closes_the_session_on_its_own() {
             expiry: now() + 1,
             cancel: Arc::new(AtomicBool::new(false)),
             poll: Duration::from_millis(40),
+            chain: None,
         },
         |_| {},
     )

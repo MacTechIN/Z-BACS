@@ -100,6 +100,18 @@ impl DirectWriter {
         Self { client, owner }
     }
 
+    /// Connect with a hex-encoded funded key (`0x`-prefixed or not). The Agent's developer
+    /// path: `ZBACS_CHAIN_KEY` on an Anvil box.
+    pub async fn connect(rpc_url: &str, deployment: Deployment, key_hex: &str) -> Result<Self> {
+        let signer: alloy::signers::local::PrivateKeySigner = key_hex
+            .trim()
+            .trim_start_matches("0x")
+            .parse()
+            .map_err(|_| ChainError::Config("the chain key is not a 32-byte hex private key".into()))?;
+        let owner = signer.address();
+        Ok(Self::new(ChainClient::connect_signed(rpc_url, deployment, signer).await?, owner))
+    }
+
     /// The client, for reads on the same connection.
     pub fn client(&self) -> &ChainClient {
         &self.client

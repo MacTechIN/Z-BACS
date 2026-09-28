@@ -253,6 +253,7 @@ async fn the_smart_account_writer_sends_one_signed_user_operation_per_write() {
         registry: address!("9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"),
         policy: address!("Dc64a140Aa3E981100a9becA4E685f962f0cF6C9"),
         audit: address!("5FC8d32690cc91D4c39d9d3abcBD16989F875707"),
+        p256_validator: None,
     };
     let writer = SmartAccountWriter::new(account(), provider, bundler, signer.clone(), deployment, 84532);
     assert_eq!(writer.owner(), account().address(), "the account is the owner on chain");
