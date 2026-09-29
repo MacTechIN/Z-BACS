@@ -129,6 +129,8 @@ contract AccessPolicy is EIP712, Upgradeable {
     {
         address owner = registry.ownerOf(g.fileId);
         if (owner == address(0)) revert FileNotRegistered(g.fileId);
+        // The version number is not needed here: the header hash is what binds a grant (T19).
+        // slither-disable-next-line unused-return
         (bytes32 currentHeader,, bool retired) = registry.currentVersion(g.fileId);
         if (retired) revert FileRetired(g.fileId);
         // T19: a grant names one sealed version; after a reseal the old one can no longer be granted.

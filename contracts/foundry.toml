@@ -27,3 +27,10 @@ base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 
 [fuzz]
 runs = 512
+
+# Z-1.H.5 invariants (test/Invariants.t.sol): enough to reach every handler path in a few
+# seconds of CI; tools/fuzz.sh is where the long runs live.
+[invariant]
+runs = 64
+depth = 48
+fail_on_revert = true

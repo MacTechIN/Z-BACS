@@ -11,6 +11,7 @@
 | [dev_plan.md](dev_plan.md) | 개발 계획서: Phase 0~3 마이크로 태스크, 위협 매핑, 마일스톤 | 스프린트마다 |
 | [architecture.md](architecture.md) | 시스템 아키텍처, 패키지 구조, 키 계층, 스택 | 설계 변경 시 |
 | [credentials.md](credentials.md) | 외부 키·자격 증명 발급 가이드: 무엇을 어디서 받고 무엇을 우리가 만드는가, 보관·CI 규칙 | 키 추가 시 |
+| [user_guide.md](user_guide.md) | **사용 안내(테스트 참가자용)**: 설치 → 처음 켜기 → 잠그기 → 물어보기·열기 → 허락·거두기 → 기록 → 문제 화면. 기술 용어 없음 | 화면·문구 변경 시 |
 | [windows_checklist.md](windows_checklist.md) | Windows 실기 확인 절차(`zbacs-wincheck`): Hello·TPM·자격증명·파일연결 | 하드웨어 경로 변경 시 |
 | [beta_test_automation.md](beta_test_automation.md) | 일반인 베타 테스트 자동화 가능성: 5층(설치·서버·기능·체험 모드·무인 E2E) 검토, 실행 순서, 결정 사항 | 베타 준비 시 |
 | [relay_selfhost.md](relay_selfhost.md) | Relay 셀프호스팅: `docker compose up`, TLS, Agent 연결, 운영 값, 무료 호스팅 옵션 | Relay 배포 변경 시 |

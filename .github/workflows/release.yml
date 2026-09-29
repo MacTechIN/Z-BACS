@@ -53,6 +53,16 @@ jobs:
       - name: zbacs-wincheck.exe (hardware self-test, docs/windows_checklist.md §1)
         run: cargo build --release -p zbacs-wincheck --locked
 
+      # Z-1.Q.4: what is inside the installer, as a bill of materials (both lockfiles and the
+      # contract dependencies), shipped next to it.
+      - name: SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/zbacs-sbom.spdx.json
+          upload-artifact: false
+
       - name: collect
         shell: bash
         run: |

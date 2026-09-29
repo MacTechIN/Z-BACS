@@ -16,6 +16,7 @@
 - `docs/architecture.md` — 패키지 구조, 키 계층, 스택
 - `docs/specs/*.md` — 컨테이너 포맷, 승인 프로토콜, 권한 모델 (구현의 단일 진실 원천)
 - `docs/credentials.md` — 외부 키·자격 증명 발급 가이드(키 값은 저장소·대화에 올리지 않는다)
+- `docs/user_guide.md` — 테스트 참가자용 사용 안내(기술 용어 없음; 화면·문구를 바꾸면 같이 고친다)
 - `docs/windows_checklist.md` — Windows 실기 확인 절차(하드웨어 경로 작업 시)
 - `docs/relay_selfhost.md` — Relay 셀프호스팅(`docker compose up`, TLS, Agent 연결)
 - `docs/chain_guide.md` — 블록체인 가이드(Base, 작동 원리, 올라가는 데이터, 테스트 4단계, `tools/chain-demo.sh`)
@@ -53,6 +54,8 @@ Phase 1 완료: **Q.2 포렌식(원시 디스크 스캔, 야간 CI)**, **Q.1 E2E
 
 H.11·H.9 코드 완료(2026-09-28): `build.rs`가 `ZBACS_BUILD_*`(Relay URL·체인 RPC·번들러 URL·스폰서 정책·배포 json)를 내장하고 `release.yml`이 저장소 변수/시크릿에서 넣는다(값은 사용자 차례 — `docs/relay_selfhost.md` §3); 번들러는 쉼표 목록 장애 조치(T21); 패스키 기기의 `bumpVersion`은 다음 탭의 UserOp에 배치(ADR-0008 §5).
 
+품질 게이트(2026-09-29): H.5 Foundry 불변식 4종 + Slither(CI, medium 이상 실패), Q.3 `tools/threat-map.sh`(T01~T23 전부 테스트 이름 또는 근거), Q.4 Agent 락파일 `cargo audit` + 릴리스 SBOM, D.1 `docs/user_guide.md`, D.2 완료. Phase 1에서 코드로 남은 것은 H.6(AI 감사 파이프라인)·G.13(자동 업데이트, 서명 키 필요)·R.3/P.x(모바일 푸시)뿐이고 베타에는 필요 없다.
+
 다음: 코드로 할 일은 남아 있지 않다 — 사용자 차례: Windows 실기 확인(`docs/windows_checklist.md` §0-A 설치 파일 경로, §1~§4, 특히 **§3.5 첫 실행 2탭**, **§3.6 잠그기**)과 Relay 호스팅(`docs/relay_selfhost.md` §5)은 사용자 차례.
 
 ## 디렉터리
@@ -66,6 +69,8 @@ cargo test --workspace --release -- --include-ignored perf_  # 성능 게이트(
 cd contracts && forge fmt --check && forge test  # 컨트랙트 (PATH에 ~/.foundry/bin)
 cd contracts && forge script script/Deploy.s.sol --rpc-url anvil --broadcast --private-key $PK  # 배포 → deployments/<chainId>.json
 tools/ux-lint.sh                                 # UI 용어·입력·토큰·마크업·오류 카탈로그 일치 (CI `ux` 잡)
+tools/threat-map.sh                              # 위협 T01~T23 ↔ 테스트 이름 매핑 (CI `ux` 잡, Z-1.Q.3)
+cd contracts && slither . --config-file slither.config.json --fail-medium   # 정적 분석 (CI `contracts` 잡, Z-1.H.5)
 cd apps/agent/src-tauri && cargo test --features demo-signer   # Agent (루트 워크스페이스 밖, CI `agent` 잡)
 gh workflow run release.yml   # Windows 설치 파일 + zbacs-wincheck.exe 아티팩트 (Z-1.S.3, `v*` 태그면 Release)
 tools/chain-it.sh                          # 컨트랙트 빌드 + zbacs-chain/abi 사본 갱신(커밋 대상) + Anvil 통합 테스트

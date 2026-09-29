@@ -78,7 +78,7 @@
 | Z-1.H.2 ✅ | `AccessPolicy.sol` (grant/revoke/isValid, EIP-712, ERC-1271 지원) | 재전송·만료·회수 테스트 (2026-09-19: T19 버전 바인딩(옛 헤더 해시 거부)·retire 차단·`consumeOpen`을 기기 공개키에 바인딩·grant 레코드에 deviceKeyHash/headerHash 저장, 22 tests, 브랜치 100%) |
 | Z-1.H.3 ✅ | `AuditLog.sol` 이벤트 계약 | 가스 ≤ 30k/log (2026-09-19: 이벤트 전용 `Logged(fileId, kind, reporter, actorCommit, detail)`, 실제 Anvil 트랜잭션 **25,515 gas** — `tools/chain-demo.sh`가 매번 실측·검사. 초안의 레지스트리 조회(~4.7k)는 31,030으로 예산 초과라 제거) |
 | Z-1.H.4 ✅ | UUPS 프록시 + Timelock 배포 스크립트(Anvil, Base Sepolia) | 주소 파일 생성 (2026-09-21: `src/Upgradeable.sol`(Initializable+AccessControl+UUPS, 업그레이드 권한은 Timelock만) + `script/Deploy.s.sol` → `contracts/deployments/<chainId>.json`. **Anvil 실배포로 확인**: 프록시로 register가 되고 구현 슬롯·admin이 맞는다. `AuditLog`·`P256Validator`는 **일부러 업그레이드 불가** — 후자는 남의 계정에 설치되는 모듈이라 우리가 바꿀 수 있으면 그 계정들 대신 서명할 수 있다는 뜻이다. 업그레이드 권한 **포기 거부**(한 트랜잭션으로 영영 못 고치는 사고 방지), `AccessPolicy` 업그레이드가 **다른 레지스트리를 가리키면 온체인 거부**. 테스트 11종. Rust는 `Deployment::from_file`로 그 파일을 읽고(단위 5종), `zbacs-chain` 통합 테스트도 **프록시를 거쳐** 배포하도록 바꿔 EIP-712 도메인이 프록시 주소로 만들어지는 것까지 확인) |
-| Z-1.H.5 | Slither + Echidna 불변식 CI | CI 게이트 |
+| Z-1.H.5 ✅ | Slither + 불변식 CI (Echidna 대신 **Foundry invariant** — 같은 역할, 툴체인 추가 없음) | CI 게이트 (2026-09-29: `contracts/test/Invariants.t.sol` — 두 소유자가 어떤 순서로 register/bump/retire/grant/revoke/consumeOpen/warp를 해도 ① 소유자 nonce = 성공한 grant 수(T03) ② 거둔 허락은 다시 유효해지지 않음(T20) ③ 버전은 한 칸씩만 앞으로, 폐기는 되돌아가지 않음(T19/T20) ④ opens ≤ maxOpens, grant는 만든 파일·기기만 가리킴. ADR-0008 소유자 자기 호출 덕에 서명 없이 전 경로 도달. `foundry.toml [invariant] runs=64 depth=48`. **Slither**: `contracts` 잡에 `crytic/slither-action`(`slither.config.json`: lib/test/script 제외, medium 이상 실패). 로컬 0.11.6으로 확인 — 유일한 medium은 `currentVersion` 튜플의 버전 무시(의도) → 주석으로 제외) |
 | Z-1.H.6 | HF 감사 파이프라인(`tools/audit`): Qwen3-Coder-Audit 로컬/원격 추론 → PR 코멘트 | 샘플 PR 리포트 |
 | Z-1.H.7 ✅ | `zbacs-chain`(alloy): ABI 바인딩, 이벤트 구독, 오프라인 캐시 | 통합 테스트(Anvil) (2026-09-21: Foundry 아티팩트에서 바인딩 생성(ABI 드리프트 시 컴파일 실패), 읽기·쓰기·`AuditLog`, `EventWatcher`(폴링 — 프록시 뒤에서도 동작, 실패한 범위를 건너뛰지 않음), `Cache`(마지막 답과 나이를 함께 보관, **죽은 grant는 되살아나지 않음**, strict 파일은 stale 답으로 열리지 않음). Anvil 통합 7종 + 단위 3종, `tools/chain-it.sh`·CI 연결) |
 | Z-1.H.8 ◐ | ~~`packages/chain-ts`~~ → **Rust** 스마트계정 클라이언트(승인 앱 = Tauri Agent이므로 TS 대신): `zbacs-chain::aa` Kernel v3.1 계정, `calls`, `bundler`, **`writer`(`ChainWriter` = `SmartAccountWriter` UserOp / `DirectWriter` 자금 키, ADR-0008)** + Agent 배선(`apps/agent` `chain.rs`) | 승인 앱에서 사용 (2026-09-25 **a단계**: 스파이크 벡터와 바이트 일치 5종 + 모의 번들러 2종. 2026-09-28 **b단계 완료**: `AccessPolicy.grant`가 소유자 계정 자신의 호출이면 서명을 생략 — **한 탭 = 한 서명**(ADR-0008, 컨트랙트 테스트 3종). Agent: `ZBACS_CHAIN_RPC`(+`ZBACS_CHAIN_KEY` 직접 / `ZBACS_BUNDLER_URL` 스마트계정)로 연결, 첫 실행에 소유자 주소를 프로필에 확정(`account_on_chain` 해소), 잠글 때 `register`, 허락 시 `grant` → `GrantMsg.tx_hash`, 버전 통지 수락 시 `bumpVersion`, 회수 시 `revoke`; 수신자는 `tx_hash`가 오면 `isValid`로 소유자의 말을 체인에서 확인(§2 규칙 4)하고 체인의 revoke만으로도 세션을 끝낸다(T20); G.12 기록에 체인 이벤트 병합(`Source::Chain`, 커서 영속). 테스트: zbacs-chain Anvil 2종 + 모의 번들러 1종, **Agent Anvil E2E 2종**(`tests/chain.rs`: 잠금→허락→저장→회수가 공개 기록에 그대로, 체인 단독 revoke). **남은 것**: 테스트넷 배포(H.4 스크립트, 배포 키·faucet = 사용자) + H.11 주소 내장 + Pimlico 키(H.9)가 있어야 스마트계정 경로가 실제로 돈다; 패스키 기기의 `bumpVersion` 배치(ADR-0008 §5)) |
@@ -138,14 +138,14 @@
 |---|---|---|
 | Z-1.Q.1 ✅ | E2E 테스트 하네스: Windows VM 2대 + Anvil + Relay 도커 | 시나리오 A~E 자동화 (2026-09-24: `apps/agent/src-tauri/tests/e2e.rs` — 두 SetupHost(두 PC) + 실제 Relay, 헤드리스. **A 봉인·B 요청/승인·D 읽기전용 열람(작업공간·읽기전용·변경 폐기·wipe)·E 거절/회수(열람 중 즉시 wipe)/만료 통과**, T19·T23 포함 9 tests. **C 전체**(2026-09-25: 편집→저장→수신자 재봉인 v2→통지→Alice 기록 갱신→옛 DEK로 v2 열기 거부→v2 재요청·허락·열기). 새로 만든 `open.rs`가 열기 단계(G.7). Windows VM·Anvil은 각각 `windows_checklist.md`·H.8 뒤) |
 | Z-1.Q.2 ✅ | 평문 잔존 포렌식 스크립트(디스크 문자열 검색) | CI 야간 실행 (2026-09-24: `zbacs forensic-session`이 Agent와 같은 프리미티브로 Edit 세션 전체(봉인→원본 안전 삭제→작업공간 열기→임시파일·잠금파일 포함 편집→재봉인→wipe)를 N회 실행. `tools/forensic.sh image`가 ext4 루프 이미지에서 실행 후 **언마운트한 원시 이미지**(데이터 블록·빈 공간·저널)를 마커로 검색, `dir` 모드는 파일만. 음성 대조군(단순 삭제한 평문은 반드시 검출)으로 스캔 자체를 검증. `.github/workflows/forensic.yml` 야간 02:30 KST + 관련 파일 push 시) |
-| Z-1.Q.3 | 위협 T01~T20 대응 테스트 매핑 및 실행 | 100% 매핑 |
-| Z-1.Q.4 | 의존성 감사(`cargo audit`, `npm audit`), SBOM | CI |
+| Z-1.Q.3 ✅ | 위협 T01~T23 대응 테스트 매핑 및 실행 | 100% 매핑 (2026-09-29: `tools/threat-map.sh`(CI `ux` 잡) — T마다 이름에 T-ID를 단 테스트가 하나 이상 있거나, 스크립트의 EVIDENCE 표가 지목한 테스트 함수가 실제로 존재해야 통과. T08(화면 촬영)은 범위 밖으로 명시. 현재 T01·T10·T12·T13은 EVIDENCE, 나머지 18개는 이름으로. 표는 부록 A) |
+| Z-1.Q.4 ✅ | 의존성 감사(`cargo audit`), SBOM | CI (2026-09-29: 루트 워크스페이스는 `rustsec/audit-check`(기존), **Agent 별도 락파일**은 `agent` 잡에서 `cargo audit`(`.cargo/audit.toml` 공용). `release.yml`이 `anchore/sbom-action`으로 SPDX SBOM(`zbacs-sbom.spdx.json`)을 설치 파일 옆에 올린다. `npm audit`은 대상이 스파이크(`spikes/aa-passkey`, 배포물 아님·CI 제외)뿐이라 생략) |
 
 ### 1.8 Docs (D)
 | ID | 태스크 | DoD |
 |---|---|---|
-| Z-1.D.1 | 사용자 가이드(봉인·열람·승인) | docs/user_guide.md |
-| Z-1.D.2 | ADR 갱신, API 문서(`cargo doc`) | 링크 정상 |
+| Z-1.D.1 ✅ | 사용자 가이드(봉인·열람·승인) | docs/user_guide.md (2026-09-29: 테스트 참가자용 — 설치·처음 켜기·잠그기·물어보기·열기·편집 저장·허락·거두기·기록·문제 화면 표·이 버전의 한계·보내 줄 것. `ui_strings.md` 어휘만 사용, 금지 용어 0. `release-notes.md`도 현재 기능으로 갱신) |
+| Z-1.D.2 ✅ | ADR 갱신, API 문서(`cargo doc`) | 링크 정상 (ADR-0001~0008 색인 최신, `RUSTDOCFLAGS=-D warnings cargo doc` 게이트가 CI `rust` 잡, `docs` 잡이 상대 링크 검사) |
 
 **Phase 1 종료 기준**: project_definition §10 MVP DoD 5항목 + ux_principles.md UX DoD U-1~U-6 충족.
 
@@ -186,9 +186,9 @@ Phase 1 전체(59태스크) 중 **24 완료, 10 진행중(◐), 25 미착수**. 
 | `Z-1.S.2` EV 코드 서명 | 조직 명의·비용이 필요. 개인 프로젝트 방침상 보류(SmartScreen 경고는 베타에서 감수) |
 | `Z-1.H.8` 스마트계정 경로 실전, `Z-1.P.1/P.2` 모바일 승인 | 데스크톱 승인(G.10)이 베타를 커버한다. H.8 코드는 완료(2026-09-28); Anvil·직접 키 경로로 베타 가능, 스마트계정 경로는 테스트넷 배포·H.11·H.9 뒤 |
 | `Z-1.H.9` 페이마스터 | 코드 완료(2026-09-28). 로컬 Anvil이나 테스트넷 faucet으로 베타 가능. "가스를 모르는 사용자" 목표에는 사용자의 Pimlico 키·정책만 남음 |
-| `Z-1.H.5/H.6` Slither·AI 감사, `Z-1.Q.3/Q.4` | 품질 게이트. 베타 참가자에게 보이지 않는다 |
+| `Z-1.H.6` AI 감사 | 품질 게이트. 베타 참가자에게 보이지 않는다. H.5·Q.3·Q.4는 2026-09-29 완료 |
 | `Z-1.U.6` 사용성 테스트 | 베타 그 자체가 이 테스트다 |
-| `Z-1.D.1/D.2` 문서 | 베타 직전에 |
+| ~~`Z-1.D.1/D.2` 문서~~ | 2026-09-29 완료 (`docs/user_guide.md`) |
 
 **속도 근거**: Phase 1의 완료 태스크가 2026-09-19~21 사이 세션에서 나왔다(커밋 47). 남은 베타 코드 10태스크는 같은 밀도로 **2~3 세션 분량**이다. 다만 위 Windows 확인이 끝나기 전에는 "베타 가능"은 검사된 사실이 아니라 주장이다.
 

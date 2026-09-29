@@ -92,6 +92,15 @@ jobs:
           done
           forge test -vvv
           forge coverage --ir-minimum --no-match-coverage script --report summary
+      # Z-1.H.5: static analysis. Medium and above fails the build; timestamp/naming/pragma
+      # findings are excluded on purpose (we use block.timestamp for windows, T15, and pin solc).
+      - name: slither (Z-1.H.5)
+        if: steps.present.outputs.yes == 'true'
+        uses: crytic/slither-action@v0.4.1
+        with:
+          target: contracts
+          slither-config: contracts/slither.config.json
+          fail-on: medium
       - name: chain integration (zbacs-chain against Anvil)
         # the step id is `present`; `steps.contracts` was empty, so this never ran
         if: steps.present.outputs.yes == 'true'
@@ -143,6 +152,13 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets --locked ${{ steps.feat.outputs.flags }}
       - run: cargo test --locked ${{ steps.feat.outputs.flags }}
+      # Z-1.Q.4: the Agent has its own lockfile (it is outside the root workspace), so the root
+      # job's audit does not see it. Same advisory DB, same allow-list (.cargo/audit.toml).
+      - uses: taiki-e/install-action@cargo-audit
+        if: matrix.os == 'ubuntu-latest'
+      - name: audit (agent lockfile)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo audit
 
   relay-image:
     name: relay docker image
@@ -176,6 +192,8 @@ jobs:
       # U-5 (no forbidden vocabulary), U-6 (no text input), rule 8 (tokens only), and the
       # UI's ids match its markup. See docs/design/ui_strings.md.
       - run: tools/ux-lint.sh
+      # Z-1.Q.3: every threat T01..T23 has a test that names it (docs/threat_model.md).
+      - run: tools/threat-map.sh
 
   node:
     name: node

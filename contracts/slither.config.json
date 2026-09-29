@@ -1,0 +1,7 @@
+{
+  "filter_paths": "lib/|test/|script/",
+  "exclude_dependencies": true,
+  "exclude_informational": true,
+  "exclude_low": true,
+  "detectors_to_exclude": "timestamp,solc-version,pragma,naming-convention"
+}
