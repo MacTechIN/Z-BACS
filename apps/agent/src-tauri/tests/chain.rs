@@ -17,7 +17,6 @@ use tokio::net::TcpListener;
 use zbacs_agent_lib::approve::{answer, next_requests_on, revoke_now, Answering, DecisionArg};
 use zbacs_agent_lib::audit::{AuditLog, Kind, Source};
 use zbacs_agent_lib::chain::{ChainLink, Mode, WriterSetup};
-use zbacs_chain::{Call, ChainWriter, Write};
 use zbacs_agent_lib::ledger::{Entry, Ledger};
 use zbacs_agent_lib::open::{close, materialise, save};
 use zbacs_agent_lib::request::{
@@ -31,6 +30,7 @@ use zbacs_auth::setup::{ApprovalStyle, Prepared};
 use zbacs_auth::store::{KeyStore, MemoryKeyStore};
 use zbacs_auth::{Confirmation, ConfirmationPolicy};
 use zbacs_chain::dev::{anvil_present, DevChain};
+use zbacs_chain::{Call, ChainWriter, Write};
 use zbacs_core::Permission;
 use zbacs_proto::{device_key_hash, DeviceIdentity};
 use zbacs_relay::{router, Relay};
@@ -405,9 +405,10 @@ async fn a_passkey_device_queues_version_bumps_behind_the_next_tap() {
         audit: zbacs_chain::Address::repeat_byte(3),
         p256_validator: None,
     };
-    let link = ChainLink::with_writer("http://127.0.0.1:1", deployment, mock.clone(), Mode::SmartAccount, true)
-        .await
-        .unwrap();
+    let link =
+        ChainLink::with_writer("http://127.0.0.1:1", deployment, mock.clone(), Mode::SmartAccount, true)
+            .await
+            .unwrap();
     assert!(link.defers_silent_writes());
 
     // two saves of the same file: only the newest version needs to land

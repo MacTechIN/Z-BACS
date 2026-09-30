@@ -1422,3 +1422,8 @@ Phase 1의 품질 게이트·문서 태스크 5개를 끝내고 커밋·푸시�
 
 사용자 차례는 그대로입니다: Windows 실기 확인(`docs/windows_checklist.md`), Relay 호스팅 주소(`ZBACS_RELAY_URL` 변수), 테스트넷 배포 키·faucet, Pimlico 키 회전·정책.
 ```
+
+### #55 [U] 2026-09-30
+```
+개발 상황
+```

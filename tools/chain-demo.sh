@@ -31,12 +31,22 @@ echo "== chain id: $(cast chain-id --rpc-url "$RPC")   block before: $(cast bloc
 
 cd "$ROOT/contracts"
 echo "== deploying (proxies + timelock, Z-1.H.4) — writes deployments/31337.json"
-forge script script/Deploy.s.sol --rpc-url "$RPC" --broadcast --private-key \
-  0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 2>&1 \
-  | awk '/== Logs ==/{f=1; next} /## Setting up/{f=0} f' | sed 's/^/  /'
-
-forge script script/Demo.s.sol --rpc-url "$RPC" --broadcast -vv 2>&1 \
-  | awk '/== Logs ==/{f=1; next} /## Setting up/{f=0} /ONCHAIN EXECUTION COMPLETE/{print "  (all transactions mined)"} f'
+# Only the script's own log lines are shown; a failure shows forge's whole output so the
+# cause is never hidden behind the filter (CI found this the hard way).
+run_script() {
+  local out
+  out="$(mktemp)"
+  if ! forge script "$@" --rpc-url "$RPC" --broadcast >"$out" 2>&1; then
+    echo "!! forge script $1 failed:" >&2
+    cat "$out" >&2
+    rm -f "$out"
+    exit 1
+  fi
+  awk '/== Logs ==/{f=1; next} /## Setting up/{f=0} /ONCHAIN EXECUTION COMPLETE/{print "  (all transactions mined)"} f' "$out" | sed 's/^/  /'
+  rm -f "$out"
+}
+run_script script/Deploy.s.sol --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+run_script script/Demo.s.sol -vv
 
 POLICY=$(jq -r .policy out/demo.json)
 AUDIT=$(jq -r .audit out/demo.json)

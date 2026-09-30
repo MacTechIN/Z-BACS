@@ -47,6 +47,7 @@ fuzz_target!(|b: Body| {
         ver: b.ver,
         prev: b.prev.map(HeaderHash),
         own: b.own,
+        opub: None,
         pol: Policy { default: def, ttl: b.ttl, max: b.max, pin: b.pin, strict: b.strict },
         cipher: b.cipher,
         chunk: b.chunk,
