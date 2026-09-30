@@ -1427,3 +1427,27 @@ Phase 1의 품질 게이트·문서 태스크 5개를 끝내고 커밋·푸시�
 ```
 개발 상황
 ```
+
+### #55 [C] 2026-09-30
+```
+**전체 위치**: Phase 1(MVP) 코드는 끝났습니다. 베타에 필요한 코드 태스크 0개, 베타에 필요 없는 코드 태스크 3개(H.6 AI 감사, G.13 자동 업데이트, R.3/P 모바일 푸시)만 남았고, 나머지는 전부 사용자만 할 수 있는 값·확인입니다. dev_plan 기준 ✅ 59, ◐ 17(◐는 대부분 "코드 완료, Windows 실기 확인 대기").
+
+**최근 3일에 한 것**
+- 09-28: Z-1.H.8 b(체인 쓰기 Agent 배선, ADR-0008 한 탭 = 한 서명, Anvil E2E), H.11(설치 파일에 Relay·체인·배포 주소 내장), H.9(페이마스터 정책·번들러 장애 조치), 패스키 기기 `bumpVersion` 배치.
+- 09-29: D.1 사용자 가이드, H.5 Foundry 불변식 4종 + Slither CI, Q.3 위협 매핑 검사 스크립트, Q.4 Agent 락파일 감사 + 릴리스 SBOM, D.2.
+- 09-30(오늘): 어제 커밋의 CI가 빨갰던 것 셋을 고쳤습니다 — ① Slither 액션이 같은 체크아웃에서 `forge clean`을 해서 뒤따르는 배포 워크스루가 깨짐 → Slither를 별도 잡으로 분리, chain-demo가 forge 오류를 숨기지 않게 수정 ② Agent 테스트 파일 rustfmt 누락 ③ 야간 퍼징 `header_signed` 타깃이 ADR-0007의 `opub` 필드 추가 뒤 빌드 안 됨(퍼즈 크레이트는 워크스페이스 밖이라 놓침) → 수정. 재실행 CI **전부 초록**(agent·rust 양 OS, slither, foundry, relay 이미지, ux, docs, node, 보안 감사). 퍼징은 수동으로 돌려 놓았고 `header_signed`가 빌드를 통과해 실행 중입니다(20분 타깃 4개).
+
+**현재 게이트 상태**: forge 70 tests(불변식 포함)·Slither 0건·Agent 전체 테스트(Anvil 체인 E2E 3종 포함)·루트 워크스페이스 fmt/clippy/doc·ux-lint·threat-map(T01~T23)·cargo audit(락파일 2개, 취약점 0)·문서 링크 검사.
+
+**막힌 것 = 사용자 차례** (코드로는 더 진행할 수 없음)
+1. **Windows 실기 확인** — 가장 큰 일정 리스크. `docs/windows_checklist.md` §0-A(설치 파일은 Actions `release` 아티팩트), §1 `zbacs-wincheck.exe`, §3.5 첫 실행, §3.6 잠그기, §3.7~3.12 요청·허락·거두기·기록·알림·열기. ◐ 8개가 여기에 걸려 있습니다.
+2. **Relay 호스팅** — 계정 하나 결정(`docs/relay_selfhost.md` §5). 주소가 나오면 저장소 변수 `ZBACS_RELAY_URL` 넣고 `gh workflow run release.yml` — 코드 변경 없음.
+3. **Base Sepolia 배포** — 배포 키·faucet으로 `Deploy.s.sol` 실행 → `contracts/deployments/84532.json` 커밋 + 변수 `ZBACS_CHAIN_ID`, `ZBACS_CHAIN_RPC`.
+4. **Pimlico** — 노출됐던 테스트 키 회전, 스폰서 정책을 우리 컨트랙트 호출로 제한, 시크릿 `ZBACS_BUNDLER_URL` + 변수 `ZBACS_PAYMASTER_POLICY`(`docs/credentials.md` §3.1).
+
+**남은 위험 두 가지**
+- 스마트계정 경로(Kernel UserOp·배치)는 로컬에 Kernel이 없어 모의 번들러와 스파이크 벡터로만 검증했습니다. 3·4가 들어오면 첫 실제 UserOp를 같이 봐야 합니다.
+- Windows Hello·TPM·토스트·파일 연결은 크로스컴파일과 Windows CI 빌드까지만 확인됐고, 실제 동작은 1에서 처음 확인됩니다.
+
+제가 지금 할 수 있는 다음 일은 베타 비필수 셋(H.6·G.13·R.3) 중 하나이거나, 1~4가 들어온 뒤의 후속(테스트넷 첫 UserOp 확인, 실기 확인에서 나온 버그)입니다.
+```
